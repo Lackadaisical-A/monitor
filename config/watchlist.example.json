@@ -1,0 +1,20 @@
+[
+  {
+    "ticker": "MRNA",
+    "company": "Moderna",
+    "aliases": ["Moderna, Inc.", "$MRNA"],
+    "cik": "0001682852",
+    "marketCapBand": "large",
+    "xAccounts": ["moderna_tx"],
+    "programs": ["mRNA-1010", "mRNA-4157"]
+  },
+  {
+    "ticker": "CRSP",
+    "company": "CRISPR Therapeutics",
+    "aliases": ["CRISPR Therapeutics AG", "$CRSP"],
+    "cik": "0001674416",
+    "marketCapBand": "mid",
+    "xAccounts": [],
+    "programs": ["CTX112", "CTX131"]
+  }
+]

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#08110f" />
+    <title>Catalyst Watch · Biotech Signal Monitor</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="Catalyst Watch home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><path d="M8 5v7.5c0 2.8 2.2 5 5 5h6c2.8 0 5 2.2 5 5V27M24 5v5c0 2.8-2.2 5-5 5h-6c-2.8 0-5 2.2-5 5v7"/><path d="M6 9h5M21 9h5M6 23h5M21 23h5"/></svg>
+          </span>
+          <span>Catalyst <em>Watch</em></span>
+        </a>
+
+        <nav class="nav" aria-label="Primary">
+          <a class="nav-item active" href="#signals">
+            <span class="nav-dot"></span> Signal stream
+          </a>
+          <a class="nav-item" href="#sources">
+            <span class="nav-dot"></span> Source health
+          </a>
+          <a class="nav-item" href="#methodology">
+            <span class="nav-dot"></span> Alert gate
+          </a>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="mode-card">
+            <div class="eyebrow">Analysis mode</div>
+            <div id="analysis-mode" class="mode-value">Connecting…</div>
+            <div id="model-name" class="mode-model"></div>
+          </div>
+          <div class="safety-copy">Probabilistic research support.<br />Never a trading instruction.</div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">Live intelligence</div>
+            <h1>Clinical catalyst radar</h1>
+          </div>
+          <div class="topbar-actions">
+            <div id="connection" class="connection"><span></span> Connecting</div>
+            <button id="scan-button" class="scan-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6"/></svg>
+              Scan now
+            </button>
+          </div>
+        </header>
+
+        <section class="notice" aria-label="Important disclaimer">
+          <div class="notice-icon">!</div>
+          <div>
+            <strong>No alert means “definitely positive.”</strong>
+            Scores are conditional estimates built from available evidence. Always open and verify the primary source.
+          </div>
+        </section>
+
+        <section class="metric-grid" aria-label="Monitor summary">
+          <article class="metric-card accent">
+            <span class="metric-label">Urgent signals</span>
+            <strong id="urgent-count">—</strong>
+            <span class="metric-note">Passed every evidence gate</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Analyzed</span>
+            <strong id="analyzed-count">—</strong>
+            <span class="metric-note">Catalyst candidates</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Sources</span>
+            <strong id="source-count">—</strong>
+            <span class="metric-note">APIs, registries & feeds</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Phone link</span>
+            <strong id="device-count">—</strong>
+            <span id="device-note" class="metric-note">Active APNs devices</span>
+          </article>
+        </section>
+
+        <section id="signals" class="panel stream-panel">
+          <div class="panel-header">
+            <div>
+              <div class="eyebrow">Evidence-ranked</div>
+              <h2>Signal stream</h2>
+            </div>
+            <div class="filter-row" role="group" aria-label="Filter signals">
+              <button class="filter active" data-filter="all" type="button">All</button>
+              <button class="filter" data-filter="urgent" type="button">Urgent</button>
+              <button class="filter" data-filter="high" type="button">High</button>
+              <button class="filter" data-filter="watch" type="button">Watch</button>
+            </div>
+          </div>
+          <div id="signal-list" class="signal-list" aria-live="polite">
+            <div class="empty-state"><div class="loader"></div><p>Loading signals…</p></div>
+          </div>
+        </section>
+
+        <div class="lower-grid">
+          <section id="sources" class="panel">
+            <div class="panel-header compact">
+              <div>
+                <div class="eyebrow">Ingestion</div>
+                <h2>Source health</h2>
+              </div>
+            </div>
+            <div id="source-list" class="source-list"></div>
+          </section>
+
+          <section id="methodology" class="panel gate-panel">
+            <div class="panel-header compact">
+              <div>
+                <div class="eyebrow">Deterministic controls</div>
+                <h2>Urgent alert gate</h2>
+              </div>
+            </div>
+            <ol class="gate-list">
+              <li><span>01</span><div><strong>Material event</strong><p>New top-line result or regulatory decision.</p></div></li>
+              <li><span>02</span><div><strong>Evidence quality</strong><p>Primary source or independent corroboration.</p></div></li>
+              <li><span>03</span><div><strong>Clinical strength</strong><p>Endpoint, statistics, and safety all checked.</p></div></li>
+              <li><span>04</span><div><strong>Positive scenario</strong><p>High confidence and probability, never certainty.</p></div></li>
+            </ol>
+            <div id="thresholds" class="thresholds"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="signal-dialog" class="signal-dialog">
+      <button id="dialog-close" class="dialog-close" aria-label="Close details">×</button>
+      <div id="dialog-content"></div>
+    </dialog>
+
+    <div id="auth-overlay" class="auth-overlay hidden">
+      <form id="auth-form" class="auth-card">
+        <span class="brand-mark large" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M8 5v7.5c0 2.8 2.2 5 5 5h6c2.8 0 5 2.2 5 5V27M24 5v5c0 2.8-2.2 5-5 5h-6c-2.8 0-5 2.2-5 5v7"/><path d="M6 9h5M21 9h5M6 23h5M21 23h5"/></svg>
+        </span>
+        <div class="eyebrow">Private monitor</div>
+        <h2>Connect to Catalyst Watch</h2>
+        <p>Enter the dashboard token configured on your server. It stays in this browser tab.</p>
+        <label for="token-input">Dashboard token</label>
+        <input id="token-input" type="password" autocomplete="current-password" required />
+        <button type="submit" class="scan-button full">Connect</button>
+        <div id="auth-error" class="auth-error"></div>
+      </form>
+    </div>
+
+    <div id="toast" class="toast" role="status"></div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

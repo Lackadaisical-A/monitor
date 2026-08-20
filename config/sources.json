@@ -1,0 +1,34 @@
+[
+  {
+    "id": "fierce-biotech",
+    "name": "Fierce Biotech",
+    "type": "rss",
+    "tier": "secondary",
+    "url": "https://www.fiercebiotech.com/rss/xml",
+    "enabled": true
+  },
+  {
+    "id": "stat-biotech",
+    "name": "STAT Biotech",
+    "type": "rss",
+    "tier": "secondary",
+    "url": "https://www.statnews.com/category/biotech/feed",
+    "enabled": true
+  },
+  {
+    "id": "biospace-drug-development",
+    "name": "BioSpace Drug Development",
+    "type": "rss",
+    "tier": "secondary",
+    "url": "https://www.biospace.com/drug-development.rss",
+    "enabled": true
+  },
+  {
+    "id": "biospace-fda",
+    "name": "BioSpace FDA",
+    "type": "rss",
+    "tier": "secondary",
+    "url": "https://www.biospace.com/FDA.rss",
+    "enabled": true
+  }
+]

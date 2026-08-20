@@ -1,0 +1,21 @@
+services:
+  monitor:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - monitor-data:/app/data
+      - ./config:/app/config:ro
+      # Uncomment and update after creating an APNs .p8 key:
+      # - ./secrets/AuthKey_XXXXXXXXXX.p8:/run/secrets/apns.p8:ro
+    environment:
+      HOST: 0.0.0.0
+      DATABASE_PATH: /app/data/biotech-signal.db
+      SOURCES_FILE: /app/config/sources.json
+      WATCHLIST_FILE: /app/config/watchlist.json
+      # APNS_PRIVATE_KEY_PATH: /run/secrets/apns.p8
+
+volumes:
+  monitor-data:

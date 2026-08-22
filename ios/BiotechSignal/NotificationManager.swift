@@ -20,7 +20,7 @@ final class NotificationManager {
     private init() {}
 
     func requestAuthorization() async throws -> NotificationAuthorizationSnapshot {
-        var options: UNAuthorizationOptions = [.alert, .badge, .sound, .timeSensitive]
+        var options: UNAuthorizationOptions = [.alert, .badge, .sound]
         if criticalFeatureEnabled { options.insert(.criticalAlert) }
         _ = try await UNUserNotificationCenter.current().requestAuthorization(options: options)
         await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }

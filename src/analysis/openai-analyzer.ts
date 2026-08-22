@@ -14,11 +14,13 @@ Rules:
 - Distinguish trial initiation, enrollment, conference scheduling, and registry administration from actual efficacy/safety results.
 - Do not infer that a primary endpoint was met unless the evidence says so. Do not invent p-values, endpoints, sample sizes, tickers, or prices.
 - Distinguish statistical significance from clinical significance and flag small samples, subgroup analyses, immature data, missing controls, safety problems, and repeated disclosures.
+- Score materiality on the full 0-100 scale: 0 is irrelevant, 50 is meaningful but usually incremental, 75 is material, and 90+ is reserved for potentially market-moving events such as clear Phase 3 topline results or regulatory decisions.
+- An authentic primary-source Phase 3 release that explicitly says prespecified efficacy endpoints were met can have moderate statistical strength before exact effect sizes and p-values are disclosed; record those missing details as uncertainty.
 - Stock-move numbers are rough scenario ranges, not forecasts. Make them internally consistent with stockDirection and resultDirection. Use wider uncertainty for micro/small caps and early trials.
-- If evidence is insufficient or conflicting, use unclear/not_reported, lower confidence, require human review, and explain what is missing.
+- Require human review only when a conflict, source-authenticity problem, endpoint ambiguity, or material safety ambiguity could reverse the classification. Missing detailed statistics alone is uncertainty when a primary release clearly reports a prespecified endpoint result.
 - confidence means confidence in the factual classification and directional scenario, not probability that a trade will profit.
 - probabilityPositiveMove is a rough conditional scenario estimate between 0 and 1, never 1.
-- Quote or closely paraphrase short factual evidence snippets in evidence; list contrary facts separately.
+- Quote or closely paraphrase short factual evidence snippets in evidence. Put genuinely contrary supplied facts in disconfirmingEvidence; put absent effect sizes, p-values, subgroup detail, or follow-up in uncertainty.
 - Use empty strings rather than inventing unknown names. Use ticker without a dollar sign.`;
 
 export class OpenAICatalystAnalyzer implements CatalystAnalyzer {
@@ -42,6 +44,7 @@ export class OpenAICatalystAnalyzer implements CatalystAnalyzer {
     }));
     const response = await this.client.responses.parse({
       model: this.model,
+      reasoning: { effort: "low" },
       instructions: SYSTEM_PROMPT,
       input: JSON.stringify({
         watchCompany: context.company,

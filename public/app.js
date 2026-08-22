@@ -5,6 +5,12 @@ const state = {
   filter: "all",
 };
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+  });
+}
+
 const elements = {
   overlay: document.querySelector("#auth-overlay"),
   authForm: document.querySelector("#auth-form"),
@@ -59,6 +65,15 @@ document.querySelectorAll(".filter").forEach((button) => {
 elements.signalList.addEventListener("click", (event) => {
   const row = event.target.closest("[data-signal-id]");
   if (!row) return;
+  const entry = state.entries.find((candidate) => candidate.item.id === row.dataset.signalId);
+  if (entry) openSignal(entry);
+});
+
+elements.signalList.addEventListener("keydown", (event) => {
+  if (!["Enter", " "].includes(event.key)) return;
+  const row = event.target.closest("[data-signal-id]");
+  if (!row) return;
+  event.preventDefault();
   const entry = state.entries.find((candidate) => candidate.item.id === row.dataset.signalId);
   if (entry) openSignal(entry);
 });

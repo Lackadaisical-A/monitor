@@ -15,6 +15,10 @@ struct ContentView: View {
             NavigationStack { SignalDetailView(entry: entry) }
                 .presentationDetents([.large])
         }
+        .sheet(isPresented: $store.showingPaywall) {
+            SubscriptionView()
+                .environmentObject(store)
+        }
     }
 }
 
@@ -26,18 +30,33 @@ private struct SignalFeedView: View {
             Color.catalystBackground.ignoresSafeArea()
             ScrollView {
                 LazyVStack(spacing: 14) {
+                    if !store.access.pro {
+                        FreePlanBar()
+                    }
                     DisclaimerCard()
+                    if store.scanInProgress {
+                        ScanProgressCard()
+                    } else if let summary = store.lastScanSummary {
+                        ScanSummaryCard(summary: summary)
+                    }
+                    if let error = store.lastError, store.connection != .notConfigured {
+                        EmptyMonitorCard(
+                            icon: "wifi.slash",
+                            title: "Connection problem",
+                            message: error
+                        )
+                    }
                     if store.settings.isComplete == false {
                         EmptyMonitorCard(
                             icon: "link.badge.plus",
                             title: "Connect your monitor",
-                            body: "Add the server URL and pairing token in Settings."
+                            message: "Add the server URL in Settings."
                         )
                     } else if store.entries.isEmpty {
                         EmptyMonitorCard(
                             icon: "scope",
                             title: "No signals yet",
-                            body: "The server is watching for evidence that matches your company watchlist."
+                            message: "The server is watching for evidence that matches your company watchlist."
                         )
                     } else {
                         ForEach(store.entries) { entry in
@@ -52,10 +71,90 @@ private struct SignalFeedView: View {
         }
         .navigationTitle("Catalyst Watch")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarLeading) {
+                Button {
+                    Task { await store.refresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .accessibilityLabel("Refresh")
+
+                Button {
+                    Task { await store.runScan() }
+                } label: {
+                    if store.scanInProgress {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: store.access.pro ? "dot.radiowaves.left.and.right" : "lock")
+                    }
+                }
+                .disabled(store.scanInProgress || !store.settings.isComplete)
+                .accessibilityLabel("Run scan")
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    if !store.access.pro { store.showingPaywall = true }
+                } label: {
+                    Image(systemName: store.access.pro ? "checkmark.seal.fill" : "sparkles")
+                }
+                .disabled(store.access.pro)
+                .accessibilityLabel(store.access.pro ? "Pro active" : "View Pro plans")
                 ConnectionPill(state: store.connection)
             }
         }
+    }
+}
+
+private struct FreePlanBar: View {
+    @EnvironmentObject private var store: MonitorStore
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "clock.badge")
+                .foregroundStyle(Color.catalystAmber)
+            Text("Free · \(store.status?.configuration.freeFeedDelayMinutes ?? 30)-minute delay")
+                .font(.caption.weight(.semibold))
+            Spacer()
+            Button("Upgrade") { store.showingPaywall = true }
+                .font(.caption.bold())
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 42)
+        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct ScanProgressCard: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView().tint(Color.catalystGreen)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Scanning sources").font(.caption.bold())
+                Text("The server is checking the configured news feeds now.").font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct ScanSummaryCard: View {
+    let summary: ScanResponse
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Metric(label: "Fetched", value: "\(summary.fetchedCount)")
+            Metric(label: "New", value: "\(summary.insertedCount)")
+            Metric(label: "Analyzed", value: "\(summary.analyzedCount)")
+            Spacer()
+            Text(summary.alreadyRunning ? "Running" : relativeDate(summary.finishedAt))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.07)))
     }
 }
 
@@ -68,8 +167,8 @@ private struct DisclaimerCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.catalystAmber.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.catalystAmber.opacity(0.18)))
+        .background(Color.catalystAmber.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.catalystAmber.opacity(0.18)))
     }
 }
 
@@ -106,8 +205,8 @@ private struct SignalCard: View {
             .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(16)
-        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.07)))
+        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.07)))
     }
 }
 
@@ -150,15 +249,15 @@ private struct SignalDetailView: View {
 }
 
 private struct EmptyMonitorCard: View {
-    let icon: String; let title: String; let body: String
+    let icon: String; let title: String; let message: String
     var body: some View {
         VStack(spacing: 13) {
             Image(systemName: icon).font(.system(size: 28)).foregroundStyle(Color.catalystGreen)
             Text(title).font(.headline)
-            Text(body).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text(message).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 44).padding(.horizontal, 20)
-        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 18))
+        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -179,7 +278,7 @@ private struct Metric: View {
 
 private struct DetailScore: View {
     let label: String; let value: String
-    var body: some View { VStack(alignment: .leading, spacing: 5) { Text(label.uppercased()).font(.system(size: 8, weight: .bold)).tracking(1).foregroundStyle(.secondary); Text(value).font(.headline) }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 12)) }
+    var body: some View { VStack(alignment: .leading, spacing: 5) { Text(label.uppercased()).font(.system(size: 8, weight: .bold)).tracking(1).foregroundStyle(.secondary); Text(value).font(.headline) }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8)) }
 }
 
 private struct DetailSection: View {
@@ -205,7 +304,7 @@ private struct ConnectionPill: View {
 
 private func tierColor(_ tier: String) -> Color { switch tier { case "urgent": .catalystGreen; case "high": .catalystAmber; case "watch": .blue; default: .secondary } }
 private func directionColor(_ direction: String) -> Color { direction == "bullish" ? .catalystGreen : direction == "bearish" ? .red : .secondary }
-private func sourceIcon(_ type: String) -> String { switch type { case "sec": "building.columns"; case "clinical_trials": "cross.case"; case "x": "bubble.left"; case "reddit": "person.3"; default: "newspaper" } }
+private func sourceIcon(_ type: String) -> String { switch type { case "regulator": "checkmark.seal"; case "sec": "building.columns"; case "clinical_trials": "cross.case"; case "x": "bubble.left"; case "reddit": "person.3"; default: "newspaper" } }
 private func signed(_ value: Double) -> String { String(format: "%@%.0f%%", value > 0 ? "+" : "", value) }
 private func relativeDate(_ value: String) -> String {
     let fractional = ISO8601DateFormatter()

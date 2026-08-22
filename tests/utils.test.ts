@@ -32,6 +32,32 @@ describe("normalization utilities", () => {
     expect(findWatchCompany("Editors report data", watchlist)).toBeNull();
   });
 
+  it("requires explicit market context for ambiguous short tickers", () => {
+    const watchlist = [{
+      ticker: "RNA",
+      company: "Avidity Biosciences",
+      aliases: ["$RNA"],
+      marketCapBand: "mid" as const,
+      xAccounts: [],
+      programs: [],
+    }];
+    expect(findWatchCompany("The study measured RNA expression", watchlist)).toBeNull();
+    expect(findWatchCompany("Avidity Biosciences (NASDAQ: RNA) reports data", watchlist)?.ticker).toBe("RNA");
+  });
+
+  it("matches an uppercase four-character ticker but not an ordinary lowercase word", () => {
+    const watchlist = [{
+      ticker: "EDIT",
+      company: "Editas Medicine",
+      aliases: [],
+      marketCapBand: "small" as const,
+      xAccounts: [],
+      programs: [],
+    }];
+    expect(findWatchCompany("EDIT reports Phase 2 data", watchlist)?.ticker).toBe("EDIT");
+    expect(findWatchCompany("Researchers edit immune cells", watchlist)).toBeNull();
+  });
+
   it("scores near-duplicate catalyst headlines above unrelated headlines", () => {
     const related = jaccardSimilarity(
       "Acme reports positive Phase 3 trial results in melanoma",

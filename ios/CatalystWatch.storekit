@@ -1,0 +1,139 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "C47A1A01",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "C47A1A02",
+      "localizations" : [
+
+      ],
+      "name" : "Catalyst Watch Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "9.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "C47A1A03",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Real-time signals, Time Sensitive alerts, and manual scans.",
+              "displayName" : "Catalyst Watch Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.yingcui.CatalystWatch.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Catalyst Watch Pro Monthly",
+          "subscriptionGroupID" : "C47A1A02",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "79.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "C47A1A04",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Real-time signals, Time Sensitive alerts, and manual scans.",
+              "displayName" : "Catalyst Watch Pro Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.yingcui.CatalystWatch.pro.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Catalyst Watch Pro Annual",
+          "subscriptionGroupID" : "C47A1A02",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

@@ -52,6 +52,8 @@ export function stripHtml(value: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&apos;/gi, "'")
@@ -68,7 +70,7 @@ export function itemId(sourceId: string, externalId: string, url: string, headli
 export function findWatchCompany(text: string, watchlist: WatchCompany[]): WatchCompany | null {
   const haystack = ` ${text.toLowerCase()} `;
   for (const company of watchlist) {
-    const candidates = [company.company, company.ticker, `$${company.ticker}`, ...company.aliases, ...company.programs];
+    const candidates = [company.company, ...company.aliases, ...company.programs];
     if (candidates.some((candidate) => {
       const needle = candidate.trim().toLowerCase();
       if (!needle) return false;
@@ -76,7 +78,7 @@ export function findWatchCompany(text: string, watchlist: WatchCompany[]): Watch
         return new RegExp(`(?:^|[^a-z0-9])${escapeRegex(needle)}(?:$|[^a-z0-9])`, "i").test(text);
       }
       return haystack.includes(needle);
-    })) return company;
+    }) || tickerMatches(text, company.ticker)) return company;
   }
   return null;
 }
@@ -113,8 +115,44 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<Array<PromiseSettledResult<R>>> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(Math.floor(limit), items.length));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = { status: "fulfilled", value: await mapper(items[index]!, index) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tickerMatches(text: string, rawTicker: string): boolean {
+  const ticker = rawTicker.trim().toUpperCase();
+  if (!ticker) return false;
+  const escaped = escapeRegex(ticker);
+  const explicit = new RegExp(
+    `(?:\\$\\s*|(?:nasdaq|nyse(?: american)?|amex|otc|ticker)\\s*[:=]\\s*)${escaped}(?![a-z0-9])`,
+    "i",
+  );
+  if (explicit.test(text)) return true;
+  if (ticker.length < 4) return false;
+  return new RegExp(`(?:^|[^A-Z0-9])${escaped}(?:$|[^A-Z0-9])`).test(text);
 }
 
 function safeCodePoint(value: number): string {

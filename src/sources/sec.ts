@@ -1,5 +1,5 @@
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { canonicalUrl, itemId, stripHtml } from "../utils.js";
+import { canonicalUrl, itemId, mapWithConcurrency, stripHtml } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 interface SecSubmissions {
@@ -19,6 +19,8 @@ interface SecSubmissions {
 
 export class SecFilingsSource implements SourceAdapter {
   readonly descriptor = { id: "sec-edgar", name: "SEC EDGAR", type: "sec", tier: "primary" } as const;
+  private nextRequestAt = 0;
+  private rateGate: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly watchlist: WatchCompany[],
@@ -31,18 +33,32 @@ export class SecFilingsSource implements SourceAdapter {
       ? cursor
       : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const discoveredAt = new Date().toISOString();
-    const items: NormalizedItem[] = [];
+    const companies = this.watchlist.filter((entry) => entry.cik);
+    const results = await mapWithConcurrency(companies, 4, (company) => this.fetchCompany(company, since, discoveredAt));
+    const successful = results.filter((result): result is PromiseFulfilledResult<NormalizedItem[]> => result.status === "fulfilled");
+    if (companies.length > 0 && successful.length === 0) {
+      const firstFailure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+      throw firstFailure?.reason ?? new Error("SEC EDGAR returned no successful company responses");
+    }
+    const items = successful.flatMap((result) => result.value);
+    return {
+      items,
+      cursor: discoveredAt.slice(0, 10),
+      diagnostics: { companyCount: companies.length, failedCompanyCount: results.length - successful.length, since },
+    };
+  }
 
-    for (const company of this.watchlist.filter((entry) => entry.cik)) {
-      const cikPadded = company.cik!.padStart(10, "0");
-      const response = await fetchWithTimeout(`https://data.sec.gov/submissions/CIK${cikPadded}.json`, {
-        headers: { "User-Agent": this.userAgent, Accept: "application/json" },
-      }, this.timeoutMs);
-      const payload = await response.json() as SecSubmissions;
-      const recent = payload.filings?.recent;
-      if (!recent) continue;
-      const forms = recent.form ?? [];
-      for (let index = 0; index < forms.length; index += 1) {
+  private async fetchCompany(company: WatchCompany, since: string, discoveredAt: string): Promise<NormalizedItem[]> {
+    const items: NormalizedItem[] = [];
+    const cikPadded = company.cik!.padStart(10, "0");
+    const response = await this.fetchSec(`https://data.sec.gov/submissions/CIK${cikPadded}.json`, {
+      headers: { "User-Agent": this.userAgent, Accept: "application/json" },
+    });
+    const payload = await response.json() as SecSubmissions;
+    const recent = payload.filings?.recent;
+    if (!recent) return items;
+    const forms = recent.form ?? [];
+    for (let index = 0; index < forms.length; index += 1) {
         const form = forms[index];
         const filingDate = recent.filingDate?.[index];
         const accession = recent.accessionNumber?.[index];
@@ -54,9 +70,9 @@ export class SecFilingsSource implements SourceAdapter {
         const documentUrl = canonicalUrl(`https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${accessionCompact}/${primaryDocument}`);
         let filingText = "";
         try {
-          const documentResponse = await fetchWithTimeout(documentUrl, {
+          const documentResponse = await this.fetchSec(documentUrl, {
             headers: { "User-Agent": this.userAgent, Accept: "text/html, text/plain;q=0.9" },
-          }, this.timeoutMs);
+          });
           filingText = stripHtml(await documentResponse.text()).slice(0, 25_000);
         } catch (error) {
           filingText = `Primary filing document could not be fetched: ${error instanceof Error ? error.message : String(error)}`;
@@ -91,9 +107,23 @@ export class SecFilingsSource implements SourceAdapter {
             items: itemNumbers,
           },
         });
-      }
     }
-    return { items, cursor: discoveredAt.slice(0, 10), diagnostics: { companyCount: this.watchlist.filter((entry) => entry.cik).length, since } };
+    return items;
+  }
+
+  private async fetchSec(input: string, init: RequestInit): Promise<Response> {
+    let releaseGate!: () => void;
+    const previousGate = this.rateGate;
+    this.rateGate = new Promise<void>((resolve) => { releaseGate = resolve; });
+    await previousGate;
+    try {
+      const waitMs = Math.max(0, this.nextRequestAt - Date.now());
+      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+      this.nextRequestAt = Date.now() + 125;
+    } finally {
+      releaseGate();
+    }
+    return fetchWithTimeout(input, init, this.timeoutMs);
   }
 }
 

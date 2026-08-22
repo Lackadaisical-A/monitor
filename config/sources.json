@@ -1,5 +1,68 @@
 [
   {
+    "id": "moderna-investor-relations",
+    "name": "Moderna investor relations",
+    "type": "quote_media",
+    "sourceType": "company_ir",
+    "tier": "primary",
+    "symbol": "MRNA",
+    "enabled": true
+  },
+  {
+    "id": "fda-press-releases",
+    "name": "FDA press releases",
+    "type": "rss",
+    "sourceType": "regulator",
+    "tier": "primary",
+    "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml",
+    "enabled": true
+  },
+  {
+    "id": "fda-drugs",
+    "name": "FDA drug updates",
+    "type": "rss",
+    "sourceType": "regulator",
+    "tier": "primary",
+    "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/drugs/rss.xml",
+    "enabled": true
+  },
+  {
+    "id": "fda-biologics",
+    "name": "FDA biologics updates",
+    "type": "rss",
+    "sourceType": "regulator",
+    "tier": "primary",
+    "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/biologics/rss.xml",
+    "enabled": true
+  },
+  {
+    "id": "fda-medwatch",
+    "name": "FDA MedWatch safety alerts",
+    "type": "rss",
+    "sourceType": "regulator",
+    "tier": "primary",
+    "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/medwatch/rss.xml",
+    "enabled": true
+  },
+  {
+    "id": "globenewswire-biotechnology",
+    "name": "GlobeNewswire Biotechnology",
+    "type": "rss",
+    "sourceType": "outlet",
+    "tier": "secondary",
+    "url": "https://www.globenewswire.com/RssFeed/industry/4573-Biotechnology/feedTitle/GlobeNewswire%20-%20Industry%20News%20on%20Biotechnology",
+    "enabled": true
+  },
+  {
+    "id": "globenewswire-pharmaceuticals",
+    "name": "GlobeNewswire Pharmaceuticals",
+    "type": "rss",
+    "sourceType": "outlet",
+    "tier": "secondary",
+    "url": "https://www.globenewswire.com/RssFeed/industry/4577-Pharmaceuticals/feedTitle/GlobeNewswire%20-%20Industry%20News%20on%20Pharmaceuticals",
+    "enabled": true
+  },
+  {
     "id": "fierce-biotech",
     "name": "Fierce Biotech",
     "type": "rss",

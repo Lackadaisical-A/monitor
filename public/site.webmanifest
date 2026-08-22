@@ -1,0 +1,19 @@
+{
+  "name": "Catalyst Watch",
+  "short_name": "Catalyst",
+  "description": "Private biotech news monitor and alert dashboard.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07100e",
+  "theme_color": "#08110f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

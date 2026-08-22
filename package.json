@@ -13,11 +13,13 @@
     "start": "node dist/index.js",
     "scan": "tsx src/cli/scan.ts",
     "seed:demo": "tsx src/cli/seed-demo.ts",
+    "watchlist:refresh": "node scripts/refresh-watchlist.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0",
     "@fastify/static": "latest",
     "better-sqlite3": "latest",
     "dotenv": "latest",

@@ -14,6 +14,7 @@ import type {
   SourceType,
   StoreTransactionEntitlement,
 } from "./types.js";
+import type { AlertInput, SignalStore } from "./store.js";
 import { normalizedHeadline } from "./utils.js";
 
 interface ItemRow {
@@ -60,7 +61,7 @@ interface InstallationRow {
   updated_at: string;
 }
 
-export class SignalDatabase {
+export class SignalDatabase implements SignalStore {
   readonly sqlite: Database.Database;
 
   constructor(path: string) {
@@ -414,16 +415,7 @@ export class SignalDatabase {
     return Boolean(row);
   }
 
-  saveAlert(input: {
-    id: string;
-    itemId: string;
-    ticker: string;
-    eventType: string;
-    tier: AlertTier;
-    status: "sent" | "dry_run" | "failed" | "suppressed";
-    deviceToken?: string | null;
-    response?: unknown;
-  }): void {
+  saveAlert(input: AlertInput): void {
     this.sqlite.prepare(`
       INSERT INTO alerts (
         id, item_id, ticker, event_type, tier, status, device_token, response_json, sent_at

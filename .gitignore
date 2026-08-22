@@ -2,6 +2,7 @@ node_modules/
 dist/
 data/
 .env
+.secrets/
 *.log
 .DS_Store
 ios/**/xcuserdata/

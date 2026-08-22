@@ -12,8 +12,12 @@ struct BiotechSignalApp: App {
                 .preferredColorScheme(.dark)
                 .task { await store.start() }
                 .onOpenURL { url in
-                    guard url.scheme == "biotechsignal", url.host == "signal" else { return }
-                    store.openSignal(id: url.lastPathComponent)
+                    guard url.scheme == "catalystwatch" else { return }
+                    if url.host == "upgrade" {
+                        store.showingPaywall = true
+                    } else if url.host == "signal" {
+                        store.openSignal(id: url.lastPathComponent)
+                    }
                 }
         }
     }

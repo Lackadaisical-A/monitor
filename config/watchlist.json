@@ -1,1 +1,3187 @@
-[]
+[
+  {
+    "ticker": "MRNA",
+    "company": "Moderna",
+    "aliases": [
+      "$MRNA",
+      "MODERNA INC",
+      "Moderna, Inc.",
+      "ModernaTX"
+    ],
+    "cik": "0001682852",
+    "marketCapBand": "large",
+    "xAccounts": [
+      "moderna_tx"
+    ],
+    "programs": [
+      "intismeran autogene",
+      "V940",
+      "mRNA-4157",
+      "mRNA-1010",
+      "mRNA-1083",
+      "mRNA-1283",
+      "mRNA-1345",
+      "mRNA-1403",
+      "mRNA-1469",
+      "mRNA-1647",
+      "mRNA-3705",
+      "mRNA-3927",
+      "mFLUSIVA",
+      "mRESVIA",
+      "Spikevax"
+    ]
+  },
+  {
+    "ticker": "AMGN",
+    "company": "Amgen",
+    "aliases": [
+      "$AMGN",
+      "AMGEN INC"
+    ],
+    "cik": "0000318154",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "VRTX",
+    "company": "Vertex Pharmaceuticals",
+    "aliases": [
+      "$VRTX",
+      "VERTEX PHARMACEUTICALS INC / MA"
+    ],
+    "cik": "0000875320",
+    "marketCapBand": "large",
+    "xAccounts": [],
+    "programs": [
+      "CASGEVY",
+      "Alyftrek",
+      "Journavx"
+    ]
+  },
+  {
+    "ticker": "GILD",
+    "company": "Gilead Sciences",
+    "aliases": [
+      "$GILD",
+      "GILEAD SCIENCES INC",
+      "GILEAD SCIENCES, INC.",
+      "Gilead"
+    ],
+    "cik": "0000882095",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "REGN",
+    "company": "Regeneron Pharmaceuticals",
+    "aliases": [
+      "$REGN",
+      "REGENERON PHARMACEUTICALS, INC."
+    ],
+    "cik": "0000872589",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ARGX",
+    "company": "Argenx SE ADR",
+    "aliases": [
+      "$ARGX",
+      "ARGENX SE",
+      "Argenx"
+    ],
+    "cik": "0001697862",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NTRA",
+    "company": "Natera",
+    "aliases": [
+      "$NTRA",
+      "Natera, Inc."
+    ],
+    "cik": "0001604821",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RVMD",
+    "company": "Revolution Medicines",
+    "aliases": [
+      "$RVMD",
+      "Revolution Medicines, Inc."
+    ],
+    "cik": "0001628171",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ILMN",
+    "company": "Illumina Inc",
+    "aliases": [
+      "$ILMN",
+      "ILLUMINA, INC.",
+      "Illumina"
+    ],
+    "cik": "0001110803",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BIIB",
+    "company": "Biogen",
+    "aliases": [
+      "$BIIB",
+      "BIOGEN INC."
+    ],
+    "cik": "0000875045",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ALNY",
+    "company": "Alnylam Pharmaceuticals",
+    "aliases": [
+      "$ALNY",
+      "ALNYLAM PHARMACEUTICALS, INC."
+    ],
+    "cik": "0001178670",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ONC",
+    "company": "Beone Medicines AG",
+    "aliases": [
+      "$ONC",
+      "BeOne Medicines Ltd.",
+      "Beone Medicines"
+    ],
+    "cik": "0001651308",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "INSM",
+    "company": "Insmed",
+    "aliases": [
+      "$INSM",
+      "INSMED Inc"
+    ],
+    "cik": "0001104506",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "INCY",
+    "company": "Incyte Corp",
+    "aliases": [
+      "$INCY",
+      "Incyte"
+    ],
+    "cik": "0000879169",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "UTHR",
+    "company": "United Therapeutics",
+    "aliases": [
+      "$UTHR",
+      "UNITED THERAPEUTICS Corp"
+    ],
+    "cik": "0001082554",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ROIV",
+    "company": "Roivant Sciences Ltd",
+    "aliases": [
+      "$ROIV",
+      "Roivant Sciences Ltd.",
+      "Roivant"
+    ],
+    "cik": "0001635088",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GMAB",
+    "company": "Genmab Sponsored ADR",
+    "aliases": [
+      "$GMAB",
+      "GENMAB A/S",
+      "Genmab"
+    ],
+    "cik": "0001434265",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ASND",
+    "company": "Ascendis Pharma",
+    "aliases": [
+      "$ASND",
+      "Ascendis Pharma A/S"
+    ],
+    "cik": "0001612042",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NBIX",
+    "company": "Neurocrine Biosciences",
+    "aliases": [
+      "$NBIX",
+      "NEUROCRINE BIOSCIENCES INC"
+    ],
+    "cik": "0000914475",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BBIO",
+    "company": "Bridgebio Pharma",
+    "aliases": [
+      "$BBIO",
+      "BridgeBio Pharma, Inc."
+    ],
+    "cik": "0001743881",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MEDP",
+    "company": "Medpace Holdings",
+    "aliases": [
+      "$MEDP",
+      "Medpace Holdings, Inc."
+    ],
+    "cik": "0001668397",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CRL",
+    "company": "Charles River Laboratories Interna",
+    "aliases": [
+      "$CRL",
+      "CHARLES RIVER LABORATORIES INTERNATIONAL, INC."
+    ],
+    "cik": "0001100682",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "EXEL",
+    "company": "Exelixis Inc",
+    "aliases": [
+      "$EXEL",
+      "EXELIXIS, INC.",
+      "Exelixis"
+    ],
+    "cik": "0000939767",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BMRN",
+    "company": "Biomarin Pharmaceutical",
+    "aliases": [
+      "$BMRN",
+      "BIOMARIN PHARMACEUTICAL INC"
+    ],
+    "cik": "0001048477",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "HALO",
+    "company": "Halozyme Therapeutics",
+    "aliases": [
+      "$HALO",
+      "HALOZYME THERAPEUTICS, INC."
+    ],
+    "cik": "0001159036",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ARWR",
+    "company": "Arrowhead Pharmaceuticals",
+    "aliases": [
+      "$ARWR",
+      "ARROWHEAD PHARMACEUTICALS, INC."
+    ],
+    "cik": "0000879407",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TECH",
+    "company": "Bio Techne",
+    "aliases": [
+      "$TECH",
+      "BIO-TECHNE Corp"
+    ],
+    "cik": "0000842023",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MDGL",
+    "company": "Madrigal Pharmaceuticals",
+    "aliases": [
+      "$MDGL",
+      "MADRIGAL PHARMACEUTICALS, INC."
+    ],
+    "cik": "0001157601",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BNTX",
+    "company": "BioNTech",
+    "aliases": [
+      "$BNTX",
+      "BIONTECH SE ADR",
+      "BioNTech SE"
+    ],
+    "cik": "0001776985",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": [
+      "BNT122",
+      "autogene cevumeran"
+    ]
+  },
+  {
+    "ticker": "RGEN",
+    "company": "Repligen",
+    "aliases": [
+      "$RGEN",
+      "REPLIGEN CORP"
+    ],
+    "cik": "0000730272",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IONS",
+    "company": "Ionis Pharmaceuticals",
+    "aliases": [
+      "$IONS",
+      "IONIS PHARMACEUTICALS INC"
+    ],
+    "cik": "0000874015",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PRAX",
+    "company": "Praxis Precision Medicines",
+    "aliases": [
+      "$PRAX",
+      "Praxis Precision Medicines, Inc."
+    ],
+    "cik": "0001689548",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CYTK",
+    "company": "Cytokinetics",
+    "aliases": [
+      "$CYTK",
+      "CYTOKINETICS INC"
+    ],
+    "cik": "0001061983",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PTGX",
+    "company": "Protagonist Therapeutics",
+    "aliases": [
+      "$PTGX",
+      "Protagonist Therapeutics, Inc"
+    ],
+    "cik": "0001377121",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AXSM",
+    "company": "Axsome Therapeutics",
+    "aliases": [
+      "$AXSM",
+      "Axsome Therapeutics, Inc."
+    ],
+    "cik": "0001579428",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "KRYS",
+    "company": "Krystal Biotech",
+    "aliases": [
+      "$KRYS",
+      "Krystal Biotech, Inc."
+    ],
+    "cik": "0001711279",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "KYMR",
+    "company": "Kymera Therapeutics",
+    "aliases": [
+      "$KYMR",
+      "Kymera Therapeutics, Inc."
+    ],
+    "cik": "0001815442",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PCVX",
+    "company": "Vaxcyte",
+    "aliases": [
+      "$PCVX",
+      "Vaxcyte, Inc."
+    ],
+    "cik": "0001649094",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SYRE",
+    "company": "Spyre Therapeutics Inc",
+    "aliases": [
+      "$SYRE",
+      "Spyre Therapeutics, Inc.",
+      "Spyre"
+    ],
+    "cik": "0001636282",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CRNX",
+    "company": "Crinetics Pharmaceuticals",
+    "aliases": [
+      "$CRNX",
+      "Crinetics Pharmaceuticals, Inc."
+    ],
+    "cik": "0001658247",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TWST",
+    "company": "Twist Bioscience",
+    "aliases": [
+      "$TWST",
+      "Twist Bioscience Corp"
+    ],
+    "cik": "0001581280",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ALKS",
+    "company": "Alkermes",
+    "aliases": [
+      "$ALKS",
+      "Alkermes plc."
+    ],
+    "cik": "0001520262",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ABVX",
+    "company": "Abivax American Depositary Shares",
+    "aliases": [
+      "$ABVX",
+      "Abivax S.A.",
+      "Abivax"
+    ],
+    "cik": "0001956827",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "APGE",
+    "company": "Apogee Therapeutics",
+    "aliases": [
+      "$APGE",
+      "Apogee Therapeutics, Inc."
+    ],
+    "cik": "0001974640",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RYTM",
+    "company": "Rhythm Pharmaceuticals",
+    "aliases": [
+      "$RYTM",
+      "RHYTHM PHARMACEUTICALS, INC."
+    ],
+    "cik": "0001649904",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TXG",
+    "company": "10x Genomics Class A",
+    "aliases": [
+      "$TXG",
+      "10x Genomics, Inc.",
+      "10x Genomics"
+    ],
+    "cik": "0001770787",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TEM",
+    "company": "Tempus Ai Class A",
+    "aliases": [
+      "$TEM",
+      "Tempus AI, Inc.",
+      "Tempus Ai"
+    ],
+    "cik": "0001717115",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BRKR",
+    "company": "Bruker",
+    "aliases": [
+      "$BRKR",
+      "BRUKER CORP"
+    ],
+    "cik": "0001109354",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "DFTX",
+    "company": "Definium Therapeutics Inc",
+    "aliases": [
+      "$DFTX",
+      "Definium Therapeutics, Inc.",
+      "Definium"
+    ],
+    "cik": "0001813814",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TVTX",
+    "company": "Travere Therapeutics",
+    "aliases": [
+      "$TVTX",
+      "Travere Therapeutics, Inc."
+    ],
+    "cik": "0001438533",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PTCT",
+    "company": "Ptc Therapeutics",
+    "aliases": [
+      "$PTCT",
+      "PTC THERAPEUTICS, INC."
+    ],
+    "cik": "0001070081",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SRRK",
+    "company": "Scholar Rock Holding",
+    "aliases": [
+      "$SRRK",
+      "Scholar Rock Holding Corp"
+    ],
+    "cik": "0001727196",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "XENE",
+    "company": "Xenon Pharmaceuticals",
+    "aliases": [
+      "$XENE",
+      "Xenon Pharmaceuticals Inc."
+    ],
+    "cik": "0001582313",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "COGT",
+    "company": "Cogent Biosciences",
+    "aliases": [
+      "$COGT",
+      "Cogent Biosciences, Inc."
+    ],
+    "cik": "0001622229",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CRSP",
+    "company": "CRISPR Therapeutics",
+    "aliases": [
+      "$CRSP",
+      "CRISPR THERAPEUTICS AG",
+      "CRISPR Therapeutics AG",
+      "Crispr"
+    ],
+    "cik": "0001674416",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": [
+      "CASGEVY",
+      "CTX112",
+      "CTX131",
+      "CTX310",
+      "CTX320"
+    ]
+  },
+  {
+    "ticker": "ORKA",
+    "company": "Oruka Therapeutics Inc",
+    "aliases": [
+      "$ORKA",
+      "Oruka Therapeutics, Inc.",
+      "Oruka"
+    ],
+    "cik": "0000907654",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ACAD",
+    "company": "Acadia Pharmaceuticals",
+    "aliases": [
+      "$ACAD",
+      "ACADIA PHARMACEUTICALS INC"
+    ],
+    "cik": "0001070494",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MIRM",
+    "company": "Mirum Pharmaceuticals",
+    "aliases": [
+      "$MIRM",
+      "Mirum Pharmaceuticals, Inc."
+    ],
+    "cik": "0001759425",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CGON",
+    "company": "Cg Oncology",
+    "aliases": [
+      "$CGON",
+      "CG Oncology, Inc."
+    ],
+    "cik": "0001991792",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ADPT",
+    "company": "Adaptive Biotechnologies",
+    "aliases": [
+      "$ADPT",
+      "Adaptive Biotechnologies Corp"
+    ],
+    "cik": "0001478320",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "DYN",
+    "company": "Dyne Therapeutics",
+    "aliases": [
+      "$DYN",
+      "Dyne Therapeutics, Inc."
+    ],
+    "cik": "0001818794",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AMLX",
+    "company": "Amylyx Pharmaceuticals",
+    "aliases": [
+      "$AMLX",
+      "Amylyx Pharmaceuticals, Inc."
+    ],
+    "cik": "0001658551",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "DNLI",
+    "company": "Denali Therapeutics",
+    "aliases": [
+      "$DNLI",
+      "Denali Therapeutics Inc."
+    ],
+    "cik": "0001714899",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ERAS",
+    "company": "Erasca",
+    "aliases": [
+      "$ERAS",
+      "Erasca, Inc."
+    ],
+    "cik": "0001761918",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IMVT",
+    "company": "Immunovant",
+    "aliases": [
+      "$IMVT",
+      "Immunovant, Inc."
+    ],
+    "cik": "0001764013",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IOVA",
+    "company": "Iovance Biotherapeutics Inc",
+    "aliases": [
+      "$IOVA",
+      "IOVANCE BIOTHERAPEUTICS, INC.",
+      "Iovance Biotherapeutics"
+    ],
+    "cik": "0001425205",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "EWTX",
+    "company": "Edgewise Therapeutics",
+    "aliases": [
+      "$EWTX",
+      "Edgewise Therapeutics, Inc."
+    ],
+    "cik": "0001710072",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ELVN",
+    "company": "Enliven Therapeutics",
+    "aliases": [
+      "$ELVN",
+      "Enliven Therapeutics, Inc."
+    ],
+    "cik": "0001672619",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IDYA",
+    "company": "Ideaya Biosciences",
+    "aliases": [
+      "$IDYA",
+      "IDEAYA Biosciences, Inc."
+    ],
+    "cik": "0001676725",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RLAY",
+    "company": "Relay Therapeutics",
+    "aliases": [
+      "$RLAY",
+      "Relay Therapeutics, Inc."
+    ],
+    "cik": "0001812364",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "VCYT",
+    "company": "Veracyte",
+    "aliases": [
+      "$VCYT",
+      "VERACYTE, INC."
+    ],
+    "cik": "0001384101",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GRAL",
+    "company": "Grail Inc",
+    "aliases": [
+      "$GRAL",
+      "GRAIL, Inc.",
+      "Grail"
+    ],
+    "cik": "0001699031",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LEGN",
+    "company": "Legend Biotech ADR Rep",
+    "aliases": [
+      "$LEGN",
+      "Legend Biotech Corp"
+    ],
+    "cik": "0001801198",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CAI",
+    "company": "Caris Life Sciences",
+    "aliases": [
+      "$CAI",
+      "Caris Life Sciences, Inc."
+    ],
+    "cik": "0002019410",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GPCR",
+    "company": "Structure Therapeutics ADR",
+    "aliases": [
+      "$GPCR",
+      "Structure Therapeutics Inc.",
+      "Structure Therapeutics"
+    ],
+    "cik": "0001888886",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IBRX",
+    "company": "Immunitybio Inc",
+    "aliases": [
+      "$IBRX",
+      "ImmunityBio, Inc.",
+      "Immunitybio"
+    ],
+    "cik": "0001326110",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ARQT",
+    "company": "Arcutis Biotherapeutics",
+    "aliases": [
+      "$ARQT",
+      "Arcutis Biotherapeutics, Inc."
+    ],
+    "cik": "0001787306",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "QURE",
+    "company": "Uniqure",
+    "aliases": [
+      "$QURE",
+      "uniQure N.V."
+    ],
+    "cik": "0001590560",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TARS",
+    "company": "Tarsus Pharmaceuticals",
+    "aliases": [
+      "$TARS",
+      "Tarsus Pharmaceuticals, Inc."
+    ],
+    "cik": "0001819790",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TNGX",
+    "company": "Tango Therapeutics",
+    "aliases": [
+      "$TNGX",
+      "Tango Therapeutics, Inc."
+    ],
+    "cik": "0001819133",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ABCL",
+    "company": "Abcellera Biologics",
+    "aliases": [
+      "$ABCL",
+      "AbCellera Biologics Inc."
+    ],
+    "cik": "0001703057",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BEAM",
+    "company": "Beam Therapeutics",
+    "aliases": [
+      "$BEAM",
+      "Beam Therapeutics Inc."
+    ],
+    "cik": "0001745999",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NRIX",
+    "company": "Nurix Therapeutics Inc",
+    "aliases": [
+      "$NRIX",
+      "Nurix Therapeutics, Inc.",
+      "Nurix"
+    ],
+    "cik": "0001549595",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RCUS",
+    "company": "Arcus Biosciences",
+    "aliases": [
+      "$RCUS",
+      "Arcus Biosciences, Inc."
+    ],
+    "cik": "0001724521",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "KOD",
+    "company": "Kodiak Sciences",
+    "aliases": [
+      "$KOD",
+      "Kodiak Sciences Inc."
+    ],
+    "cik": "0001468748",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NAMS",
+    "company": "Newamsterdam Pharma",
+    "aliases": [
+      "$NAMS",
+      "NewAmsterdam Pharma Co N.V."
+    ],
+    "cik": "0001936258",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RARE",
+    "company": "Ultragenyx Pharmaceutical",
+    "aliases": [
+      "$RARE",
+      "Ultragenyx Pharmaceutical Inc."
+    ],
+    "cik": "0001515673",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ZLAB",
+    "company": "Zai Laboratory ADR Representing Lt",
+    "aliases": [
+      "$ZLAB",
+      "Zai Lab Ltd"
+    ],
+    "cik": "0001704292",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ADMA",
+    "company": "Adma Biologics",
+    "aliases": [
+      "$ADMA",
+      "ADMA BIOLOGICS, INC."
+    ],
+    "cik": "0001368514",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ATAI",
+    "company": "Ataibeckley Inc",
+    "aliases": [
+      "$ATAI",
+      "AtaiBeckley Inc.",
+      "Ataibeckley"
+    ],
+    "cik": "0002081043",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BCRX",
+    "company": "Biocryst Pharmaceuticals",
+    "aliases": [
+      "$BCRX",
+      "BIOCRYST PHARMACEUTICALS INC"
+    ],
+    "cik": "0000882796",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CDNA",
+    "company": "Caredx",
+    "aliases": [
+      "$CDNA",
+      "CareDx, Inc."
+    ],
+    "cik": "0001217234",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IRON",
+    "company": "Disc Medicine",
+    "aliases": [
+      "$IRON",
+      "Disc Medicine, Inc."
+    ],
+    "cik": "0001816736",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "VCEL",
+    "company": "Vericel",
+    "aliases": [
+      "$VCEL",
+      "Vericel Corp"
+    ],
+    "cik": "0000887359",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AUPH",
+    "company": "Aurinia Pharmaceuticals",
+    "aliases": [
+      "$AUPH",
+      "Aurinia Pharmaceuticals Inc."
+    ],
+    "cik": "0001600620",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MBX",
+    "company": "Mbx Biosciences",
+    "aliases": [
+      "$MBX",
+      "MBX Biosciences, Inc."
+    ],
+    "cik": "0001776111",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SRPT",
+    "company": "Sarepta Therapeutics",
+    "aliases": [
+      "$SRPT",
+      "Sarepta Therapeutics, Inc."
+    ],
+    "cik": "0000873303",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AGIO",
+    "company": "Agios Pharmaceuticals",
+    "aliases": [
+      "$AGIO",
+      "AGIOS PHARMACEUTICALS, INC."
+    ],
+    "cik": "0001439222",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ALMS",
+    "company": "Alumis",
+    "aliases": [
+      "$ALMS",
+      "ALUMIS INC."
+    ],
+    "cik": "0001847367",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NVCR",
+    "company": "Novocure",
+    "aliases": [
+      "$NVCR",
+      "NovoCure Ltd"
+    ],
+    "cik": "0001645113",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "URGN",
+    "company": "Urogen Pharma",
+    "aliases": [
+      "$URGN",
+      "UroGen Pharma Ltd."
+    ],
+    "cik": "0001668243",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "VERA",
+    "company": "Vera Therapeutics Class A",
+    "aliases": [
+      "$VERA",
+      "Vera Therapeutics, Inc.",
+      "Vera Therapeutics"
+    ],
+    "cik": "0001831828",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "XNCR",
+    "company": "Xencor",
+    "aliases": [
+      "$XNCR",
+      "Xencor Inc"
+    ],
+    "cik": "0001326732",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ZYME",
+    "company": "Zymeworks",
+    "aliases": [
+      "$ZYME",
+      "Zymeworks Inc."
+    ],
+    "cik": "0001937653",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BHVN",
+    "company": "Biohaven",
+    "aliases": [
+      "$BHVN",
+      "Biohaven Ltd."
+    ],
+    "cik": "0001935979",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "FTRE",
+    "company": "Fortrea Holdings Inc",
+    "aliases": [
+      "$FTRE",
+      "Fortrea Holdings Inc.",
+      "Fortrea"
+    ],
+    "cik": "0001965040",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GRFS",
+    "company": "Grifols ADR Representing One Non-V",
+    "aliases": [
+      "$GRFS",
+      "Grifols SA"
+    ],
+    "cik": "0001438569",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NTLA",
+    "company": "Intellia Therapeutics",
+    "aliases": [
+      "$NTLA",
+      "Intellia Therapeutics, Inc."
+    ],
+    "cik": "0001652130",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NUVB",
+    "company": "Nuvation Bio Class A",
+    "aliases": [
+      "$NUVB",
+      "Nuvation Bio Inc.",
+      "Nuvation Bio"
+    ],
+    "cik": "0001811063",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SMMT",
+    "company": "Summit Therapeutics",
+    "aliases": [
+      "$SMMT",
+      "Summit Therapeutics Inc."
+    ],
+    "cik": "0001599298",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TRVI",
+    "company": "Trevi Therapeutics",
+    "aliases": [
+      "$TRVI",
+      "Trevi Therapeutics, Inc."
+    ],
+    "cik": "0001563880",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ANAB",
+    "company": "Anaptysbio",
+    "aliases": [
+      "$ANAB",
+      "ANAPTYSBIO, INC"
+    ],
+    "cik": "0001370053",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CMPS",
+    "company": "Compass Pathways ADR plc",
+    "aliases": [
+      "$CMPS",
+      "COMPASS Pathways plc",
+      "Compass Pathways ADR"
+    ],
+    "cik": "0001816590",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IMCR",
+    "company": "Immunocore Holdings ADR plc",
+    "aliases": [
+      "$IMCR",
+      "Immunocore Holdings plc",
+      "Immunocore Holdings ADR"
+    ],
+    "cik": "0001671927",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MLYS",
+    "company": "Mineralys Therapeutics",
+    "aliases": [
+      "$MLYS",
+      "Mineralys Therapeutics, Inc."
+    ],
+    "cik": "0001933414",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RXRX",
+    "company": "Recursion Pharmaceuticals Class A",
+    "aliases": [
+      "$RXRX",
+      "RECURSION PHARMACEUTICALS, INC.",
+      "Recursion Pharmaceuticals"
+    ],
+    "cik": "0001601830",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SNDX",
+    "company": "Syndax Pharmaceuticals",
+    "aliases": [
+      "$SNDX",
+      "Syndax Pharmaceuticals Inc"
+    ],
+    "cik": "0001395937",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "STOK",
+    "company": "Stoke Therapeutics",
+    "aliases": [
+      "$STOK",
+      "Stoke Therapeutics, Inc."
+    ],
+    "cik": "0001623526",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TSHA",
+    "company": "Taysha Gene Therapies",
+    "aliases": [
+      "$TSHA",
+      "Taysha Gene Therapies, Inc."
+    ],
+    "cik": "0001806310",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GHRS",
+    "company": "Gh Research plc",
+    "aliases": [
+      "$GHRS",
+      "Gh Research"
+    ],
+    "cik": "0001855129",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RAPP",
+    "company": "Rapport Therapeutics",
+    "aliases": [
+      "$RAPP",
+      "Rapport Therapeutics, Inc."
+    ],
+    "cik": "0002012593",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ABSI",
+    "company": "Absci Corp",
+    "aliases": [
+      "$ABSI",
+      "Absci"
+    ],
+    "cik": "0001672688",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ANRO",
+    "company": "Alto Neuroscience Inc",
+    "aliases": [
+      "$ANRO",
+      "Alto Neuroscience, Inc.",
+      "Alto Neuroscience"
+    ],
+    "cik": "0001999480",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MESO",
+    "company": "Mesoblast ADR Representing",
+    "aliases": [
+      "$MESO",
+      "MESOBLAST LTD"
+    ],
+    "cik": "0001345099",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MNKD",
+    "company": "Mannkind",
+    "aliases": [
+      "$MNKD",
+      "MANNKIND CORP"
+    ],
+    "cik": "0000899460",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NVAX",
+    "company": "Novavax",
+    "aliases": [
+      "$NVAX",
+      "NOVAVAX INC"
+    ],
+    "cik": "0001000694",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "VIR",
+    "company": "Vir Biotechnology",
+    "aliases": [
+      "$VIR",
+      "Vir Biotechnology, Inc."
+    ],
+    "cik": "0001706431",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "INBX",
+    "company": "Inhibrx Biosciences Inc",
+    "aliases": [
+      "$INBX",
+      "Inhibrx Biosciences, Inc.",
+      "Inhibrx Biosciences"
+    ],
+    "cik": "0002007919",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LKFT",
+    "company": "Lakefront Biotherapeutics ADR NV",
+    "aliases": [
+      "$LKFT",
+      "Lakefront Biotherapeutics NV",
+      "Lakefront Biotherapeutics ADR"
+    ],
+    "cik": "0001421876",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PGEN",
+    "company": "Precigen",
+    "aliases": [
+      "$PGEN",
+      "PRECIGEN, INC."
+    ],
+    "cik": "0001356090",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "REPL",
+    "company": "Replimune Group",
+    "aliases": [
+      "$REPL",
+      "Replimune Group, Inc."
+    ],
+    "cik": "0001737953",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SEPN",
+    "company": "Septerna",
+    "aliases": [
+      "$SEPN",
+      "Septerna, Inc."
+    ],
+    "cik": "0001984086",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "STVN",
+    "company": "Stevanato Group",
+    "aliases": [
+      "$STVN",
+      "Stevanato Group S.p.A."
+    ],
+    "cik": "0001849853",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TYRA",
+    "company": "Tyra Biosciences",
+    "aliases": [
+      "$TYRA",
+      "Tyra Biosciences, Inc."
+    ],
+    "cik": "0001863127",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AVBP",
+    "company": "Arrivent Biopharma",
+    "aliases": [
+      "$AVBP",
+      "ArriVent BioPharma, Inc."
+    ],
+    "cik": "0001868279",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CGEM",
+    "company": "Cullinan Therapeutics",
+    "aliases": [
+      "$CGEM",
+      "Cullinan Therapeutics, Inc."
+    ],
+    "cik": "0001789972",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CSTL",
+    "company": "Castle Biosciences",
+    "aliases": [
+      "$CSTL",
+      "CASTLE BIOSCIENCES INC"
+    ],
+    "cik": "0001447362",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GERN",
+    "company": "Geron",
+    "aliases": [
+      "$GERN",
+      "GERON CORP"
+    ],
+    "cik": "0000886744",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "JANX",
+    "company": "Janux Therapeutics",
+    "aliases": [
+      "$JANX",
+      "Janux Therapeutics, Inc."
+    ],
+    "cik": "0001817713",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "KURA",
+    "company": "Kura Oncology",
+    "aliases": [
+      "$KURA",
+      "Kura Oncology, Inc."
+    ],
+    "cik": "0001422143",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MAZE",
+    "company": "Maze Therapeutics",
+    "aliases": [
+      "$MAZE",
+      "Maze Therapeutics, Inc."
+    ],
+    "cik": "0001842295",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MGTX",
+    "company": "Meiragtx Holdings plc",
+    "aliases": [
+      "$MGTX",
+      "Meiragtx"
+    ],
+    "cik": "0001735438",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PHVS",
+    "company": "Pharvaris N V",
+    "aliases": [
+      "$PHVS",
+      "Pharvaris N.V."
+    ],
+    "cik": "0001830487",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PSNL",
+    "company": "Personalis",
+    "aliases": [
+      "$PSNL",
+      "Personalis, Inc."
+    ],
+    "cik": "0001527753",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ZBIO",
+    "company": "Zenas Biopharma",
+    "aliases": [
+      "$ZBIO",
+      "Zenas BioPharma, Inc."
+    ],
+    "cik": "0001953926",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BCAX",
+    "company": "Bicara Therapeutics Inc",
+    "aliases": [
+      "$BCAX",
+      "Bicara Therapeutics Inc.",
+      "Bicara"
+    ],
+    "cik": "0002023658",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CRVS",
+    "company": "Corvus Pharmaceuticals",
+    "aliases": [
+      "$CRVS",
+      "Corvus Pharmaceuticals, Inc."
+    ],
+    "cik": "0001626971",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GLUE",
+    "company": "Monte Rosa Therapeutics",
+    "aliases": [
+      "$GLUE",
+      "Monte Rosa Therapeutics, Inc."
+    ],
+    "cik": "0001826457",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MRVI",
+    "company": "Maravai Lifesciences Holdings Inc",
+    "aliases": [
+      "$MRVI",
+      "MARAVAI LIFESCIENCES HOLDINGS, INC.",
+      "Maravai Lifesciences"
+    ],
+    "cik": "0001823239",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ORIC",
+    "company": "Oric Pharmaceuticals",
+    "aliases": [
+      "$ORIC",
+      "Oric Pharmaceuticals, Inc."
+    ],
+    "cik": "0001796280",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RIGL",
+    "company": "Rigel Pharmaceuticals",
+    "aliases": [
+      "$RIGL",
+      "RIGEL PHARMACEUTICALS INC"
+    ],
+    "cik": "0001034842",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TBPH",
+    "company": "Theravance Biopharma",
+    "aliases": [
+      "$TBPH",
+      "Theravance Biopharma, Inc."
+    ],
+    "cik": "0001583107",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "WVE",
+    "company": "Wave Life Sciences Inc",
+    "aliases": [
+      "$WVE",
+      "Wave Life Sciences, Inc.",
+      "Wave Life"
+    ],
+    "cik": "0001631574",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ABUS",
+    "company": "Arbutus Biopharma Corp",
+    "aliases": [
+      "$ABUS",
+      "Arbutus Biopharma"
+    ],
+    "cik": "0001447028",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ACRS",
+    "company": "Aclaris Therapeutics",
+    "aliases": [
+      "$ACRS",
+      "Aclaris Therapeutics, Inc."
+    ],
+    "cik": "0001557746",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ANNX",
+    "company": "Annexon",
+    "aliases": [
+      "$ANNX",
+      "Annexon, Inc."
+    ],
+    "cik": "0001528115",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CADL",
+    "company": "Candel Therapeutics Inc",
+    "aliases": [
+      "$CADL",
+      "Candel Therapeutics, Inc.",
+      "Candel"
+    ],
+    "cik": "0001841387",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "FDMT",
+    "company": "4d Molecular Therapeutics Inc",
+    "aliases": [
+      "$FDMT",
+      "4D Molecular Therapeutics, Inc.",
+      "4d Molecular"
+    ],
+    "cik": "0001650648",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IRWD",
+    "company": "Ironwood Pharma Class A",
+    "aliases": [
+      "$IRWD",
+      "IRONWOOD PHARMACEUTICALS INC",
+      "Ironwood Pharma"
+    ],
+    "cik": "0001446847",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "OLMA",
+    "company": "Olema Pharmaceuticals",
+    "aliases": [
+      "$OLMA",
+      "Olema Pharmaceuticals, Inc."
+    ],
+    "cik": "0001750284",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RGNX",
+    "company": "Regenxbio",
+    "aliases": [
+      "$RGNX",
+      "REGENXBIO Inc."
+    ],
+    "cik": "0001590877",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SANA",
+    "company": "Sana Biotechnology",
+    "aliases": [
+      "$SANA",
+      "Sana Biotechnology, Inc."
+    ],
+    "cik": "0001770121",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SLDB",
+    "company": "Solid Biosciences Inc",
+    "aliases": [
+      "$SLDB",
+      "Solid Biosciences Inc.",
+      "Solid Biosciences"
+    ],
+    "cik": "0001707502",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ZVRA",
+    "company": "Zevra Therapeutics Inc",
+    "aliases": [
+      "$ZVRA",
+      "ZEVRA THERAPEUTICS, INC.",
+      "Zevra"
+    ],
+    "cik": "0001434647",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ALLO",
+    "company": "Allogene Therapeutics",
+    "aliases": [
+      "$ALLO",
+      "Allogene Therapeutics, Inc."
+    ],
+    "cik": "0001737287",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ALT",
+    "company": "Altimmune Inc",
+    "aliases": [
+      "$ALT",
+      "Altimmune, Inc.",
+      "Altimmune"
+    ],
+    "cik": "0001326190",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ALVO",
+    "company": "Alvotech Sa",
+    "aliases": [
+      "$ALVO",
+      "Alvotech"
+    ],
+    "cik": "0001898416",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AURA",
+    "company": "Aura Biosciences",
+    "aliases": [
+      "$AURA",
+      "Aura Biosciences, Inc."
+    ],
+    "cik": "0001501796",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CTKB",
+    "company": "Cytek Biosciences",
+    "aliases": [
+      "$CTKB",
+      "Cytek Biosciences, Inc."
+    ],
+    "cik": "0001831915",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CTMX",
+    "company": "Cytomx Therapeutics",
+    "aliases": [
+      "$CTMX",
+      "CytomX Therapeutics, Inc."
+    ],
+    "cik": "0001501989",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "DSGN",
+    "company": "Design Therapeutics",
+    "aliases": [
+      "$DSGN",
+      "Design Therapeutics, Inc."
+    ],
+    "cik": "0001807120",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NGNE",
+    "company": "Neurogene Inc",
+    "aliases": [
+      "$NGNE",
+      "Neurogene Inc.",
+      "Neurogene"
+    ],
+    "cik": "0001404644",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "OABI",
+    "company": "Omniab Inc",
+    "aliases": [
+      "$OABI",
+      "OmniAb, Inc.",
+      "Omniab"
+    ],
+    "cik": "0001846253",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "OPK",
+    "company": "Opko Health",
+    "aliases": [
+      "$OPK",
+      "OPKO HEALTH, INC."
+    ],
+    "cik": "0000944809",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SGMT",
+    "company": "Sagimet Biosciences Series A",
+    "aliases": [
+      "$SGMT",
+      "Sagimet Biosciences Inc."
+    ],
+    "cik": "0001400118",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SVRA",
+    "company": "Savara",
+    "aliases": [
+      "$SVRA",
+      "Savara Inc"
+    ],
+    "cik": "0001160308",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ARVN",
+    "company": "Arvinas Inc",
+    "aliases": [
+      "$ARVN",
+      "ARVINAS, INC.",
+      "Arvinas"
+    ],
+    "cik": "0001655759",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AUTL",
+    "company": "Autolus Therapeutics ADR plc",
+    "aliases": [
+      "$AUTL",
+      "Autolus Therapeutics plc",
+      "Autolus Therapeutics ADR"
+    ],
+    "cik": "0001730463",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BBOT",
+    "company": "Bridgebio Oncology Therapeutics In",
+    "aliases": [
+      "$BBOT",
+      "BridgeBio Oncology Therapeutics, Inc."
+    ],
+    "cik": "0001869105",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CABA",
+    "company": "Cabaletta Bio",
+    "aliases": [
+      "$CABA",
+      "Cabaletta Bio, Inc."
+    ],
+    "cik": "0001759138",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CCCC",
+    "company": "C4 Therapeutics",
+    "aliases": [
+      "$CCCC",
+      "C4 Therapeutics, Inc."
+    ],
+    "cik": "0001662579",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CTNM",
+    "company": "Contineum Therapeutics Inc Class A",
+    "aliases": [
+      "$CTNM",
+      "Contineum Therapeutics, Inc.",
+      "Contineum"
+    ],
+    "cik": "0001855175",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "EDIT",
+    "company": "Editas Medicine",
+    "aliases": [
+      "$EDIT",
+      "Editas Medicine, Inc."
+    ],
+    "cik": "0001650664",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ENTA",
+    "company": "Enanta Pharmaceuticals Inc",
+    "aliases": [
+      "$ENTA",
+      "Enanta"
+    ],
+    "cik": "0001177648",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "FLGT",
+    "company": "Fulgent Genetics",
+    "aliases": [
+      "$FLGT",
+      "Fulgent Genetics, Inc."
+    ],
+    "cik": "0001674930",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PACB",
+    "company": "Pacific Biosciences Of California",
+    "aliases": [
+      "$PACB",
+      "PACIFIC BIOSCIENCES OF CALIFORNIA, INC."
+    ],
+    "cik": "0001299130",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PHAT",
+    "company": "Phathom Pharmaceuticals",
+    "aliases": [
+      "$PHAT",
+      "Phathom Pharmaceuticals, Inc."
+    ],
+    "cik": "0001783183",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PRTA",
+    "company": "Prothena plc",
+    "aliases": [
+      "$PRTA",
+      "PROTHENA CORP PUBLIC LTD CO",
+      "Prothena"
+    ],
+    "cik": "0001559053",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RCKT",
+    "company": "Rocket Pharmaceuticals",
+    "aliases": [
+      "$RCKT",
+      "ROCKET PHARMACEUTICALS, INC."
+    ],
+    "cik": "0001281895",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ARCT",
+    "company": "Arcturus Therapeutics Holdings Inc",
+    "aliases": [
+      "$ARCT",
+      "Arcturus Therapeutics Holdings Inc.",
+      "Arcturus Therapeutics"
+    ],
+    "cik": "0001768224",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AVIR",
+    "company": "Atea Pharmaceuticals",
+    "aliases": [
+      "$AVIR",
+      "Atea Pharmaceuticals, Inc."
+    ],
+    "cik": "0001593899",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AVXL",
+    "company": "Anavex Life Sciences Corp",
+    "aliases": [
+      "$AVXL",
+      "ANAVEX LIFE SCIENCES CORP.",
+      "Anavex Life"
+    ],
+    "cik": "0001314052",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BIOA",
+    "company": "Bioage Labs",
+    "aliases": [
+      "$BIOA",
+      "BioAge Labs, Inc."
+    ],
+    "cik": "0001709941",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CATX",
+    "company": "Perspective Therapeutics Inc",
+    "aliases": [
+      "$CATX",
+      "Perspective Therapeutics, Inc.",
+      "Perspective"
+    ],
+    "cik": "0000728387",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "DNA",
+    "company": "Ginkgo Bioworks Holdings Class A",
+    "aliases": [
+      "$DNA",
+      "Ginkgo Bioworks Holdings, Inc.",
+      "Ginkgo Bioworks Holdings"
+    ],
+    "cik": "0001830214",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "EBS",
+    "company": "Emergent Biosolutions",
+    "aliases": [
+      "$EBS",
+      "Emergent BioSolutions Inc."
+    ],
+    "cik": "0001367644",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "FHTX",
+    "company": "Foghorn Therapeutics",
+    "aliases": [
+      "$FHTX",
+      "Foghorn Therapeutics Inc."
+    ],
+    "cik": "0001822462",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "FULC",
+    "company": "Fulcrum Therapeutics",
+    "aliases": [
+      "$FULC",
+      "Fulcrum Therapeutics, Inc."
+    ],
+    "cik": "0001680581",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IMRX",
+    "company": "Immuneering Class A",
+    "aliases": [
+      "$IMRX",
+      "Immuneering Corp",
+      "Immuneering"
+    ],
+    "cik": "0001790340",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "KYTX",
+    "company": "Kyverna Therapeutics",
+    "aliases": [
+      "$KYTX",
+      "Kyverna Therapeutics, Inc."
+    ],
+    "cik": "0001994702",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LAB",
+    "company": "Standard Biotools",
+    "aliases": [
+      "$LAB",
+      "STANDARD BIOTOOLS INC."
+    ],
+    "cik": "0001162194",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LRMR",
+    "company": "Larimar Therapeutics",
+    "aliases": [
+      "$LRMR",
+      "Larimar Therapeutics, Inc."
+    ],
+    "cik": "0001374690",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LXEO",
+    "company": "Lexeo Therapeutics",
+    "aliases": [
+      "$LXEO",
+      "Lexeo Therapeutics, Inc."
+    ],
+    "cik": "0001907108",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MYGN",
+    "company": "Myriad Genetics",
+    "aliases": [
+      "$MYGN",
+      "MYRIAD GENETICS INC"
+    ],
+    "cik": "0000899923",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PRME",
+    "company": "Prime Medicine",
+    "aliases": [
+      "$PRME",
+      "Prime Medicine, Inc."
+    ],
+    "cik": "0001894562",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SLN",
+    "company": "Silence Therapeutics ADR Represent",
+    "aliases": [
+      "$SLN",
+      "Silence Therapeutics plc"
+    ],
+    "cik": "0001479615",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SPRY",
+    "company": "Ars Pharmaceuticals Inc",
+    "aliases": [
+      "$SPRY",
+      "ARS Pharmaceuticals, Inc.",
+      "Ars"
+    ],
+    "cik": "0001671858",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TECX",
+    "company": "Tectonic Therapeutic Inc",
+    "aliases": [
+      "$TECX",
+      "Tectonic Therapeutic, Inc.",
+      "Tectonic"
+    ],
+    "cik": "0001681087",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "UPB",
+    "company": "Upstream Bio",
+    "aliases": [
+      "$UPB",
+      "Upstream Bio, Inc."
+    ],
+    "cik": "0002022626",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "VNDA",
+    "company": "Vanda Pharmaceuticals Inc",
+    "aliases": [
+      "$VNDA",
+      "Vanda Pharmaceuticals Inc.",
+      "Vanda"
+    ],
+    "cik": "0001347178",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AARD",
+    "company": "Aardvark Therapeutics",
+    "aliases": [
+      "$AARD",
+      "Aardvark Therapeutics, Inc."
+    ],
+    "cik": "0001774857",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ACIU",
+    "company": "Ac Immune Sa",
+    "aliases": [
+      "$ACIU",
+      "Ac Immune"
+    ],
+    "cik": "0001651625",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ADCT",
+    "company": "Adc Therapeutics Sa",
+    "aliases": [
+      "$ADCT",
+      "Adc"
+    ],
+    "cik": "0001771910",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BCYC",
+    "company": "Bicycle Therapeutics ADR plc",
+    "aliases": [
+      "$BCYC",
+      "BICYCLE THERAPEUTICS PLC",
+      "Bicycle Therapeutics ADR"
+    ],
+    "cik": "0001761612",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BDTX",
+    "company": "Black Diamond Therapeutics Inc",
+    "aliases": [
+      "$BDTX",
+      "Black Diamond Therapeutics, Inc.",
+      "Black Diamond"
+    ],
+    "cik": "0001701541",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CDXS",
+    "company": "Codexis",
+    "aliases": [
+      "$CDXS",
+      "CODEXIS, INC."
+    ],
+    "cik": "0001200375",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CLLS",
+    "company": "Cellectis ADR Representing Sa",
+    "aliases": [
+      "$CLLS",
+      "Cellectis S.A.",
+      "Cellectis ADR Representing"
+    ],
+    "cik": "0001627281",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CRBU",
+    "company": "Caribou Biosciences",
+    "aliases": [
+      "$CRBU",
+      "Caribou Biosciences, Inc."
+    ],
+    "cik": "0001619856",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "HUMA",
+    "company": "Humacyte Inc",
+    "aliases": [
+      "$HUMA",
+      "Humacyte, Inc.",
+      "Humacyte"
+    ],
+    "cik": "0001818382",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "KROS",
+    "company": "Keros Therapeutics",
+    "aliases": [
+      "$KROS",
+      "Keros Therapeutics, Inc."
+    ],
+    "cik": "0001664710",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LCTX",
+    "company": "Lineage Cell Therapeutics Inc",
+    "aliases": [
+      "$LCTX",
+      "Lineage Cell Therapeutics, Inc.",
+      "Lineage Cell"
+    ],
+    "cik": "0000876343",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LENZ",
+    "company": "Lenz Therapeutics",
+    "aliases": [
+      "$LENZ",
+      "LENZ Therapeutics, Inc."
+    ],
+    "cik": "0001815776",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LYEL",
+    "company": "Lyell Immunopharma",
+    "aliases": [
+      "$LYEL",
+      "Lyell Immunopharma, Inc."
+    ],
+    "cik": "0001806952",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NBP",
+    "company": "Novabridge Biosciences ADR",
+    "aliases": [
+      "$NBP",
+      "NovaBridge Biosciences",
+      "Novabridge Biosciences"
+    ],
+    "cik": "0001778016",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NMRA",
+    "company": "Neumora Therapeutics Inc",
+    "aliases": [
+      "$NMRA",
+      "Neumora Therapeutics, Inc.",
+      "Neumora"
+    ],
+    "cik": "0001885522",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PEPG",
+    "company": "Pepgen",
+    "aliases": [
+      "$PEPG",
+      "PepGen Inc."
+    ],
+    "cik": "0001835597",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PYXS",
+    "company": "Pyxis Oncology Inc",
+    "aliases": [
+      "$PYXS",
+      "Pyxis Oncology, Inc.",
+      "Pyxis Oncology"
+    ],
+    "cik": "0001782223",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "QSI",
+    "company": "Quantum Si Inc Class A",
+    "aliases": [
+      "$QSI",
+      "Quantum-Si Inc",
+      "Quantum Si"
+    ],
+    "cik": "0001816431",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "QTRX",
+    "company": "Quanterix",
+    "aliases": [
+      "$QTRX",
+      "Quanterix Corp"
+    ],
+    "cik": "0001503274",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SION",
+    "company": "Sionna Therapeutics",
+    "aliases": [
+      "$SION",
+      "Sionna Therapeutics, Inc."
+    ],
+    "cik": "0002036042",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TKNO",
+    "company": "Alpha Teknova",
+    "aliases": [
+      "$TKNO",
+      "Alpha Teknova, Inc."
+    ],
+    "cik": "0001850902",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TNYA",
+    "company": "Tenaya Therapeutics",
+    "aliases": [
+      "$TNYA",
+      "Tenaya Therapeutics, Inc."
+    ],
+    "cik": "0001858848",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TRDA",
+    "company": "Entrada Therapeutics",
+    "aliases": [
+      "$TRDA",
+      "Entrada Therapeutics, Inc."
+    ],
+    "cik": "0001689375",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "VYGR",
+    "company": "Voyager Therapeutics",
+    "aliases": [
+      "$VYGR",
+      "Voyager Therapeutics, Inc."
+    ],
+    "cik": "0001640266",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "-",
+    "company": "Arcellx Inc Cvr",
+    "aliases": [
+      "$-"
+    ],
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ABBV",
+    "company": "Abbvie",
+    "aliases": [
+      "$ABBV",
+      "AbbVie Inc."
+    ],
+    "cik": "0001551152",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ADRO",
+    "company": "Chinook Therapeutics Inc",
+    "aliases": [
+      "$ADRO",
+      "Chinook"
+    ],
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AKE",
+    "company": "Akero Therapeutics Cvr",
+    "aliases": [
+      "$AKE"
+    ],
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "AZN",
+    "company": "Astrazeneca",
+    "aliases": [
+      "$AZN",
+      "ASTRAZENECA PLC"
+    ],
+    "cik": "0000901832",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BAYRY",
+    "company": "Bayer",
+    "aliases": [
+      "$BAYRY"
+    ],
+    "marketCapBand": "large",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "BMY",
+    "company": "Bristol Myers Squibb",
+    "aliases": [
+      "$BMY",
+      "BRISTOL MYERS SQUIBB CO"
+    ],
+    "cik": "0000014272",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "CRGX",
+    "company": "Cargo Therapeutics Inc",
+    "aliases": [
+      "$CRGX",
+      "Cargo"
+    ],
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GOSS",
+    "company": "Gossamer Bio",
+    "aliases": [
+      "$GOSS",
+      "Gossamer Bio, Inc."
+    ],
+    "cik": "0001728117",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "GSK",
+    "company": "Gsk",
+    "aliases": [
+      "$GSK",
+      "GSK plc"
+    ],
+    "cik": "0001131399",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "IMMP",
+    "company": "Immutep Ads Representing Ltd",
+    "aliases": [
+      "$IMMP",
+      "IMMUTEP Ltd",
+      "Immutep Ads Representing"
+    ],
+    "cik": "0001506184",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "JNJ",
+    "company": "Johnson & Johnson",
+    "aliases": [
+      "$JNJ"
+    ],
+    "cik": "0000200406",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "LLY",
+    "company": "Eli Lilly",
+    "aliases": [
+      "$LLY",
+      "ELI LILLY & Co"
+    ],
+    "cik": "0000059478",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MENS",
+    "company": "Jyong Biotech Ltd",
+    "aliases": [
+      "$MENS",
+      "Jyong Biotech Ltd.",
+      "Jyong Biotech"
+    ],
+    "cik": "0001954488",
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "MRK",
+    "company": "Merck",
+    "aliases": [
+      "$MRK",
+      "Merck & Co., Inc."
+    ],
+    "cik": "0000310158",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": [
+      "KEYTRUDA",
+      "pembrolizumab"
+    ]
+  },
+  {
+    "ticker": "NVO",
+    "company": "Novo Nordisk",
+    "aliases": [
+      "$NVO",
+      "NOVO NORDISK A S"
+    ],
+    "cik": "0000353278",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "NVS",
+    "company": "Novartis",
+    "aliases": [
+      "$NVS",
+      "NOVARTIS AG"
+    ],
+    "cik": "0001114448",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "PFE",
+    "company": "Pfizer",
+    "aliases": [
+      "$PFE",
+      "PFIZER INC"
+    ],
+    "cik": "0000078003",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "RHHBY",
+    "company": "Roche",
+    "aliases": [
+      "$RHHBY"
+    ],
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "SNY",
+    "company": "Sanofi",
+    "aliases": [
+      "$SNY"
+    ],
+    "cik": "0001121404",
+    "marketCapBand": "mega",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TAK",
+    "company": "Takeda Pharmaceutical",
+    "aliases": [
+      "$TAK",
+      "TAKEDA PHARMACEUTICAL CO LTD"
+    ],
+    "cik": "0001395064",
+    "marketCapBand": "large",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "TEVA",
+    "company": "Teva Pharmaceutical",
+    "aliases": [
+      "$TEVA",
+      "TEVA PHARMACEUTICAL INDUSTRIES LTD"
+    ],
+    "cik": "0000818686",
+    "marketCapBand": "large",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "THRD",
+    "company": "Third Harmonic Bio Inc",
+    "aliases": [
+      "$THRD",
+      "Third Harmonic Bio"
+    ],
+    "marketCapBand": "unknown",
+    "xAccounts": [],
+    "programs": []
+  },
+  {
+    "ticker": "ZTS",
+    "company": "Zoetis",
+    "aliases": [
+      "$ZTS",
+      "Zoetis Inc."
+    ],
+    "cik": "0001555280",
+    "marketCapBand": "large",
+    "xAccounts": [],
+    "programs": []
+  }
+]

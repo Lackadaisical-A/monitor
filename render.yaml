@@ -1,0 +1,55 @@
+services:
+  - type: web
+    name: catalyst-watch
+    runtime: docker
+    plan: starter
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    numInstances: 1
+    disk:
+      name: catalyst-watch-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_PATH
+        value: /app/data/biotech-signal.db
+      - key: OPENAI_MODEL
+        value: gpt-5.6-luna
+      - key: SCAN_INTERVAL_SECONDS
+        value: 120
+      - key: FREE_FEED_DELAY_MINUTES
+        value: 30
+      - key: APP_STORE_BUNDLE_ID
+        value: com.yingcui.CatalystWatch
+      - key: APP_STORE_APP_ID
+        value: 6803988538
+      - key: APP_STORE_PRODUCT_IDS
+        value: com.yingcui.CatalystWatch.pro.monthly,com.yingcui.CatalystWatch.pro.yearly
+      - key: APPLE_ROOT_CA_DIR
+        value: /app/config/apple
+      - key: ALERT_DRY_RUN
+        value: true
+      - key: APNS_TEAM_ID
+        value: C2Y2PKW3VD
+      - key: APNS_KEY_ID
+        value: SMAGF593N6
+      - key: APNS_BUNDLE_ID
+        value: com.yingcui.CatalystWatch
+      - key: APNS_ENVIRONMENT
+        value: production
+      - key: APNS_ALLOW_CRITICAL
+        value: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DASHBOARD_TOKEN
+        sync: false
+      - key: DEVELOPER_PAIRING_TOKEN
+        sync: false
+      - key: SEC_USER_AGENT
+        sync: false
+      - key: APNS_PRIVATE_KEY
+        sync: false

@@ -1,17 +1,44 @@
 # Catalyst Watch iPhone client
 
-The SwiftUI client displays the server's evidence record and registers a real APNs device token. It targets iOS 17 or later.
+The SwiftUI client displays the server's evidence record, registers a real APNs device token, and offers Catalyst Watch Pro through StoreKit 2. It targets iOS 17 or later.
+
+Free access shows up to 30 recent signals after a 30-minute delay. Pro unlocks the real-time 258-company feed, Time Sensitive alerts, and manual scans. A private developer credential can activate the same Pro feature set for the developer's installation without embedding a bypass in the binary.
 
 ## Build
 
-1. On a Mac, install Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-2. Change `PRODUCT_BUNDLE_IDENTIFIER` in `project.yml` to a bundle ID owned by your Apple Developer team.
-3. From this directory, run `xcodegen generate`, then open `BiotechSignal.xcodeproj`.
-4. Select your team under Signing & Capabilities and confirm **Push Notifications** plus **Background Modes → Remote notifications** are present.
+1. On a Mac, install Xcode 26+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen). Xcode 26 requires macOS 15.6 or later.
+2. From this directory, run `xcodegen generate`, then open `BiotechSignal.xcodeproj`.
+3. Confirm the `com.yingcui.CatalystWatch` bundle ID and Apple Developer team are selected under Signing & Capabilities.
+4. Confirm **Push Notifications** and **Time Sensitive Notifications** are enabled for the App ID and provisioning profile.
 5. Build to a physical iPhone. The simulator does not issue the same production device token workflow.
-6. In the app, enter the HTTPS server URL and `DEVICE_PAIRING_TOKEN`, enable notifications, and send a local test.
+6. The production server URL is compiled from `CatalystWatchServerURL`. For local Debug runs, set `CATALYST_WATCH_SERVER_URL` in the scheme environment.
+7. To activate developer access on a Debug build, set `CATALYST_WATCH_DEVELOPER_TOKEN` or enter the credential under **Settings > Advanced connection**.
+8. Enable notifications and send a local test before enabling live APNs on the server.
 
 Debug builds register as APNs `sandbox`; archived Release builds register as `production`. The server routes each token to the matching APNs environment.
+
+The app creates a random installation ID and a 256-bit client credential. The client credential is stored in Keychain, never uses the dashboard bearer token, and is rotated once if a stale server record rejects it. StoreKit purchases, current entitlements, restores, and transaction updates are synchronized to the server using Apple's signed JWS representation.
+
+`CatalystWatch.storekit` defines local monthly and annual products for Debug testing. The App Store build uses the same product IDs from App Store Connect:
+
+- `com.yingcui.CatalystWatch.pro.monthly`
+- `com.yingcui.CatalystWatch.pro.yearly`
+
+## App Store archive
+
+The Release configuration uses the `Catalyst Watch App Store` distribution profile. Build and export with:
+
+```bash
+xcodebuild -project BiotechSignal.xcodeproj -scheme BiotechSignal -configuration Release \
+  -destination 'generic/platform=iOS' -archivePath DerivedData/CatalystWatch.xcarchive \
+  -allowProvisioningUpdates clean archive
+xcodebuild -exportArchive -archivePath DerivedData/CatalystWatch.xcarchive \
+  -exportOptionsPlist UploadOptions.plist -allowProvisioningUpdates
+```
+
+`ExportOptions.plist` creates a local IPA; `UploadOptions.plist` validates and uploads the archive to App Store Connect.
+
+When the local Xcode version does not satisfy Apple's current upload requirement, `.github/workflows/app-store.yml` can perform a manual release on GitHub's `macos-26` runner. It requires these encrypted repository secrets: `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `BUILD_PROVISION_PROFILE_BASE64`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_PRIVATE_KEY`. The workflow only runs when manually dispatched and increments the build number from the GitHub run number.
 
 ## Critical Alerts
 

@@ -1,5 +1,5 @@
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { findWatchCompany, isoDate, itemId } from "../utils.js";
+import { findWatchCompany, isoDate, itemId, mapWithConcurrency } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 interface ClinicalStudy {
@@ -32,7 +32,12 @@ interface ClinicalStudy {
 interface ClinicalTrialsResponse {
   studies?: ClinicalStudy[];
   totalCount?: number;
+  nextPageToken?: string;
 }
+
+const SPONSOR_BATCH_SIZE = 20;
+const BATCH_CONCURRENCY = 3;
+const MAX_PAGES_PER_BATCH = 5;
 
 export class ClinicalTrialsSource implements SourceAdapter {
   readonly descriptor = {
@@ -52,27 +57,27 @@ export class ClinicalTrialsSource implements SourceAdapter {
     const since = cursor && /^\d{4}-\d{2}-\d{2}$/.test(cursor)
       ? cursor
       : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const sponsorQuery = this.watchlist.map((company) => `\"${company.company.replaceAll('"', "")}\"`).join(" OR ");
-    const url = new URL("https://clinicaltrials.gov/api/v2/studies");
-    url.searchParams.set("format", "json");
-    url.searchParams.set("pageSize", "100");
-    url.searchParams.set("countTotal", "true");
-    url.searchParams.set("query.spons", sponsorQuery);
-    url.searchParams.set("filter.advanced", `AREA[LastUpdatePostDate]RANGE[${since}, MAX]`);
-    url.searchParams.set("sort", "LastUpdatePostDate:desc");
-
-    const response = await fetchWithTimeout(url, {
-      headers: { "User-Agent": "BiotechSignal/0.1 clinical trial monitor" },
-    }, this.timeoutMs);
-    const payload = await response.json() as ClinicalTrialsResponse;
+    const batches = chunk(this.watchlist, SPONSOR_BATCH_SIZE);
+    const batchResults = await mapWithConcurrency(
+      batches,
+      BATCH_CONCURRENCY,
+      (batch) => this.fetchBatch(batch, since),
+    );
+    const successful = batchResults.filter((result): result is PromiseFulfilledResult<ClinicalBatchResult> => result.status === "fulfilled");
+    if (successful.length === 0) {
+      const firstFailure = batchResults.find((result): result is PromiseRejectedResult => result.status === "rejected");
+      throw firstFailure?.reason ?? new Error("ClinicalTrials.gov returned no successful watchlist batches");
+    }
+    const studies = successful.flatMap((result) => result.value.studies);
     const discoveredAt = new Date().toISOString();
-    const items = (payload.studies ?? []).flatMap((study): NormalizedItem[] => {
+    const itemsById = new Map<string, NormalizedItem>();
+    for (const study of studies) {
       const protocol = study.protocolSection;
       const identification = protocol?.identificationModule;
       const status = protocol?.statusModule;
       const nctId = identification?.nctId;
       const title = identification?.briefTitle ?? identification?.officialTitle;
-      if (!nctId || !title) return [];
+      if (!nctId || !title) continue;
       const sponsor = protocol?.sponsorCollaboratorsModule?.leadSponsor?.name ?? identification.organization?.fullName ?? "";
       const phases = protocol?.designModule?.phases?.join("/") ?? "Unknown phase";
       const resultsDate = status?.resultsFirstPostDateStruct?.date;
@@ -95,7 +100,7 @@ export class ClinicalTrialsSource implements SourceAdapter {
       const company = findWatchCompany(`${sponsor} ${title} ${summary}`, this.watchlist);
       const url = `https://clinicaltrials.gov/study/${nctId}`;
       const version = status?.lastUpdatePostDateStruct?.date ?? resultsDate ?? discoveredAt.slice(0, 10);
-      return [{
+      const item = {
         id: itemId(this.descriptor.id, `${nctId}:${version}`, url, headline),
         externalId: `${nctId}:${version}`,
         source: this.descriptor,
@@ -108,12 +113,59 @@ export class ClinicalTrialsSource implements SourceAdapter {
         companyHint: company?.company ?? (sponsor || null),
         tickerHint: company?.ticker ?? null,
         raw: study,
-      }];
-    });
+      } satisfies NormalizedItem;
+      itemsById.set(item.id, item);
+    }
+    const items = [...itemsById.values()];
     return {
       items,
       cursor: discoveredAt.slice(0, 10),
-      diagnostics: { totalCount: payload.totalCount ?? items.length, since },
+      diagnostics: {
+        batchCount: batches.length,
+        failedBatchCount: batchResults.length - successful.length,
+        reportedStudyCount: successful.reduce((sum, result) => sum + result.value.totalCount, 0),
+        truncatedBatchCount: successful.filter((result) => result.value.truncated).length,
+        since,
+      },
     };
   }
+
+  private async fetchBatch(batch: WatchCompany[], since: string): Promise<ClinicalBatchResult> {
+    const sponsorQuery = batch.map((company) => `\"${company.company.replaceAll('"', "")}\"`).join(" OR ");
+    const studies: ClinicalStudy[] = [];
+    let totalCount = 0;
+    let nextPageToken: string | undefined;
+    let page = 0;
+    do {
+      const url = new URL("https://clinicaltrials.gov/api/v2/studies");
+      url.searchParams.set("format", "json");
+      url.searchParams.set("pageSize", "100");
+      url.searchParams.set("countTotal", page === 0 ? "true" : "false");
+      url.searchParams.set("query.spons", sponsorQuery);
+      url.searchParams.set("filter.advanced", `AREA[LastUpdatePostDate]RANGE[${since}, MAX]`);
+      url.searchParams.set("sort", "LastUpdatePostDate:desc");
+      if (nextPageToken) url.searchParams.set("pageToken", nextPageToken);
+      const response = await fetchWithTimeout(url, {
+        headers: { "User-Agent": "CatalystWatch/0.1 clinical trial monitor" },
+      }, this.timeoutMs);
+      const payload = await response.json() as ClinicalTrialsResponse;
+      studies.push(...(payload.studies ?? []));
+      totalCount = payload.totalCount ?? totalCount;
+      nextPageToken = payload.nextPageToken;
+      page += 1;
+    } while (nextPageToken && page < MAX_PAGES_PER_BATCH);
+    return { studies, totalCount, truncated: Boolean(nextPageToken) };
+  }
+}
+
+interface ClinicalBatchResult {
+  studies: ClinicalStudy[];
+  totalCount: number;
+  truncated: boolean;
+}
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
 }

@@ -1,6 +1,6 @@
 # Catalyst Watch
 
-Catalyst Watch is a private biotech-news monitor with four parts:
+Catalyst Watch is an evidence-gated biotech-news monitor with four parts:
 
 1. Official API/RSS ingestion for company investor-relations feeds, SEC EDGAR, ClinicalTrials.gov, X, Reddit, and biotech trade outlets.
 2. Schema-constrained AI extraction of the company, ticker, trial phase, endpoint result, statistics, safety, novelty, and a rough stock-move scenario.
@@ -11,17 +11,27 @@ It does **not** claim that any announcement will definitely move a stock. Market
 
 ## What is implemented
 
-- RSS/Atom adapter with defaults for Fierce Biotech, STAT Biotech, and BioSpace.
+- RSS/Atom adapter with FDA regulatory feeds, GlobeNewswire biotech/pharma wires, Fierce Biotech, STAT Biotech, and BioSpace defaults.
+- Full-text Moderna investor-relations press-release ingestion through the public feed embedded by Moderna IR.
 - Primary-tier support for company IR feeds you add to `config/sources.json`.
 - X API v2 recent search using a bearer token and `since_id` cursor.
 - Reddit OAuth Data API adapter, disabled without approved credentials.
 - ClinicalTrials.gov API v2 monitoring for sponsors on your watchlist.
 - SEC submissions and 8-K/6-K primary-document ingestion for watchlist CIKs.
 - SQLite deduplication, source cursors, device registration, cooldowns, and an alert audit log.
-- OpenAI Responses API structured output with `gpt-5.4-mini` as the configurable default.
+- OpenAI Responses API structured output with `gpt-5.6-luna` as the configurable default.
 - Offline demo heuristic with a hard block against high/urgent alerts.
 - Time Sensitive APNs notifications, plus guarded Critical Alert payload support.
 - Token-protected responsive dashboard and iOS 17+ SwiftUI app source.
+- Per-installation iPhone authentication, StoreKit 2 subscriptions, and server-side App Store JWS verification.
+
+## Free, Pro, and developer access
+
+- **Free:** up to 30 recent signals with a 30-minute publication delay.
+- **Catalyst Watch Pro:** the real-time feed across the complete 258-company watchlist, Time Sensitive APNs alerts, and manual scans.
+- **Developer:** the same capabilities as Pro, activated for one installation with `DEVELOPER_PAIRING_TOKEN`. The credential stays server-side and is never compiled into the App Store build.
+
+The proposed App Store products are `com.yingcui.CatalystWatch.pro.monthly` at $9.99 per month and `com.yingcui.CatalystWatch.pro.yearly` at $79.99 per year. StoreKit supplies the localized customer price at runtime.
 
 ## Alert gate
 
@@ -65,7 +75,9 @@ The demo entries are explicitly synthetic and use `heuristic_demo`; they cannot 
 
 ## Configure the watchlist
 
-Edit `config/watchlist.json`. Each company can include:
+`config/watchlist.json` ships with a broad current universe generated from the iShares Biotechnology ETF holdings, the SEC ticker/CIK map, and a supplemental major-pharma list. Refresh that snapshot with `npm run watchlist:refresh`. Review changes before committing because holdings, tickers, and corporate names change.
+
+Each company can include:
 
 ```json
 {
@@ -105,7 +117,7 @@ The service intentionally uses official APIs and publisher-provided feeds instea
 
 ### OpenAI
 
-Set `OPENAI_API_KEY`. Keep it on the server; never put it in the iOS app. `OPENAI_MODEL` defaults to `gpt-5.4-mini` and can be changed without code edits. If the key is absent, the demo heuristic runs with confidence capped at 0.40 and urgent alerts blocked.
+Set `OPENAI_API_KEY`. Keep it on the server; never put it in the iOS app. `OPENAI_MODEL` defaults to `gpt-5.6-luna` with low reasoning effort for latency-sensitive classification and can be changed without code edits. If the key is absent, the demo heuristic runs with confidence capped at 0.40 and urgent alerts blocked.
 
 ### X
 
@@ -121,18 +133,38 @@ Set `SEC_USER_AGENT` to a descriptive app name plus a real contact email, as req
 
 ## iPhone app and APNs
 
-The iOS source and detailed build steps are in [`ios/README.md`](ios/README.md). You need macOS/Xcode to sign and run it; Swift/Xcode cannot be compiled in this Windows workspace.
+The iOS source and detailed build steps are in [`ios/README.md`](ios/README.md). You need macOS, Xcode, a physical iPhone, and an Apple Developer team to sign and run the native client.
+
+The web dashboard is also installable as a mobile home-screen app through its PWA manifest and service worker. That path gives you a phone-friendly dashboard and manual scans, but urgent background notifications still require the native iOS app plus APNs.
 
 Server-side APNs setup:
 
 1. In the Apple Developer portal, enable Push Notifications for your App ID.
 2. Create an APNs authentication key and download its `.p8` file once.
-3. Set `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_BUNDLE_ID`, and `APNS_PRIVATE_KEY_PATH` on the server.
-4. Set a long random `DEVICE_PAIRING_TOKEN` and enter the same value once in the iPhone app.
+3. Set `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_BUNDLE_ID`, and either `APNS_PRIVATE_KEY_PATH` or the inline `APNS_PRIVATE_KEY` secret on the server.
+4. Set a long random `DEVELOPER_PAIRING_TOKEN` if the developer installation needs Pro without purchasing its own subscription.
 5. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
 6. Debug device builds use the APNs sandbox; archived builds use production.
 
+The iPhone app creates a random installation credential in Keychain. Free devices may register an APNs token, but the alert service only targets an active App Store Pro or developer installation. App Store transactions and server notifications are verified with Apple's official server library before access changes.
+
 The `.p8` key and OpenAI/X/Reddit secrets stay server-side. Device tokens are stored in SQLite and automatically deactivated when APNs reports them invalid or unregistered.
+
+## Always-on deployment
+
+`render.yaml` defines a Render Starter web service with a 1 GB persistent disk at `/app/data`. The paid instance is intentional: free services sleep when idle and cannot attach the SQLite disk, which is incompatible with continuous monitoring.
+
+Create a Render Blueprint from this repository and provide the prompted secrets:
+
+- `OPENAI_API_KEY`
+- `DASHBOARD_TOKEN`
+- `DEVELOPER_PAIRING_TOKEN`
+- `SEC_USER_AGENT` in the form `Catalyst Watch contact@example.com`
+- `APNS_PRIVATE_KEY` containing the complete `.p8` key, including its `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines
+
+The Blueprint starts with `ALERT_DRY_RUN=true`. After deployment, confirm `/api/health`, pair a physical iPhone, inspect real classifications, and verify APNs delivery before changing that environment variable to `false`. Render redeploys the service after an environment change.
+
+The Blueprint also configures the App Store bundle ID, Apple app ID, product IDs, and bundled Apple root certificates used for signed-transaction verification. Configure App Store Server Notifications V2 to send production and sandbox notifications to `https://YOUR-SERVICE.onrender.com/api/app-store/notifications`.
 
 ### “Wake me up” limitation
 
@@ -149,10 +181,10 @@ Recommended rollout:
 3. Add an OpenAI key, keep APNs in dry-run, and review at least several weeks of outputs.
 4. Record the first tradable price after publication and later realized moves; calculate precision, recall, calibration, and alert latency by event type and market-cap band.
 5. Tighten thresholds based on out-of-sample results. Do not lower gates merely to produce more alerts.
-6. Pair a physical iPhone and test Time Sensitive delivery.
+6. Activate the developer installation, pair a physical iPhone, and test Time Sensitive delivery.
 7. Only then enable live APNs delivery.
 
-Do not expose port 8787 directly to the internet. Put it behind HTTPS, keep both tokens long and distinct, restrict inbound access, rotate credentials, back up the SQLite data, and monitor logs. The included Compose file binds to localhost by default.
+Do not expose port 8787 directly to the internet. Put it behind HTTPS, keep dashboard and developer credentials long and distinct, restrict inbound access, rotate credentials, back up the SQLite data, and monitor logs. The included Compose file binds to localhost by default.
 
 ## Commands
 
@@ -160,6 +192,7 @@ Do not expose port 8787 directly to the internet. Put it behind HTTPS, keep both
 npm run dev        Start with reload
 npm run scan       Run one scan and exit
 npm run seed:demo  Add two synthetic dashboard fixtures
+npm run watchlist:refresh  Refresh the broad biotech/pharma universe
 npm test           Run unit tests
 npm run typecheck  Check TypeScript
 npm run build      Compile production JavaScript
@@ -169,11 +202,16 @@ npm start          Run compiled server
 ## HTTP endpoints
 
 - `GET /api/health` — unauthenticated liveness check.
-- `GET /api/status` — configuration/source status; dashboard bearer or pairing token required.
-- `GET /api/feed` — evidence and analysis feed; dashboard bearer or pairing token required.
+- `POST /api/installations` — register one random iPhone installation credential.
+- `GET /api/entitlements` — return Free, Pro, or developer access for an installation.
+- `POST /api/entitlements/storekit` — verify an App Store-signed subscription transaction.
+- `POST /api/entitlements/developer` — activate developer Pro access for one installation.
+- `POST /api/app-store/notifications` — receive and verify App Store Server Notifications V2.
+- `GET /api/status` — configuration/source status; dashboard bearer or installation credentials required.
+- `GET /api/feed` — evidence and analysis feed, with the Free delay enforced server-side.
 - `GET /api/signals/:id` — one evidence record and analysis.
-- `POST /api/scan` — manually trigger a scan; dashboard bearer required.
-- `POST /api/devices` — register/update an APNs token; `X-Pairing-Token` required.
+- `POST /api/scan` — manually trigger a scan; dashboard, Pro, or developer access required.
+- `POST /api/devices` — register/update an APNs token for an authenticated installation.
 
 ## Production gaps to address before relying on money-sensitive alerts
 

@@ -5,9 +5,13 @@ import { RedditSource } from "./reddit.js";
 import { RssSource } from "./rss.js";
 import { SecFilingsSource } from "./sec.js";
 import { XRecentSearchSource } from "./x.js";
+import { QuoteMediaPressReleaseSource } from "./quote-media.js";
 
 export function createSources(config: AppConfig): SourceAdapter[] {
   const sources: SourceAdapter[] = config.rssSources.map((source) => new RssSource(source, config.watchlist, config.sourceTimeoutMs));
+  sources.push(...config.quoteMediaSources.map(
+    (source) => new QuoteMediaPressReleaseSource(source, config.watchlist, config.sourceTimeoutMs),
+  ));
   if (config.x.bearerToken) {
     sources.push(new XRecentSearchSource(config.x.bearerToken, config.x.query, config.watchlist, config.sourceTimeoutMs));
   }

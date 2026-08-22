@@ -2,15 +2,19 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import type {
+  AccessLevel,
   AlertTier,
   AnalysisRecord,
   DeviceRegistration,
   FeedEntry,
   ImpactAssessment,
+  InstallationAccess,
   NormalizedItem,
   SourceTier,
   SourceType,
+  StoreTransactionEntitlement,
 } from "./types.js";
+import { normalizedHeadline } from "./utils.js";
 
 interface ItemRow {
   id: string;
@@ -40,6 +44,20 @@ interface AnalysisRow {
   alert_tier: AlertTier;
   policy_reasons_json: string;
   created_at: string;
+}
+
+interface InstallationRow {
+  installation_id: string;
+  client_token_hash: string;
+  access_level: AccessLevel;
+  product_id: string | null;
+  original_transaction_id: string | null;
+  transaction_id: string | null;
+  expires_at: string | null;
+  store_environment: "Sandbox" | "Production" | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export class SignalDatabase {
@@ -152,11 +170,11 @@ export class SignalDatabase {
     return rows.map(rowToItem);
   }
 
-  listFeed(limit = 100): FeedEntry[] {
+  listFeed(limit = 100, publishedBefore: string | null = null): FeedEntry[] {
     const rows = this.sqlite.prepare(`
       SELECT
         i.*,
-        a.model, a.method, a.assessment_json, a.policy_score,
+        a.item_id, a.model, a.method, a.assessment_json, a.policy_score,
         a.alert_tier, a.policy_reasons_json, a.created_at,
         (SELECT COUNT(*) FROM items c
           WHERE c.id <> i.id AND c.published_at >= datetime(i.published_at, '-24 hours')
@@ -166,16 +184,29 @@ export class SignalDatabase {
       FROM items i
       LEFT JOIN analyses a ON a.item_id = i.id
       WHERE i.status <> 'skipped'
-      ORDER BY i.published_at DESC, i.discovered_at DESC
+        AND (? IS NULL OR i.published_at <= ?)
+      ORDER BY
+        CASE
+          WHEN a.alert_tier = 'urgent' AND julianday(i.published_at) >= julianday('now', '-7 days') THEN 0
+          ELSE 1
+        END,
+        i.published_at DESC,
+        i.discovered_at DESC
       LIMIT ?
-    `).all(limit) as Array<ItemRow & Partial<AnalysisRow> & { corroboration_count: number; alerted_at: string | null }>;
+    `).all(publishedBefore, publishedBefore, Math.min(limit * 5, 1_250)) as Array<ItemRow & Partial<AnalysisRow> & { corroboration_count: number; alerted_at: string | null }>;
 
+    const seenHeadlines = new Set<string>();
     return rows.map((row) => ({
       item: rowToItem(row),
       analysis: row.assessment_json ? rowToAnalysis(row as ItemRow & AnalysisRow) : null,
       corroborationCount: row.corroboration_count,
       alertedAt: row.alerted_at,
-    }));
+    })).filter((entry) => {
+      const key = normalizedHeadline(entry.item.headline);
+      if (!key || seenHeadlines.has(key)) return false;
+      seenHeadlines.add(key);
+      return true;
+    }).slice(0, limit);
   }
 
   getAnalysis(itemId: string): AnalysisRecord | null {
@@ -209,31 +240,150 @@ export class SignalDatabase {
     return rows.map((row) => ({ sourceId: row.source_id, cursor: row.cursor, lastFetchedAt: row.last_fetched_at, lastError: row.last_error }));
   }
 
-  upsertDevice(device: DeviceRegistration): void {
+  registerInstallation(installationId: string, clientTokenHash: string): boolean {
+    const existing = this.sqlite.prepare("SELECT client_token_hash FROM installations WHERE installation_id = ?")
+      .get(installationId) as { client_token_hash: string } | undefined;
+    if (existing) return existing.client_token_hash === clientTokenHash;
+    const now = new Date().toISOString();
     this.sqlite.prepare(`
-      INSERT INTO devices (
-        installation_id, device_token, environment, time_sensitive_authorized,
-        critical_authorized, active, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 1, ?)
-      ON CONFLICT(installation_id) DO UPDATE SET
-        device_token = excluded.device_token,
-        environment = excluded.environment,
-        time_sensitive_authorized = excluded.time_sensitive_authorized,
-        critical_authorized = excluded.critical_authorized,
-        active = 1,
-        updated_at = excluded.updated_at
-    `).run(
-      device.installationId,
-      device.deviceToken.toLowerCase(),
-      device.environment,
-      device.timeSensitiveAuthorized ? 1 : 0,
-      device.criticalAuthorized ? 1 : 0,
-      new Date().toISOString(),
-    );
+      INSERT INTO installations (
+        installation_id, client_token_hash, access_level, created_at, updated_at
+      ) VALUES (?, ?, 'free', ?, ?)
+    `).run(installationId, clientTokenHash, now, now);
+    return true;
+  }
+
+  installationTokenMatches(installationId: string, clientTokenHash: string): boolean {
+    const row = this.sqlite.prepare(`
+      SELECT 1 FROM installations WHERE installation_id = ? AND client_token_hash = ?
+    `).get(installationId, clientTokenHash);
+    return Boolean(row);
+  }
+
+  getInstallationAccess(installationId: string): InstallationAccess | null {
+    const row = this.sqlite.prepare("SELECT * FROM installations WHERE installation_id = ?")
+      .get(installationId) as InstallationRow | undefined;
+    if (!row) return null;
+    const subscriptionActive = row.access_level === "pro"
+      && Boolean(row.expires_at && Date.parse(row.expires_at) > Date.now());
+    const developer = row.access_level === "developer";
+    return {
+      installationId: row.installation_id,
+      level: developer ? "developer" : subscriptionActive ? "pro" : "free",
+      pro: developer || subscriptionActive,
+      productId: developer || subscriptionActive ? row.product_id : null,
+      expiresAt: developer || subscriptionActive ? row.expires_at : null,
+      source: developer ? "developer" : subscriptionActive ? "app_store" : "free",
+    };
+  }
+
+  activateDeveloperAccess(installationId: string): void {
+    const now = new Date().toISOString();
+    this.sqlite.prepare(`
+      UPDATE installations
+      SET access_level = 'developer', product_id = NULL, expires_at = NULL,
+        verified_at = ?, updated_at = ?
+      WHERE installation_id = ?
+    `).run(now, now, installationId);
+  }
+
+  applyStoreTransaction(entitlement: StoreTransactionEntitlement): number {
+    const now = new Date().toISOString();
+    const active = !entitlement.revoked && Date.parse(entitlement.expiresAt) > Date.now();
+    const params = {
+      level: active ? "pro" : "free",
+      productId: entitlement.productId,
+      originalTransactionId: entitlement.originalTransactionId,
+      transactionId: entitlement.transactionId,
+      expiresAt: entitlement.expiresAt,
+      environment: entitlement.environment,
+      now,
+    };
+    let changes = 0;
+    if (entitlement.installationId) {
+      changes += this.sqlite.prepare(`
+        UPDATE installations SET
+          access_level = CASE WHEN access_level = 'developer' THEN 'developer' ELSE @level END,
+          product_id = @productId,
+          original_transaction_id = @originalTransactionId,
+          transaction_id = @transactionId,
+          expires_at = @expiresAt,
+          store_environment = @environment,
+          verified_at = @now,
+          updated_at = @now
+        WHERE installation_id = @installationId
+      `).run({ ...params, installationId: entitlement.installationId }).changes;
+    }
+    changes += this.sqlite.prepare(`
+      UPDATE installations SET
+        access_level = CASE WHEN access_level = 'developer' THEN 'developer' ELSE @level END,
+        product_id = @productId,
+        transaction_id = @transactionId,
+        expires_at = @expiresAt,
+        store_environment = @environment,
+        verified_at = @now,
+        updated_at = @now
+      WHERE original_transaction_id = @originalTransactionId
+        AND (@installationId IS NULL OR installation_id <> @installationId)
+    `).run({ ...params, installationId: entitlement.installationId ?? null }).changes;
+    return changes;
+  }
+
+  upsertDevice(device: DeviceRegistration): void {
+    const deviceToken = device.deviceToken.toLowerCase();
+    this.sqlite.transaction(() => {
+      this.sqlite.prepare("DELETE FROM devices WHERE device_token = ? AND installation_id <> ?")
+        .run(deviceToken, device.installationId);
+      this.sqlite.prepare(`
+        INSERT INTO devices (
+          installation_id, device_token, environment, time_sensitive_authorized,
+          critical_authorized, active, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 1, ?)
+        ON CONFLICT(installation_id) DO UPDATE SET
+          device_token = excluded.device_token,
+          environment = excluded.environment,
+          time_sensitive_authorized = excluded.time_sensitive_authorized,
+          critical_authorized = excluded.critical_authorized,
+          active = 1,
+          updated_at = excluded.updated_at
+      `).run(
+        device.installationId,
+        deviceToken,
+        device.environment,
+        device.timeSensitiveAuthorized ? 1 : 0,
+        device.criticalAuthorized ? 1 : 0,
+        new Date().toISOString(),
+      );
+    })();
   }
 
   listDevices(): Array<DeviceRegistration & { active: boolean }> {
     const rows = this.sqlite.prepare("SELECT * FROM devices WHERE active = 1 ORDER BY updated_at DESC").all() as Array<{
+      installation_id: string;
+      device_token: string;
+      environment: "sandbox" | "production";
+      time_sensitive_authorized: number;
+      critical_authorized: number;
+      active: number;
+    }>;
+    return rows.map((row) => ({
+      installationId: row.installation_id,
+      deviceToken: row.device_token,
+      environment: row.environment,
+      timeSensitiveAuthorized: Boolean(row.time_sensitive_authorized),
+      criticalAuthorized: Boolean(row.critical_authorized),
+      active: Boolean(row.active),
+    }));
+  }
+
+  listAlertDevices(): Array<DeviceRegistration & { active: boolean }> {
+    const rows = this.sqlite.prepare(`
+      SELECT d.* FROM devices d
+      INNER JOIN installations i ON i.installation_id = d.installation_id
+      WHERE d.active = 1
+        AND (i.access_level = 'developer' OR (i.access_level = 'pro' AND i.expires_at > ?))
+      ORDER BY d.updated_at DESC
+    `).all(new Date().toISOString()) as Array<{
       installation_id: string;
       device_token: string;
       environment: "sandbox" | "production";
@@ -356,6 +506,22 @@ export class SignalDatabase {
         active INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS installations (
+        installation_id TEXT PRIMARY KEY,
+        client_token_hash TEXT NOT NULL,
+        access_level TEXT NOT NULL DEFAULT 'free',
+        product_id TEXT,
+        original_transaction_id TEXT,
+        transaction_id TEXT,
+        expires_at TEXT,
+        store_environment TEXT,
+        verified_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS installations_original_transaction_idx
+        ON installations(original_transaction_id);
 
       CREATE TABLE IF NOT EXISTS alerts (
         id TEXT PRIMARY KEY,

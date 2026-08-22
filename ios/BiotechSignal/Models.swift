@@ -2,6 +2,32 @@ import Foundation
 
 struct FeedResponse: Decodable {
     let entries: [FeedEntry]
+    let access: AccessInfo?
+    let delayedByMinutes: Int?
+}
+
+struct AccessInfo: Decodable, Equatable {
+    let installationId: String
+    let level: String
+    let pro: Bool
+    let productId: String?
+    let expiresAt: String?
+    let source: String
+
+    static let free = AccessInfo(
+        installationId: "",
+        level: "free",
+        pro: false,
+        productId: nil,
+        expiresAt: nil,
+        source: "free"
+    )
+}
+
+struct EntitlementResponse: Decodable {
+    let access: AccessInfo
+    let products: [String]
+    let freeFeedDelayMinutes: Int
 }
 
 struct FeedEntry: Decodable, Identifiable {
@@ -83,6 +109,20 @@ struct DeviceRegistration: Encodable {
 struct StatusResponse: Decodable {
     let stats: MonitorStats
     let configuration: MonitorConfiguration
+    let access: AccessInfo?
+}
+
+struct ScanResponse: Decodable {
+    let startedAt: String
+    let finishedAt: String
+    let sourceCount: Int
+    let fetchedCount: Int
+    let insertedCount: Int
+    let analyzedCount: Int
+    let skippedCount: Int
+    let errorCount: Int
+    let urgentCount: Int
+    let alreadyRunning: Bool
 }
 
 struct MonitorStats: Decodable {
@@ -99,15 +139,17 @@ struct MonitorConfiguration: Decodable {
     let dryRun: Bool
     let apnsConfigured: Bool
     let criticalAlertsEnabled: Bool
+    let freeFeedDelayMinutes: Int
 }
 
 struct ServerSettings: Equatable {
     var baseURL: String
-    var pairingToken: String
+    var installationId: String
+    var clientToken: String
 
     var isComplete: Bool {
         guard let url = URL(string: baseURL), ["http", "https"].contains(url.scheme?.lowercased()) else { return false }
-        return !pairingToken.isEmpty
+        return UUID(uuidString: installationId) != nil && clientToken.count == 64
     }
 }
 

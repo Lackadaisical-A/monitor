@@ -57,7 +57,7 @@ a { color: inherit; }
 .mode-model { color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 5px; }
 .safety-copy { color: #687b72; font-size: 11px; line-height: 1.55; padding: 18px 4px 0; }
 
-main { width: 100%; max-width: 1500px; margin: 0 auto; padding: 28px 38px 72px; }
+main { width: 100%; max-width: 1500px; margin: 0 auto; padding: 28px 38px calc(72px + env(safe-area-inset-bottom)); }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 22px; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { margin: 5px 0 0; font-size: clamp(26px, 3vw, 38px); letter-spacing: -.045em; font-weight: 680; }
@@ -181,7 +181,7 @@ h2 { margin: 5px 0 0; font-size: 20px; letter-spacing: -.03em; }
 
 @media (max-width: 680px) {
   .brand { font-size: 16px; }
-  main { padding: 20px 14px 50px; }
+  main { padding: 20px max(14px, env(safe-area-inset-left)) calc(50px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-right)); }
   .topbar { align-items: flex-end; }
   .connection { display: none; }
   .scan-button { padding: 9px 11px; }

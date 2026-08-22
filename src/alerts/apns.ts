@@ -19,7 +19,8 @@ export class ApnsClient {
   constructor(private readonly config: AppConfig["apns"]) {}
 
   get configured(): boolean {
-    return Boolean(this.config.teamId && this.config.keyId && this.config.bundleId && this.config.privateKeyPath);
+    return Boolean(this.config.teamId && this.config.keyId && this.config.bundleId
+      && (this.config.privateKey || this.config.privateKeyPath));
   }
 
   async send(
@@ -48,7 +49,7 @@ export class ApnsClient {
   private async getProviderToken(): Promise<string> {
     if (this.providerToken && Date.now() - this.providerTokenCreatedAt < 50 * 60 * 1000) return this.providerToken;
     if (!this.signingKey) {
-      const pem = readFileSync(this.config.privateKeyPath, "utf8");
+      const pem = this.config.privateKey || readFileSync(this.config.privateKeyPath, "utf8");
       this.signingKey = await importPKCS8(pem, "ES256");
     }
     this.providerToken = await new SignJWT({})

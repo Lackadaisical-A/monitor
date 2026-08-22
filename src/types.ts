@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const SourceTypeSchema = z.enum([
   "company_ir",
+  "regulator",
   "sec",
   "clinical_trials",
   "outlet",
@@ -65,9 +66,15 @@ export const ImpactAssessmentSchema = z.object({
   indication: z.string(),
   resultDirection: z.enum(["positive", "mixed", "negative", "unclear"]),
   stockDirection: z.enum(["bullish", "neutral", "bearish", "unclear"]),
-  materiality: z.number().int().min(0).max(100),
-  confidence: z.number().min(0).max(1),
-  probabilityPositiveMove: z.number().min(0).max(1),
+  materiality: z.number().int().min(0).max(100).describe(
+    "Stock-catalyst materiality on a 0-100 scale: 0 irrelevant, 50 meaningful but usually incremental, 75 material, 90+ potentially market-moving Phase 3 topline or regulatory decision.",
+  ),
+  confidence: z.number().min(0).max(1).describe(
+    "Confidence from 0 to 1 in the factual event classification and directional scenario, not the probability that a trade is profitable.",
+  ),
+  probabilityPositiveMove: z.number().min(0).max(1).describe(
+    "Conditional probability from 0 to less than 1 that the first material market reaction is positive, given only the supplied evidence.",
+  ),
   expectedMoveLowPct: z.number().min(-100).max(500),
   expectedMoveBasePct: z.number().min(-100).max(500),
   expectedMoveHighPct: z.number().min(-100).max(500),
@@ -79,8 +86,12 @@ export const ImpactAssessmentSchema = z.object({
   rationale: z.string(),
   evidence: z.array(z.string()).max(8),
   uncertainty: z.array(z.string()).max(8),
-  disconfirmingEvidence: z.array(z.string()).max(8),
-  requiresHumanReview: z.boolean(),
+  disconfirmingEvidence: z.array(z.string()).max(8).describe(
+    "Only supplied facts that contradict or materially weaken the directional interpretation. Missing details belong in uncertainty, not here.",
+  ),
+  requiresHumanReview: z.boolean().describe(
+    "True only when conflicting evidence, uncertain source authenticity, endpoint ambiguity, or a material safety ambiguity could reverse the classification. Missing detailed statistics alone is not sufficient when an authentic primary release clearly reports a prespecified endpoint result.",
+  ),
 });
 export type ImpactAssessment = z.infer<typeof ImpactAssessmentSchema>;
 
@@ -121,6 +132,27 @@ export interface DeviceRegistration {
   environment: "sandbox" | "production";
   timeSensitiveAuthorized: boolean;
   criticalAuthorized: boolean;
+}
+
+export type AccessLevel = "free" | "pro" | "developer";
+
+export interface InstallationAccess {
+  installationId: string;
+  level: AccessLevel;
+  pro: boolean;
+  productId: string | null;
+  expiresAt: string | null;
+  source: "free" | "app_store" | "developer";
+}
+
+export interface StoreTransactionEntitlement {
+  installationId?: string;
+  productId: string;
+  originalTransactionId: string;
+  transactionId: string;
+  expiresAt: string;
+  environment: "Sandbox" | "Production";
+  revoked: boolean;
 }
 
 export interface FeedEntry {

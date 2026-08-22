@@ -13,8 +13,14 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DASHBOARD_TOKEN: z.string().default(""),
   DEVICE_PAIRING_TOKEN: z.string().default(""),
+  DEVELOPER_PAIRING_TOKEN: z.string().default(""),
+  FREE_FEED_DELAY_MINUTES: z.coerce.number().int().min(5).max(1_440).default(30),
+  APP_STORE_BUNDLE_ID: z.string().default("com.yingcui.CatalystWatch"),
+  APP_STORE_APP_ID: z.coerce.number().int().positive().default(6803988538),
+  APP_STORE_PRODUCT_IDS: z.string().default("com.yingcui.CatalystWatch.pro.monthly,com.yingcui.CatalystWatch.pro.yearly"),
+  APPLE_ROOT_CA_DIR: z.string().default("./config/apple"),
   OPENAI_API_KEY: z.string().default(""),
-  OPENAI_MODEL: z.string().default("gpt-5.4-mini"),
+  OPENAI_MODEL: z.string().default("gpt-5.6-luna"),
   SOURCES_FILE: z.string().default("./config/sources.json"),
   WATCHLIST_FILE: z.string().default("./config/watchlist.json"),
   X_BEARER_TOKEN: z.string().default(""),
@@ -33,6 +39,7 @@ const EnvSchema = z.object({
   APNS_TEAM_ID: z.string().default(""),
   APNS_KEY_ID: z.string().default(""),
   APNS_BUNDLE_ID: z.string().default("com.example.BiotechSignal"),
+  APNS_PRIVATE_KEY: z.string().default(""),
   APNS_PRIVATE_KEY_PATH: z.string().default(""),
   APNS_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
   APNS_ALLOW_CRITICAL: booleanEnv(false),
@@ -52,19 +59,41 @@ const RssSourceSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   type: z.literal("rss"),
-  sourceType: z.enum(["company_ir", "outlet"]).default("outlet"),
+  sourceType: z.enum(["company_ir", "regulator", "outlet"]).default("outlet"),
   tier: z.enum(["primary", "secondary"]).default("secondary"),
   url: z.string().url(),
   enabled: z.boolean().default(true),
 });
 
+const QuoteMediaSourceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: z.literal("quote_media"),
+  sourceType: z.enum(["company_ir", "outlet"]).default("outlet"),
+  tier: z.enum(["primary", "secondary"]).default("secondary"),
+  symbol: z.string().min(1).transform((value) => value.toUpperCase()),
+  enabled: z.boolean().default(true),
+});
+
+const ConfiguredSourceSchema = z.discriminatedUnion("type", [RssSourceSchema, QuoteMediaSourceSchema]);
+
 export interface RssSourceConfig {
   id: string;
   name: string;
   type: "rss";
-  sourceType: Extract<SourceType, "company_ir" | "outlet">;
+  sourceType: Extract<SourceType, "company_ir" | "regulator" | "outlet">;
   tier: Extract<SourceTier, "primary" | "secondary">;
   url: string;
+  enabled: boolean;
+}
+
+export interface QuoteMediaSourceConfig {
+  id: string;
+  name: string;
+  type: "quote_media";
+  sourceType: Extract<SourceType, "company_ir" | "outlet">;
+  tier: Extract<SourceTier, "primary" | "secondary">;
+  symbol: string;
   enabled: boolean;
 }
 
@@ -77,10 +106,19 @@ export interface AppConfig {
   logLevel: string;
   dashboardToken: string;
   devicePairingToken: string;
+  entitlements: {
+    developerPairingToken: string;
+    freeFeedDelayMinutes: number;
+    bundleId: string;
+    appAppleId: number;
+    productIds: string[];
+    appleRootCaDirectory: string;
+  };
   openaiApiKey: string;
   openaiModel: string;
   watchlist: WatchCompany[];
   rssSources: RssSourceConfig[];
+  quoteMediaSources: QuoteMediaSourceConfig[];
   x: { bearerToken: string; query: string };
   reddit: { clientId: string; clientSecret: string; userAgent: string; subreddits: string };
   clinicalTrialsEnabled: boolean;
@@ -96,6 +134,7 @@ export interface AppConfig {
     teamId: string;
     keyId: string;
     bundleId: string;
+    privateKey: string;
     privateKeyPath: string;
     environment: "sandbox" | "production";
     allowCritical: boolean;
@@ -105,7 +144,9 @@ export interface AppConfig {
 export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig {
   const env = EnvSchema.parse(envInput);
   const watchlist = loadJsonFile(env.WATCHLIST_FILE, z.array(WatchCompanySchema), []);
-  const rssSources = loadJsonFile(env.SOURCES_FILE, z.array(RssSourceSchema), []).filter((source) => source.enabled);
+  const configuredSources = loadJsonFile(env.SOURCES_FILE, z.array(ConfiguredSourceSchema), []).filter((source) => source.enabled);
+  const rssSources = configuredSources.filter((source): source is RssSourceConfig => source.type === "rss");
+  const quoteMediaSources = configuredSources.filter((source): source is QuoteMediaSourceConfig => source.type === "quote_media");
   return {
     port: env.PORT,
     host: env.HOST,
@@ -115,10 +156,19 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
     logLevel: env.LOG_LEVEL,
     dashboardToken: env.DASHBOARD_TOKEN,
     devicePairingToken: env.DEVICE_PAIRING_TOKEN,
+    entitlements: {
+      developerPairingToken: env.DEVELOPER_PAIRING_TOKEN || env.DEVICE_PAIRING_TOKEN,
+      freeFeedDelayMinutes: env.FREE_FEED_DELAY_MINUTES,
+      bundleId: env.APP_STORE_BUNDLE_ID,
+      appAppleId: env.APP_STORE_APP_ID,
+      productIds: env.APP_STORE_PRODUCT_IDS.split(",").map((value) => value.trim()).filter(Boolean),
+      appleRootCaDirectory: resolve(env.APPLE_ROOT_CA_DIR),
+    },
     openaiApiKey: env.OPENAI_API_KEY,
     openaiModel: env.OPENAI_MODEL,
     watchlist,
     rssSources,
+    quoteMediaSources,
     x: { bearerToken: env.X_BEARER_TOKEN, query: env.X_QUERY },
     reddit: {
       clientId: env.REDDIT_CLIENT_ID,
@@ -139,6 +189,7 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
       teamId: env.APNS_TEAM_ID,
       keyId: env.APNS_KEY_ID,
       bundleId: env.APNS_BUNDLE_ID,
+      privateKey: env.APNS_PRIVATE_KEY.replace(/\\n/g, "\n"),
       privateKeyPath: env.APNS_PRIVATE_KEY_PATH ? resolve(env.APNS_PRIVATE_KEY_PATH) : "",
       environment: env.APNS_ENVIRONMENT,
       allowCritical: env.APNS_ALLOW_CRITICAL,

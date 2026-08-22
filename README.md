@@ -54,16 +54,14 @@ Social-only evidence can never issue an urgent alert. High-impact negative news 
 
 Requirements: Node.js 22+ (Node 24 tested).
 
-```powershell
-Copy-Item .env.example .env
-Copy-Item config/watchlist.example.json config/watchlist.json -Force
+```sh
 npm install
 npm run typecheck
 npm test
 npm run dev
 ```
 
-Open `http://127.0.0.1:8787`. Localhost access works without a dashboard token; set a strong `DASHBOARD_TOKEN` before binding to another interface or using a reverse proxy.
+Open `http://127.0.0.1:8787`. Localhost access works without a dashboard token. Put server credentials in the gitignored `.env` file, and set a strong `DASHBOARD_TOKEN` before binding to another interface or using a reverse proxy.
 
 To preview the interface without analyzing real news:
 
@@ -150,9 +148,11 @@ The iPhone app creates a random installation credential in Keychain. Free device
 
 The `.p8` key and OpenAI/X/Reddit secrets stay server-side. Device tokens are stored in SQLite and automatically deactivated when APNs reports them invalid or unregistered.
 
-## Always-on deployment
+## Render website and backend
 
 `render.yaml` defines a Render Starter web service with a 1 GB persistent disk at `/app/data`. The paid instance is intentional: free services sleep when idle and cannot attach the SQLite disk, which is incompatible with continuous monitoring.
+
+The same service hosts the installable website and `/api/**`, runs the monitoring loop every two minutes, stores durable state in SQLite, and sends eligible APNs alerts. API rate limits cap general traffic and apply a tighter limit to installation creation. Render terminates public TLS and deploys repository updates automatically.
 
 Create a Render Blueprint from this repository and provide the prompted secrets:
 
@@ -209,6 +209,7 @@ npm start          Run compiled server
 - `POST /api/app-store/notifications` — receive and verify App Store Server Notifications V2.
 - `GET /api/status` — configuration/source status; dashboard bearer or installation credentials required.
 - `GET /api/feed` — evidence and analysis feed, with the Free delay enforced server-side.
+- `GET /api/watchlist` — return the complete monitored company universe.
 - `GET /api/signals/:id` — one evidence record and analysis.
 - `POST /api/scan` — manually trigger a scan; dashboard, Pro, or developer access required.
 - `POST /api/devices` — register/update an APNs token for an authenticated installation.
@@ -219,5 +220,5 @@ npm start          Run compiled server
 - Add licensed real-time quote, float, market-cap, short-interest, options, and consensus-expectation data.
 - Parse issuer attachments and FDA source documents more deeply, including amended releases.
 - Add a second independent extraction pass or human-on-call verification for the most material events.
-- Add monitoring, dead-letter retries, secret management, database encryption/backups, and redundant deployment.
+- Add production observability, dead-letter retries, automated offsite SQLite backups, and redundant deployment.
 - Obtain legal review of source terms, data retention, market-data licensing, and financial-product disclosures for any distribution beyond personal use.

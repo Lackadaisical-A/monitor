@@ -1,5 +1,6 @@
+import { XMLParser } from "fast-xml-parser";
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { canonicalUrl, itemId, mapWithConcurrency, stripHtml } from "../utils.js";
+import { canonicalUrl, itemId, stripHtml } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 interface SecSubmissions {
@@ -7,8 +8,6 @@ interface SecSubmissions {
   filings?: {
     recent?: {
       accessionNumber?: string[];
-      filingDate?: string[];
-      acceptanceDateTime?: string[];
       form?: string[];
       primaryDocument?: string[];
       primaryDocDescription?: string[];
@@ -16,6 +15,22 @@ interface SecSubmissions {
     };
   };
 }
+
+interface AtomFiling {
+  accession: string;
+  cik: string;
+  form: string;
+  indexUrl: string;
+  summary: string;
+  updatedAt: string;
+}
+
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  textNodeName: "#text",
+  processEntities: true,
+});
 
 export class SecFilingsSource implements SourceAdapter {
   readonly descriptor = { id: "sec-edgar", name: "SEC EDGAR", type: "sec", tier: "primary" } as const;
@@ -29,86 +44,129 @@ export class SecFilingsSource implements SourceAdapter {
   ) {}
 
   async fetch(cursor: string | null): Promise<SourceFetchResult> {
-    const since = cursor && /^\d{4}-\d{2}-\d{2}$/.test(cursor)
-      ? cursor
-      : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const discoveredAt = new Date().toISOString();
-    const companies = this.watchlist.filter((entry) => entry.cik);
-    const results = await mapWithConcurrency(companies, 4, (company) => this.fetchCompany(company, since, discoveredAt));
-    const successful = results.filter((result): result is PromiseFulfilledResult<NormalizedItem[]> => result.status === "fulfilled");
-    if (companies.length > 0 && successful.length === 0) {
-      const firstFailure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
-      throw firstFailure?.reason ?? new Error("SEC EDGAR returned no successful company responses");
+    const cursorTime = cursor && Number.isFinite(Date.parse(cursor))
+      ? Date.parse(cursor) - 10 * 60_000
+      : Date.now() - 48 * 60 * 60_000;
+    const companiesByCik = new Map(this.watchlist
+      .filter((company) => company.cik)
+      .map((company) => [normalizeCik(company.cik!), company]));
+    const formResults = await Promise.allSettled([
+      this.fetchCurrentFilings("8-K", cursorTime),
+      this.fetchCurrentFilings("6-K", cursorTime),
+    ]);
+    const successful = formResults.filter((result): result is PromiseFulfilledResult<AtomFiling[]> => result.status === "fulfilled");
+    if (!successful.length) {
+      const failure = formResults.find((result): result is PromiseRejectedResult => result.status === "rejected");
+      throw failure?.reason ?? new Error("SEC current filings feeds were unavailable");
     }
-    const items = successful.flatMap((result) => result.value);
-    return {
-      items,
-      cursor: discoveredAt.slice(0, 10),
-      diagnostics: { companyCount: companies.length, failedCompanyCount: results.length - successful.length, since },
-    };
-  }
 
-  private async fetchCompany(company: WatchCompany, since: string, discoveredAt: string): Promise<NormalizedItem[]> {
+    const feedFilings = successful.flatMap((result) => result.value);
+    const watched = feedFilings.filter((filing) => companiesByCik.has(filing.cik));
+    const submissionCache = new Map<string, Promise<SecSubmissions>>();
     const items: NormalizedItem[] = [];
-    const cikPadded = company.cik!.padStart(10, "0");
-    const response = await this.fetchSec(`https://data.sec.gov/submissions/CIK${cikPadded}.json`, {
-      headers: { "User-Agent": this.userAgent, Accept: "application/json" },
-    });
-    const payload = await response.json() as SecSubmissions;
-    const recent = payload.filings?.recent;
-    if (!recent) return items;
-    const forms = recent.form ?? [];
-    for (let index = 0; index < forms.length; index += 1) {
-        const form = forms[index];
-        const filingDate = recent.filingDate?.[index];
-        const accession = recent.accessionNumber?.[index];
-        const primaryDocument = recent.primaryDocument?.[index];
-        if (!form || !filingDate || !accession || !primaryDocument) continue;
-        if (!new Set(["8-K", "8-K/A", "6-K", "6-K/A"]).has(form) || filingDate < since) continue;
-        const cikNumeric = String(Number(cikPadded));
-        const accessionCompact = accession.replaceAll("-", "");
-        const documentUrl = canonicalUrl(`https://www.sec.gov/Archives/edgar/data/${cikNumeric}/${accessionCompact}/${primaryDocument}`);
-        let filingText = "";
+    for (const filing of watched) {
+      const company = companiesByCik.get(filing.cik)!;
+      const submissions = await this.getSubmissions(filing.cik, submissionCache).catch(() => null);
+      const recent = submissions?.filings?.recent;
+      const filingIndex = recent?.accessionNumber?.findIndex((accession) => accession === filing.accession) ?? -1;
+      const primaryDocument = filingIndex >= 0 ? recent?.primaryDocument?.[filingIndex] : undefined;
+      const description = filingIndex >= 0
+        ? recent?.primaryDocDescription?.[filingIndex] || `${filing.form} current report`
+        : `${filing.form} current report`;
+      const itemNumbers = filingIndex >= 0 ? recent?.items?.[filingIndex] ?? "" : "";
+      const documentUrl = primaryDocument
+        ? canonicalUrl(`https://www.sec.gov/Archives/edgar/data/${filing.cik}/${filing.accession.replaceAll("-", "")}/${primaryDocument}`)
+        : filing.indexUrl;
+      let filingText = "";
+      if (primaryDocument) {
         try {
-          const documentResponse = await this.fetchSec(documentUrl, {
+          const response = await this.fetchSec(documentUrl, {
             headers: { "User-Agent": this.userAgent, Accept: "text/html, text/plain;q=0.9" },
           });
-          filingText = stripHtml(await documentResponse.text()).slice(0, 25_000);
+          filingText = stripHtml(await response.text()).slice(0, 25_000);
         } catch (error) {
           filingText = `Primary filing document could not be fetched: ${error instanceof Error ? error.message : String(error)}`;
         }
-        const itemNumbers = recent.items?.[index] ?? "";
-        const description = recent.primaryDocDescription?.[index] ?? "Current report";
-        const headline = `${company.company} filed ${form}: ${description}`;
-        const summary = [
-          `SEC form: ${form}`,
+      }
+      const headline = `${company.company} filed ${filing.form}: ${description}`;
+      items.push({
+        id: itemId(this.descriptor.id, filing.accession, documentUrl, headline),
+        externalId: filing.accession,
+        source: this.descriptor,
+        headline,
+        summary: [
+          `SEC form: ${filing.form}`,
           itemNumbers ? `8-K item numbers: ${itemNumbers}` : "",
-          `Accession: ${accession}`,
+          `Accession: ${filing.accession}`,
+          filing.summary,
           filingText,
-        ].filter(Boolean).join("\n");
-        items.push({
-          id: itemId(this.descriptor.id, accession, documentUrl, headline),
-          externalId: accession,
-          source: this.descriptor,
-          headline,
-          summary,
-          url: documentUrl,
-          author: payload.name ?? company.company,
-          publishedAt: toSecIso(recent.acceptanceDateTime?.[index], filingDate),
-          discoveredAt,
-          companyHint: company.company,
-          tickerHint: company.ticker,
-          raw: {
-            accession,
-            filingDate,
-            form,
-            primaryDocument,
-            primaryDocDescription: description,
-            items: itemNumbers,
-          },
-        });
+        ].filter(Boolean).join("\n"),
+        url: documentUrl,
+        author: submissions?.name ?? company.company,
+        publishedAt: filing.updatedAt,
+        discoveredAt,
+        companyHint: company.company,
+        tickerHint: company.ticker,
+        raw: {
+          accession: filing.accession,
+          cik: filing.cik,
+          form: filing.form,
+          primaryDocument: primaryDocument ?? null,
+          primaryDocDescription: description,
+          items: itemNumbers,
+        },
+      });
     }
-    return items;
+
+    return {
+      items,
+      cursor: discoveredAt,
+      diagnostics: {
+        feedEntryCount: feedFilings.length,
+        matchedFilingCount: watched.length,
+        failedFeedCount: formResults.length - successful.length,
+        since: new Date(cursorTime).toISOString(),
+      },
+    };
+  }
+
+  private async fetchCurrentFilings(form: "8-K" | "6-K", sinceTime: number): Promise<AtomFiling[]> {
+    const filings: AtomFiling[] = [];
+    for (let start = 0; start < 500; start += 100) {
+      const url = new URL("https://www.sec.gov/cgi-bin/browse-edgar");
+      url.search = new URLSearchParams({
+        action: "getcurrent",
+        type: form,
+        company: "",
+        dateb: "",
+        owner: "include",
+        start: String(start),
+        count: "100",
+        output: "atom",
+      }).toString();
+      const response = await this.fetchSec(url.toString(), {
+        headers: {
+          "User-Agent": this.userAgent,
+          Accept: "application/atom+xml, application/xml;q=0.9",
+        },
+      });
+      const page = parseAtomFilings(await response.text());
+      filings.push(...page.filter((filing) => Date.parse(filing.updatedAt) >= sinceTime));
+      const oldest = Math.min(...page.map((filing) => Date.parse(filing.updatedAt)).filter(Number.isFinite));
+      if (page.length < 100 || !Number.isFinite(oldest) || oldest < sinceTime) break;
+    }
+    return filings;
+  }
+
+  private getSubmissions(cik: string, cache: Map<string, Promise<SecSubmissions>>): Promise<SecSubmissions> {
+    const existing = cache.get(cik);
+    if (existing) return existing;
+    const request = this.fetchSec(`https://data.sec.gov/submissions/CIK${cik.padStart(10, "0")}.json`, {
+      headers: { "User-Agent": this.userAgent, Accept: "application/json" },
+    }).then((response) => response.json() as Promise<SecSubmissions>);
+    cache.set(cik, request);
+    return request;
   }
 
   private async fetchSec(input: string, init: RequestInit): Promise<Response> {
@@ -127,9 +185,59 @@ export class SecFilingsSource implements SourceAdapter {
   }
 }
 
-function toSecIso(acceptanceDateTime: string | undefined, filingDate: string): string {
-  if (acceptanceDateTime && /^\d{14}$/.test(acceptanceDateTime)) {
-    return `${acceptanceDateTime.slice(0, 4)}-${acceptanceDateTime.slice(4, 6)}-${acceptanceDateTime.slice(6, 8)}T${acceptanceDateTime.slice(8, 10)}:${acceptanceDateTime.slice(10, 12)}:${acceptanceDateTime.slice(12, 14)}-04:00`;
+export function parseAtomFilings(xml: string): AtomFiling[] {
+  const parsed = parser.parse(xml) as Record<string, unknown>;
+  const feed = asRecord(parsed.feed);
+  return asArray(feed.entry).flatMap((rawEntry): AtomFiling[] => {
+    const entry = asRecord(rawEntry);
+    const title = asText(entry.title);
+    const cik = title.match(/\((\d{10})\)\s*\(Filer\)/i)?.[1];
+    const accession = asText(entry.id).match(/accession-number=([0-9-]+)/i)?.[1];
+    const indexUrl = extractLink(entry.link);
+    const updatedAt = asText(entry.updated);
+    const form = asText(asRecord(entry.category)["@_term"]);
+    if (!cik || !accession || !indexUrl || !updatedAt || !form) return [];
+    return [{
+      accession,
+      cik: normalizeCik(cik),
+      form,
+      indexUrl: canonicalUrl(indexUrl),
+      summary: stripHtml(asText(entry.summary)).slice(0, 12_000),
+      updatedAt: new Date(updatedAt).toISOString(),
+    }];
+  });
+}
+
+function normalizeCik(cik: string): string {
+  return String(Number(cik));
+}
+
+function extractLink(value: unknown): string {
+  for (const link of asArray(value)) {
+    if (typeof link === "string") return link;
+    const record = asRecord(link);
+    if (!record["@_rel"] || record["@_rel"] === "alternate") {
+      const href = asText(record["@_href"]);
+      if (href) return href;
+    }
   }
-  return `${filingDate}T00:00:00.000Z`;
+  return "";
+}
+
+function asText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(asText).find(Boolean) ?? "";
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return asText(record["#text"] ?? record["@_href"] ?? "");
+  }
+  return "";
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
 }

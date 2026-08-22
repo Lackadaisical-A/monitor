@@ -2,166 +2,236 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#08110f" />
+    <meta name="theme-color" content="#0d0f12" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Catalyst Watch" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Catalyst Watch · Biotech Signal Monitor</title>
+    <title>Catalyst Watch</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="ambient ambient-one"></div>
-    <div class="ambient ambient-two"></div>
-    <div class="shell">
-      <aside class="sidebar">
-        <a class="brand" href="/" aria-label="Catalyst Watch home">
+    <div class="app-shell">
+      <header class="app-header">
+        <a class="brand" href="#signals" aria-label="Catalyst Watch signal stream">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32"><path d="M8 5v7.5c0 2.8 2.2 5 5 5h6c2.8 0 5 2.2 5 5V27M24 5v5c0 2.8-2.2 5-5 5h-6c-2.8 0-5 2.2-5 5v7"/><path d="M6 9h5M21 9h5M6 23h5M21 23h5"/></svg>
           </span>
-          <span>Catalyst <em>Watch</em></span>
+          <span class="brand-copy"><strong>Catalyst Watch</strong><small>Biotech intelligence</small></span>
         </a>
 
-        <nav class="nav" aria-label="Primary">
-          <a class="nav-item active" href="#signals">
-            <span class="nav-dot"></span> Signal stream
-          </a>
-          <a class="nav-item" href="#sources">
-            <span class="nav-dot"></span> Source health
-          </a>
-          <a class="nav-item" href="#methodology">
-            <span class="nav-dot"></span> Alert gate
-          </a>
+        <nav class="desktop-tabs" aria-label="Workspace views">
+          <button class="view-tab active" data-view="signals" type="button">Signals</button>
+          <button class="view-tab" data-view="watchlist" type="button">Watchlist</button>
+          <button class="view-tab" data-view="sources" type="button">Sources</button>
         </nav>
 
-        <div class="sidebar-bottom">
-          <div class="mode-card">
-            <div class="eyebrow">Analysis mode</div>
-            <div id="analysis-mode" class="mode-value">Connecting…</div>
-            <div id="model-name" class="mode-model"></div>
-          </div>
-          <div class="safety-copy">Probabilistic research support.<br />Never a trading instruction.</div>
+        <div class="header-actions">
+          <div id="connection" class="connection" role="status"><span></span><strong>Connecting</strong></div>
+          <button id="tier-button" class="tier-button" type="button" aria-label="Open access settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9M14 17H5M17 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>
+            <span id="tier-label">Free</span>
+          </button>
         </div>
-      </aside>
+      </header>
 
       <main>
-        <header class="topbar">
-          <div>
-            <div class="eyebrow">Live intelligence</div>
-            <h1>Clinical catalyst radar</h1>
-          </div>
-          <div class="topbar-actions">
-            <div id="connection" class="connection"><span></span> Connecting</div>
-            <button id="scan-button" class="scan-button" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6"/></svg>
-              Scan now
-            </button>
-          </div>
-        </header>
-
-        <section class="notice" aria-label="Important disclaimer">
-          <div class="notice-icon">!</div>
-          <div>
-            <strong>No alert means “definitely positive.”</strong>
-            Scores are conditional estimates built from available evidence. Always open and verify the primary source.
-          </div>
-        </section>
-
-        <section class="metric-grid" aria-label="Monitor summary">
-          <article class="metric-card accent">
-            <span class="metric-label">Urgent signals</span>
-            <strong id="urgent-count">—</strong>
-            <span class="metric-note">Passed every evidence gate</span>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Analyzed</span>
-            <strong id="analyzed-count">—</strong>
-            <span class="metric-note">Catalyst candidates</span>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Sources</span>
-            <strong id="source-count">—</strong>
-            <span class="metric-note">APIs, registries & feeds</span>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Phone link</span>
-            <strong id="device-count">—</strong>
-            <span id="device-note" class="metric-note">Active APNs devices</span>
-          </article>
-        </section>
-
-        <section id="signals" class="panel stream-panel">
-          <div class="panel-header">
+        <section id="view-signals" class="view active" data-view-panel="signals">
+          <div class="workspace-heading">
             <div>
-              <div class="eyebrow">Evidence-ranked</div>
-              <h2>Signal stream</h2>
+              <div class="kicker">Evidence-ranked news</div>
+              <h1>Signal stream</h1>
             </div>
-            <div class="filter-row" role="group" aria-label="Filter signals">
-              <button class="filter active" data-filter="all" type="button">All</button>
-              <button class="filter" data-filter="urgent" type="button">Urgent</button>
-              <button class="filter" data-filter="high" type="button">High</button>
-              <button class="filter" data-filter="watch" type="button">Watch</button>
+            <div class="command-row">
+              <button id="refresh-button" class="icon-button" type="button" aria-label="Refresh signal stream" data-tooltip="Refresh">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"/></svg>
+              </button>
+              <button id="scan-button" class="primary-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                <span>Scan now</span>
+              </button>
             </div>
           </div>
-          <div id="signal-list" class="signal-list" aria-live="polite">
-            <div class="empty-state"><div class="loader"></div><p>Loading signals…</p></div>
+
+          <div class="monitor-strip" aria-label="Monitor status">
+            <div class="monitor-stat"><span>Coverage</span><strong id="watchlist-count">--</strong><small>companies</small></div>
+            <div class="monitor-stat"><span>Sources</span><strong id="source-count">--</strong><small>active endpoints</small></div>
+            <div class="monitor-stat"><span>Analyzed</span><strong id="analyzed-count">--</strong><small>candidates</small></div>
+            <div class="monitor-stat urgent"><span>Urgent</span><strong id="urgent-count">--</strong><small>passed every gate</small></div>
+            <div class="monitor-cadence"><span class="pulse"></span><strong>2 min</strong><small>monitor cadence</small></div>
+          </div>
+
+          <div id="access-banner" class="access-banner">
+            <div>
+              <strong id="access-title">Free feed</strong>
+              <span id="access-copy">Signals appear after the configured delay.</span>
+            </div>
+            <button id="access-action" class="text-button" type="button">Access</button>
+          </div>
+
+          <div class="signal-layout">
+            <aside class="filter-rail" aria-label="Signal filters">
+              <div class="rail-heading">
+                <h2>Filters</h2>
+                <button id="clear-filters" class="quiet-button" type="button">Reset</button>
+              </div>
+              <label class="search-field" for="signal-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="signal-search" type="search" placeholder="Ticker or headline" autocomplete="off" />
+              </label>
+              <fieldset class="filter-group">
+                <legend>Priority</legend>
+                <label><input type="radio" name="tier" value="all" checked /><span>All signals</span><b id="filter-all-count">0</b></label>
+                <label><input type="radio" name="tier" value="urgent" /><span>Urgent</span><b id="filter-urgent-count">0</b></label>
+                <label><input type="radio" name="tier" value="high" /><span>High</span><b id="filter-high-count">0</b></label>
+                <label><input type="radio" name="tier" value="watch" /><span>Watch</span><b id="filter-watch-count">0</b></label>
+              </fieldset>
+              <div class="rail-fact">
+                <span>Analysis</span>
+                <strong id="analysis-mode">Connecting</strong>
+                <small id="model-name"></small>
+              </div>
+              <div class="rail-fact">
+                <span>Alert threshold</span>
+                <strong id="thresholds">--</strong>
+                <small>Materiality / confidence</small>
+              </div>
+            </aside>
+
+            <section class="stream-region" aria-labelledby="stream-title">
+              <div class="stream-toolbar">
+                <div>
+                  <h2 id="stream-title">Latest catalysts</h2>
+                  <span id="feed-state">Loading</span>
+                </div>
+                <label class="compact-search" for="mobile-signal-search">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  <input id="mobile-signal-search" type="search" placeholder="Search" autocomplete="off" />
+                </label>
+              </div>
+              <div id="mobile-filters" class="mobile-filters" role="group" aria-label="Priority filter">
+                <button class="active" data-tier="all" type="button">All</button>
+                <button data-tier="urgent" type="button">Urgent</button>
+                <button data-tier="high" type="button">High</button>
+                <button data-tier="watch" type="button">Watch</button>
+              </div>
+              <div id="signal-list" class="signal-list" aria-live="polite">
+                <div class="loading-state"><span class="spinner"></span><strong>Loading signal stream</strong></div>
+              </div>
+            </section>
+
+            <aside id="detail-pane" class="detail-pane" aria-label="Selected signal">
+              <div class="detail-empty">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M7 15l4-4 3 3 5-7"/></svg>
+                <strong>Select a signal</strong>
+                <span>Evidence and uncertainty will appear here.</span>
+              </div>
+            </aside>
           </div>
         </section>
 
-        <div class="lower-grid">
-          <section id="sources" class="panel">
-            <div class="panel-header compact">
-              <div>
-                <div class="eyebrow">Ingestion</div>
-                <h2>Source health</h2>
-              </div>
+        <section id="view-watchlist" class="view" data-view-panel="watchlist" hidden>
+          <div class="workspace-heading">
+            <div>
+              <div class="kicker">Monitored universe</div>
+              <h1>Company watchlist</h1>
             </div>
-            <div id="source-list" class="source-list"></div>
-          </section>
+            <div id="watchlist-total" class="heading-count">-- companies</div>
+          </div>
+          <div class="list-controls">
+            <label class="search-field wide" for="watchlist-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="watchlist-search" type="search" placeholder="Search ticker, company, alias, or program" autocomplete="off" />
+            </label>
+            <label class="select-field" for="market-cap-filter">
+              <span>Market cap</span>
+              <select id="market-cap-filter">
+                <option value="all">All bands</option>
+                <option value="micro">Micro</option>
+                <option value="small">Small</option>
+                <option value="mid">Mid</option>
+                <option value="large">Large</option>
+                <option value="mega">Mega</option>
+                <option value="unknown">Unclassified</option>
+              </select>
+            </label>
+          </div>
+          <div class="company-table-header" aria-hidden="true"><span>Ticker</span><span>Company</span><span>Programs</span><span>Market cap</span></div>
+          <div id="watchlist-grid" class="company-table" aria-live="polite"></div>
+        </section>
 
-          <section id="methodology" class="panel gate-panel">
-            <div class="panel-header compact">
-              <div>
-                <div class="eyebrow">Deterministic controls</div>
-                <h2>Urgent alert gate</h2>
-              </div>
+        <section id="view-sources" class="view" data-view-panel="sources" hidden>
+          <div class="workspace-heading">
+            <div>
+              <div class="kicker">Ingestion operations</div>
+              <h1>Source health</h1>
             </div>
-            <ol class="gate-list">
-              <li><span>01</span><div><strong>Material event</strong><p>New top-line result or regulatory decision.</p></div></li>
-              <li><span>02</span><div><strong>Evidence quality</strong><p>Primary source or independent corroboration.</p></div></li>
-              <li><span>03</span><div><strong>Clinical strength</strong><p>Endpoint, statistics, and safety all checked.</p></div></li>
-              <li><span>04</span><div><strong>Positive scenario</strong><p>High confidence and probability, never certainty.</p></div></li>
-            </ol>
-            <div id="thresholds" class="thresholds"></div>
-          </section>
-        </div>
+            <div id="source-summary" class="heading-count">--</div>
+          </div>
+          <div class="source-table-header" aria-hidden="true"><span>Status</span><span>Source</span><span>Last fetch</span></div>
+          <div id="source-list" class="source-table" aria-live="polite"></div>
+        </section>
       </main>
+
+      <nav class="mobile-tabs" aria-label="Workspace views">
+        <button class="mobile-tab active" data-view="signals" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M7 15l4-4 3 3 5-7"/></svg><span>Signals</span>
+        </button>
+        <button class="mobile-tab" data-view="watchlist" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/><path d="M7 4v4M12 10v4M17 16v4"/></svg><span>Watchlist</span>
+        </button>
+        <button class="mobile-tab" data-view="sources" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.48M7.76 16.24a6 6 0 0 1 0-8.48M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg><span>Sources</span>
+        </button>
+      </nav>
     </div>
 
-    <dialog id="signal-dialog" class="signal-dialog">
-      <button id="dialog-close" class="dialog-close" aria-label="Close details">×</button>
-      <div id="dialog-content"></div>
+    <dialog id="signal-dialog" class="sheet-dialog">
+      <button id="signal-dialog-close" class="dialog-close" type="button" aria-label="Close signal details">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <div id="signal-dialog-content"></div>
     </dialog>
 
-    <div id="auth-overlay" class="auth-overlay hidden">
-      <form id="auth-form" class="auth-card">
-        <span class="brand-mark large" aria-hidden="true">
-          <svg viewBox="0 0 32 32"><path d="M8 5v7.5c0 2.8 2.2 5 5 5h6c2.8 0 5 2.2 5 5V27M24 5v5c0 2.8-2.2 5-5 5h-6c-2.8 0-5 2.2-5 5v7"/><path d="M6 9h5M21 9h5M6 23h5M21 23h5"/></svg>
-        </span>
-        <div class="eyebrow">Private monitor</div>
-        <h2>Connect to Catalyst Watch</h2>
-        <p>Enter the dashboard token configured on your server. It stays in this browser tab.</p>
-        <label for="token-input">Dashboard token</label>
-        <input id="token-input" type="password" autocomplete="current-password" required />
-        <button type="submit" class="scan-button full">Connect</button>
-        <div id="auth-error" class="auth-error"></div>
-      </form>
-    </div>
+    <dialog id="settings-dialog" class="settings-dialog">
+      <div class="dialog-header">
+        <div><div class="kicker">Catalyst Watch</div><h2>Access</h2></div>
+        <button id="settings-close" class="dialog-close static" type="button" aria-label="Close access settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="access-status">
+        <span id="settings-level" class="access-level">Free</span>
+        <div><strong id="settings-title">Delayed signal feed</strong><small id="settings-expiry">No active subscription</small></div>
+      </div>
+      <div class="plan-table">
+        <div><span>Signal timing</span><strong id="plan-timing">30 min delay</strong></div>
+        <div><span>Feed depth</span><strong id="plan-depth">30 signals</strong></div>
+        <div><span>Manual scans</span><strong id="plan-scans">Locked</strong></div>
+        <div><span>Phone alerts</span><strong id="plan-alerts">Locked</strong></div>
+      </div>
+      <a class="primary-button full" href="https://apps.apple.com/app/id6803988538" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+        <span>Open iPhone app</span>
+      </a>
+      <details class="developer-access">
+        <summary>Developer access</summary>
+        <form id="developer-form">
+          <label for="developer-credential">Developer credential</label>
+          <div class="credential-row">
+            <input id="developer-credential" type="password" minlength="32" autocomplete="current-password" required />
+            <button type="submit" class="text-button">Unlock</button>
+          </div>
+          <div id="developer-error" class="form-error" role="alert"></div>
+        </form>
+      </details>
+      <div class="installation-id">Installation <code id="installation-id">--</code></div>
+    </dialog>
 
     <div id="toast" class="toast" role="status"></div>
     <script src="/app.js" defer></script>

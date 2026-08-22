@@ -11,6 +11,9 @@ const parser = new XMLParser({
   processEntities: true,
 });
 
+const RSS_CURSOR_VERSION = 1;
+const RSS_CURSOR_ITEM_LIMIT = 200;
+
 export class RssSource implements SourceAdapter {
   readonly descriptor;
 
@@ -27,7 +30,7 @@ export class RssSource implements SourceAdapter {
     } as const;
   }
 
-  async fetch(_cursor: string | null): Promise<SourceFetchResult> {
+  async fetch(cursor: string | null): Promise<SourceFetchResult> {
     const response = await fetchWithTimeout(this.config.url, {
       headers: {
         Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.1",
@@ -38,7 +41,7 @@ export class RssSource implements SourceAdapter {
     const parsed = parser.parse(xml) as Record<string, unknown>;
     const entries = extractEntries(parsed);
     const discoveredAt = new Date().toISOString();
-    const items = entries.flatMap((entry): NormalizedItem[] => {
+    const normalizedItems = entries.flatMap((entry): NormalizedItem[] => {
       const headline = asText(entry.title).trim();
       const link = extractLink(entry.link) || asText(entry.guid);
       if (!headline || !link) return [];
@@ -63,7 +66,28 @@ export class RssSource implements SourceAdapter {
         raw: entry,
       }];
     });
-    return { items, diagnostics: { entryCount: entries.length } };
+    const previousIds = parseCursor(cursor);
+    const seen = new Set(previousIds);
+    const items = normalizedItems.filter((item) => !seen.has(item.id));
+    const nextIds = [...new Set([...normalizedItems.map((item) => item.id), ...previousIds])]
+      .slice(0, RSS_CURSOR_ITEM_LIMIT);
+    return {
+      items,
+      ...(nextIds.length ? { cursor: JSON.stringify({ version: RSS_CURSOR_VERSION, itemIds: nextIds }) } : {}),
+      diagnostics: { entryCount: entries.length, newEntryCount: items.length },
+    };
+  }
+}
+
+function parseCursor(cursor: string | null): string[] {
+  if (!cursor) return [];
+  try {
+    const parsed = JSON.parse(cursor) as { version?: unknown; itemIds?: unknown };
+    if (parsed.version !== RSS_CURSOR_VERSION || !Array.isArray(parsed.itemIds)) return [];
+    return parsed.itemIds.filter((value): value is string => typeof value === "string")
+      .slice(0, RSS_CURSOR_ITEM_LIMIT);
+  } catch {
+    return [];
   }
 }
 

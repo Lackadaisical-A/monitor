@@ -38,7 +38,7 @@ const EnvSchema = z.object({
   ALERT_COOLDOWN_MINUTES: z.coerce.number().int().min(1).default(240),
   APNS_TEAM_ID: z.string().default(""),
   APNS_KEY_ID: z.string().default(""),
-  APNS_BUNDLE_ID: z.string().default("com.example.BiotechSignal"),
+  APNS_BUNDLE_ID: z.string().default("com.yingcui.CatalystWatch"),
   APNS_PRIVATE_KEY: z.string().default(""),
   APNS_PRIVATE_KEY_PATH: z.string().default(""),
   APNS_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),

@@ -1,243 +1,650 @@
+const IDENTITY_KEY = "catalyst-watch-installation-v1";
+const CACHE_KEY = "catalyst-watch-web-cache-v2";
+
 const state = {
-  token: sessionStorage.getItem("catalyst-dashboard-token") || "",
+  identity: loadIdentity(),
+  access: null,
+  products: [],
+  freeFeedDelayMinutes: 30,
   entries: [],
   status: null,
-  filter: "all",
+  watchlist: [],
+  selectedId: null,
+  tier: "all",
+  signalQuery: "",
+  watchlistQuery: "",
+  marketCap: "all",
+  lastUpdatedAt: null,
+  refreshing: false,
 };
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
-  });
-}
-
 const elements = {
-  overlay: document.querySelector("#auth-overlay"),
-  authForm: document.querySelector("#auth-form"),
-  tokenInput: document.querySelector("#token-input"),
-  authError: document.querySelector("#auth-error"),
   connection: document.querySelector("#connection"),
+  tierButton: document.querySelector("#tier-button"),
+  tierLabel: document.querySelector("#tier-label"),
+  refreshButton: document.querySelector("#refresh-button"),
   scanButton: document.querySelector("#scan-button"),
   signalList: document.querySelector("#signal-list"),
+  detailPane: document.querySelector("#detail-pane"),
+  signalDialog: document.querySelector("#signal-dialog"),
+  signalDialogContent: document.querySelector("#signal-dialog-content"),
+  settingsDialog: document.querySelector("#settings-dialog"),
   sourceList: document.querySelector("#source-list"),
-  dialog: document.querySelector("#signal-dialog"),
-  dialogContent: document.querySelector("#dialog-content"),
+  watchlistGrid: document.querySelector("#watchlist-grid"),
+  signalSearch: document.querySelector("#signal-search"),
+  mobileSignalSearch: document.querySelector("#mobile-signal-search"),
+  watchlistSearch: document.querySelector("#watchlist-search"),
+  marketCapFilter: document.querySelector("#market-cap-filter"),
+  developerForm: document.querySelector("#developer-form"),
+  developerCredential: document.querySelector("#developer-credential"),
+  developerError: document.querySelector("#developer-error"),
   toast: document.querySelector("#toast"),
 };
 
-elements.authForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  state.token = elements.tokenInput.value;
-  try {
-    await refresh();
-    sessionStorage.setItem("catalyst-dashboard-token", state.token);
-    elements.overlay.classList.add("hidden");
-    elements.authError.textContent = "";
-  } catch (error) {
-    elements.authError.textContent = error.message === "unauthorized" ? "That token was not accepted." : "Could not reach the monitor.";
-  }
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js").catch(() => {}));
+}
+
+document.querySelectorAll("[data-view]").forEach((button) => {
+  button.addEventListener("click", () => switchView(button.dataset.view));
 });
 
-elements.scanButton.addEventListener("click", async () => {
-  elements.scanButton.disabled = true;
-  elements.scanButton.classList.add("scanning");
-  try {
-    const result = await api("/api/scan", { method: "POST" });
-    toast(result.alreadyRunning ? "A scan is already in progress." : `Scan complete · ${result.insertedCount} new · ${result.analyzedCount} analyzed`);
-    await refresh();
-  } catch (error) {
-    toast(`Scan failed: ${error.message}`);
-  } finally {
-    elements.scanButton.disabled = false;
-    elements.scanButton.classList.remove("scanning");
-  }
+elements.tierButton.addEventListener("click", openSettings);
+document.querySelector("#access-action").addEventListener("click", openSettings);
+document.querySelector("#settings-close").addEventListener("click", () => elements.settingsDialog.close());
+document.querySelector("#signal-dialog-close").addEventListener("click", () => elements.signalDialog.close());
+
+for (const dialog of [elements.settingsDialog, elements.signalDialog]) {
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+}
+
+elements.refreshButton.addEventListener("click", () => refresh({ forceWatchlist: false }));
+elements.scanButton.addEventListener("click", runScan);
+
+document.querySelectorAll('input[name="tier"]').forEach((input) => {
+  input.addEventListener("change", () => setTier(input.value));
 });
 
-document.querySelectorAll(".filter").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    state.filter = button.dataset.filter;
+document.querySelector("#mobile-filters").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-tier]");
+  if (button) setTier(button.dataset.tier);
+});
+
+document.querySelector("#clear-filters").addEventListener("click", () => {
+  state.signalQuery = "";
+  elements.signalSearch.value = "";
+  elements.mobileSignalSearch.value = "";
+  setTier("all");
+});
+
+for (const input of [elements.signalSearch, elements.mobileSignalSearch]) {
+  input.addEventListener("input", () => {
+    state.signalQuery = input.value.trim().toLowerCase();
+    elements.signalSearch.value = input.value;
+    elements.mobileSignalSearch.value = input.value;
     renderSignals();
   });
-});
+}
 
 elements.signalList.addEventListener("click", (event) => {
   const row = event.target.closest("[data-signal-id]");
-  if (!row) return;
-  const entry = state.entries.find((candidate) => candidate.item.id === row.dataset.signalId);
-  if (entry) openSignal(entry);
+  if (row) selectSignal(row.dataset.signalId);
 });
 
-elements.signalList.addEventListener("keydown", (event) => {
-  if (!["Enter", " "].includes(event.key)) return;
-  const row = event.target.closest("[data-signal-id]");
-  if (!row) return;
+elements.watchlistSearch.addEventListener("input", () => {
+  state.watchlistQuery = elements.watchlistSearch.value.trim().toLowerCase();
+  renderWatchlist();
+});
+
+elements.marketCapFilter.addEventListener("change", () => {
+  state.marketCap = elements.marketCapFilter.value;
+  renderWatchlist();
+});
+
+elements.sourceList.addEventListener("click", (event) => {
+  if (event.target.closest("[data-open-settings]")) openSettings();
+});
+
+elements.developerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const entry = state.entries.find((candidate) => candidate.item.id === row.dataset.signalId);
-  if (entry) openSignal(entry);
-});
-
-document.querySelector("#dialog-close").addEventListener("click", () => elements.dialog.close());
-elements.dialog.addEventListener("click", (event) => {
-  if (event.target === elements.dialog) elements.dialog.close();
-});
-
-async function refresh() {
+  elements.developerError.textContent = "";
+  const submit = elements.developerForm.querySelector("button[type=submit]");
+  submit.disabled = true;
   try {
-    const [status, feed] = await Promise.all([api("/api/status"), api("/api/feed?limit=150")]);
-    state.status = status;
-    state.entries = feed.entries;
-    renderStatus();
-    renderSignals();
-    setConnection("online", "Live");
+    const response = await api("/api/entitlements/developer", {
+      method: "POST",
+      body: { credential: elements.developerCredential.value },
+    });
+    state.access = response.access;
+    state.products = response.products;
+    state.freeFeedDelayMinutes = response.freeFeedDelayMinutes;
+    elements.developerCredential.value = "";
+    renderAccess();
+    await refresh({ forceWatchlist: false });
+    toast("Developer access is active on this browser.");
   } catch (error) {
-    setConnection("error", "Disconnected");
-    if (error.message === "unauthorized") elements.overlay.classList.remove("hidden");
+    elements.developerError.textContent = error.message === "Developer credential was not accepted"
+      ? "Credential not accepted."
+      : "Could not activate developer access.";
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.lastUpdatedAt
+    && Date.now() - Date.parse(state.lastUpdatedAt) > 60_000) {
+    refresh({ forceWatchlist: false });
+  }
+});
+
+async function initialize() {
+  restoreCache();
+  renderAll();
+  switchView(initialView(), false);
+  await registerInstallation();
+  await refresh({ forceWatchlist: true });
+  setInterval(() => refresh({ forceWatchlist: false }), 60_000);
+}
+
+async function registerInstallation(canReset = true) {
+  try {
+    const response = await api("/api/installations", {
+      method: "POST",
+      body: state.identity,
+      authenticated: false,
+    });
+    state.access = response.access;
+    state.products = response.products;
+    state.freeFeedDelayMinutes = response.freeFeedDelayMinutes;
+    renderAccess();
+  } catch (error) {
+    if (canReset && error.status === 401) {
+      state.identity = createIdentity();
+      persistIdentity(state.identity);
+      await registerInstallation(false);
+      return;
+    }
     throw error;
   }
 }
 
-async function api(path, options = {}) {
-  const headers = { ...(options.headers || {}) };
-  if (state.token) headers.Authorization = `Bearer ${state.token}`;
-  const response = await fetch(path, { ...options, headers });
-  if (response.status === 401) throw new Error("unauthorized");
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || `HTTP ${response.status}`);
+async function refresh({ forceWatchlist }) {
+  if (state.refreshing) return;
+  state.refreshing = true;
+  elements.refreshButton.classList.add("loading");
+  try {
+    const requests = [api("/api/status"), api("/api/feed?limit=150")];
+    if (forceWatchlist || !state.watchlist.length) requests.push(api("/api/watchlist"));
+    const responses = await Promise.all(requests);
+    state.status = responses[0];
+    state.entries = responses[1].entries;
+    state.access = responses[1].access ?? state.status.access ?? state.access;
+    state.freeFeedDelayMinutes = state.status.configuration.freeFeedDelayMinutes;
+    if (responses[2]) state.watchlist = responses[2].companies;
+    state.lastUpdatedAt = new Date().toISOString();
+    persistCache();
+    renderAll();
+    setConnection("online", "Live");
+  } catch (error) {
+    setConnection("error", navigator.onLine ? "Unavailable" : "Offline");
+    if (!state.entries.length) {
+      elements.signalList.innerHTML = emptyState("Signal stream unavailable", "The monitor could not be reached.");
+    }
+  } finally {
+    state.refreshing = false;
+    elements.refreshButton.classList.remove("loading");
   }
-  return response.json();
+}
+
+async function runScan() {
+  if (!state.access?.pro) {
+    openSettings();
+    toast("Catalyst Watch Pro is required for manual scans.");
+    return;
+  }
+  elements.scanButton.classList.add("loading");
+  elements.scanButton.disabled = true;
+  try {
+    const result = await api("/api/scan", { method: "POST" });
+    toast(result.alreadyRunning
+      ? "A monitor scan is already running."
+      : `Scan complete: ${result.insertedCount} new, ${result.analyzedCount} analyzed.`);
+    await refresh({ forceWatchlist: false });
+  } catch (error) {
+    toast(`Scan failed: ${error.message}`);
+  } finally {
+    elements.scanButton.classList.remove("loading");
+    elements.scanButton.disabled = false;
+  }
+}
+
+async function api(path, options = {}) {
+  const { authenticated = true, body, ...fetchOptions } = options;
+  const headers = new Headers(fetchOptions.headers || {});
+  if (authenticated) {
+    headers.set("x-installation-id", state.identity.installationId);
+    headers.set("x-client-token", state.identity.clientToken);
+  }
+  let payload = body;
+  if (body !== undefined && typeof body !== "string") {
+    headers.set("content-type", "application/json");
+    payload = JSON.stringify(body);
+  }
+  const response = await fetch(path, { ...fetchOptions, headers, body: payload });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(typeof data.error === "string" ? data.error : `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+function renderAll() {
+  renderStatus();
+  renderAccess();
+  renderSignals();
+  renderWatchlist();
+  renderSources();
 }
 
 function renderStatus() {
-  const { stats, sources, configuration } = state.status;
-  text("#urgent-count", stats.urgent_count || 0);
-  text("#analyzed-count", stats.analyzed_count || 0);
+  if (!state.status) return;
+  const { stats, configuration } = state.status;
+  text("#watchlist-count", configuration.watchlistCount);
   text("#source-count", configuration.sourceCount);
-  text("#device-count", stats.deviceCount || 0);
-  text("#device-note", configuration.dryRun ? "Dry run — pushes logged only" : "Active APNs devices");
+  text("#analyzed-count", stats.analyzed_count || 0);
+  text("#urgent-count", stats.urgent_count || 0);
   text("#analysis-mode", configuration.analysisMode);
   text("#model-name", configuration.model);
-  text("#thresholds", `materiality ≥ ${configuration.urgentThresholds.materiality}  ·  confidence ≥ ${Math.round(configuration.urgentThresholds.confidence * 100)}%  ·  APNs ${configuration.dryRun ? "DRY RUN" : "LIVE"}`);
+  text("#thresholds", `${configuration.urgentThresholds.materiality} / ${Math.round(configuration.urgentThresholds.confidence * 100)}%`);
+}
 
-  if (!sources.length) {
-    elements.sourceList.innerHTML = '<div class="empty-state"><p>No source has completed a fetch yet.</p></div>';
-    return;
-  }
-  elements.sourceList.innerHTML = sources.map((source) => `
-    <div class="source-row">
-      <span class="source-status ${source.lastError ? "error" : ""}"></span>
-      <div>
-        <div class="source-name">${escapeHtml(prettySource(source.sourceId))}</div>
-        <div class="source-sub">${source.lastError ? escapeHtml(truncate(source.lastError, 90)) : "Healthy · official API/feed"}</div>
-      </div>
-      <div class="source-time">${source.lastFetchedAt ? relativeTime(source.lastFetchedAt) : "Never"}</div>
-    </div>
-  `).join("");
+function renderAccess() {
+  const access = state.access ?? { level: "free", pro: false, source: "free", expiresAt: null };
+  const level = access.level === "developer" ? "Developer" : access.pro ? "Pro" : "Free";
+  elements.tierLabel.textContent = level;
+  elements.tierButton.classList.toggle("pro", access.pro);
+  elements.scanButton.setAttribute("aria-disabled", String(!access.pro));
+
+  const banner = document.querySelector("#access-banner");
+  banner.classList.toggle("pro", access.pro);
+  text("#access-title", access.pro ? `${level} real-time feed` : "Free feed");
+  text("#access-copy", access.pro
+    ? "Live signals, full history, source health, manual scans, and phone alert eligibility."
+    : `${state.freeFeedDelayMinutes} minute delay with the latest 30 signals.`);
+  text("#access-action", access.pro ? "Manage" : "Upgrade");
+
+  text("#settings-level", level);
+  text("#settings-title", access.pro ? "Real-time intelligence" : "Delayed signal feed");
+  text("#settings-expiry", access.expiresAt ? `Renews or expires ${formatDate(access.expiresAt)}`
+    : access.level === "developer" ? "Owner entitlement" : "No active subscription");
+  text("#plan-timing", access.pro ? "Real time" : `${state.freeFeedDelayMinutes} min delay`);
+  text("#plan-depth", access.pro ? "150 signals" : "30 signals");
+  text("#plan-scans", access.pro ? "Available" : "Locked");
+  text("#plan-alerts", access.pro ? "Eligible" : "Locked");
+  text("#installation-id", `${state.identity.installationId.slice(0, 8)}...${state.identity.installationId.slice(-4)}`);
 }
 
 function renderSignals() {
+  const counts = { all: state.entries.length, urgent: 0, high: 0, watch: 0 };
+  for (const entry of state.entries) {
+    const tier = entry.analysis?.alertTier;
+    if (tier && tier in counts) counts[tier] += 1;
+  }
+  for (const tier of ["all", "urgent", "high", "watch"]) text(`#filter-${tier}-count`, counts[tier]);
+
   const filtered = state.entries.filter((entry) => {
-    if (!entry.analysis) return state.filter === "all";
-    return state.filter === "all" || entry.analysis.alertTier === state.filter;
+    const tier = entry.analysis?.alertTier ?? "none";
+    if (state.tier !== "all" && tier !== state.tier) return false;
+    if (!state.signalQuery) return true;
+    const assessment = entry.analysis?.assessment;
+    return [entry.item.headline, entry.item.summary, entry.item.source.name, entry.item.tickerHint,
+      entry.item.companyHint, assessment?.ticker, assessment?.companyName]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(state.signalQuery);
   });
+
+  text("#feed-state", `${filtered.length} signal${filtered.length === 1 ? "" : "s"}${state.lastUpdatedAt ? ` · ${relativeTime(state.lastUpdatedAt)}` : ""}`);
   if (!filtered.length) {
-    elements.signalList.innerHTML = `<div class="empty-state"><p>No ${state.filter === "all" ? "signals" : `${state.filter} signals`} yet.<br />Run a scan after configuring your watchlist.</p></div>`;
+    elements.signalList.innerHTML = emptyState(
+      state.entries.length ? "No matching signals" : "No signals yet",
+      state.entries.length ? "Change the search or priority filter." : "The monitor will add catalysts as sources publish them.",
+    );
     return;
   }
+
   elements.signalList.innerHTML = filtered.map((entry) => {
     const { item, analysis } = entry;
     const assessment = analysis?.assessment;
-    const ticker = assessment?.ticker || item.tickerHint || "—";
+    const ticker = assessment?.ticker || item.tickerHint || "--";
     const tier = analysis?.alertTier || "none";
-    const direction = assessment?.stockDirection || "unclear";
+    const tierLabel = analysis?.alertTier || "pending";
     const confidence = Math.round((assessment?.confidence || 0) * 100);
     return `
-      <article class="signal-row" data-signal-id="${escapeHtml(item.id)}" tabindex="0">
-        <div class="ticker-block">
+      <button class="signal-row ${state.selectedId === item.id ? "selected" : ""}" data-signal-id="${escapeHtml(item.id)}" type="button">
+        <span class="ticker-cell">
           <strong>${escapeHtml(ticker)}</strong>
-          <span>${escapeHtml(phaseLabel(assessment?.trialPhase))}</span>
-        </div>
-        <div class="signal-copy">
-          <div class="signal-title">${escapeHtml(item.headline)}</div>
-          <div class="signal-meta">
-            <span class="tier ${tier}">${tier}</span><i></i>
-            <span class="direction ${direction}">${escapeHtml(direction)}</span><i></i>
-            <span>${escapeHtml(item.source.name)}</span>
+          <span class="${tier}">${escapeHtml(tierLabel)}</span>
+        </span>
+        <span class="signal-copy">
+          <span class="signal-title">${escapeHtml(item.headline)}</span>
+          <span class="signal-meta">
+            <span class="source-meta">${escapeHtml(item.source.name)}</span><i></i>
+            <span>${relativeTime(item.publishedAt)}</span>
             ${entry.corroborationCount ? `<i></i><span>${entry.corroborationCount + 1} sources</span>` : ""}
-          </div>
-        </div>
-        <div class="score-block">
-          <strong>${assessment?.materiality ?? "—"}</strong><span>materiality</span>
-          <div class="confidence-bar"><span style="width:${confidence}%"></span></div>
-        </div>
-        <div class="time-block"><strong>${relativeTime(item.publishedAt)}</strong><span>${confidence}% confidence</span></div>
-      </article>
-    `;
+          </span>
+        </span>
+        <span class="signal-score">
+          <strong>${assessment?.materiality ?? "--"}</strong>
+          <small>${confidence}% conf.</small>
+          <span class="mini-bar"><span style="width:${confidence}%"></span></span>
+        </span>
+      </button>`;
+  }).join("");
+
+  if (!state.selectedId && window.matchMedia("(min-width: 1221px)").matches) {
+    selectSignal(filtered[0].item.id, false);
+  }
+}
+
+function selectSignal(itemId, openDialog = true) {
+  const entry = state.entries.find((candidate) => candidate.item.id === itemId);
+  if (!entry) return;
+  state.selectedId = itemId;
+  elements.signalList.querySelectorAll("[data-signal-id]").forEach((row) => {
+    row.classList.toggle("selected", row.dataset.signalId === itemId);
+  });
+  const content = signalDetail(entry);
+  elements.detailPane.innerHTML = content;
+  elements.signalDialogContent.innerHTML = content;
+  if (openDialog && window.matchMedia("(max-width: 1220px)").matches && !elements.signalDialog.open) {
+    elements.signalDialog.showModal();
+  }
+}
+
+function signalDetail(entry) {
+  const { item, analysis } = entry;
+  if (!analysis) {
+    return `<div class="detail-content">
+      <div class="detail-kicker"><span>Pending</span><time>${relativeTime(item.publishedAt)}</time></div>
+      <h2>${escapeHtml(item.headline)}</h2>
+      <div class="detail-source">${escapeHtml(item.source.name)} · ${formatDate(item.publishedAt)}</div>
+      <section class="detail-section"><h3>Analysis</h3><p>This item is queued for evidence classification.</p></section>
+      ${sourceLink(item.url)}
+    </div>`;
+  }
+  const assessment = analysis.assessment;
+  const range = `${signed(assessment.expectedMoveLowPct)} to ${signed(assessment.expectedMoveHighPct)}`;
+  return `<div class="detail-content">
+    <div class="detail-kicker"><span>${escapeHtml(analysis.alertTier)}</span><time>${relativeTime(item.publishedAt)}</time></div>
+    <h2>${escapeHtml(item.headline)}</h2>
+    <div class="detail-source">${escapeHtml(item.source.name)} · ${formatDate(item.publishedAt)} · ${escapeHtml(analysis.model)}</div>
+    <div class="score-strip">
+      <div><span>Materiality</span><strong>${assessment.materiality}/100</strong></div>
+      <div><span>Confidence</span><strong>${Math.round(assessment.confidence * 100)}%</strong></div>
+      <div><span>Scenario range</span><strong>${escapeHtml(range)}</strong></div>
+    </div>
+    <section class="detail-section"><h3>Assessment</h3><p>${escapeHtml(assessment.rationale)}</p></section>
+    ${detailList("Evidence", assessment.evidence)}
+    ${detailList("Uncertainty", assessment.uncertainty)}
+    ${detailList("Disconfirming evidence", assessment.disconfirmingEvidence)}
+    ${detailList("Alert gate", analysis.policyReasons)}
+    <section class="detail-section"><h3>Classification</h3><p>${escapeHtml(phaseLabel(assessment.trialPhase))} · ${escapeHtml(prettyLabel(assessment.eventType))} · endpoint ${escapeHtml(prettyLabel(assessment.primaryEndpointMet))} · safety ${escapeHtml(prettyLabel(assessment.safetyAssessment))}</p>${sourceLink(item.url)}</section>
+  </div>`;
+}
+
+function renderWatchlist() {
+  const filtered = state.watchlist.filter((company) => {
+    if (state.marketCap !== "all" && company.marketCapBand !== state.marketCap) return false;
+    if (!state.watchlistQuery) return true;
+    return [company.ticker, company.company, ...(company.aliases || []), ...(company.programs || [])]
+      .join(" ")
+      .toLowerCase()
+      .includes(state.watchlistQuery);
+  });
+  text("#watchlist-total", `${filtered.length} compan${filtered.length === 1 ? "y" : "ies"}`);
+  if (!filtered.length) {
+    elements.watchlistGrid.innerHTML = emptyState(
+      state.watchlist.length ? "No matching companies" : "Watchlist unavailable",
+      state.watchlist.length ? "Change the search or market cap filter." : "The monitored universe could not be loaded.",
+    );
+    return;
+  }
+  elements.watchlistGrid.innerHTML = filtered.map((company) => {
+    const programs = (company.programs || []).slice(0, 2);
+    const remaining = Math.max(0, (company.programs || []).length - programs.length);
+    return `<article class="company-row">
+      <span class="ticker">${escapeHtml(company.ticker)}</span>
+      <span class="company-name"><strong>${escapeHtml(company.company)}</strong><small>${escapeHtml((company.aliases || []).slice(0, 3).join(" · ") || "Biotechnology")}</small></span>
+      <span class="program-list">${programs.map((program) => `<span>${escapeHtml(program)}</span>`).join("")}${remaining ? `<span>+${remaining}</span>` : ""}</span>
+      <span class="cap-band">${escapeHtml(company.marketCapBand)}</span>
+    </article>`;
   }).join("");
 }
 
-function openSignal(entry) {
-  const { item, analysis } = entry;
-  if (!analysis) {
-    elements.dialogContent.innerHTML = `<div class="dialog-body"><h2 class="dialog-title">${escapeHtml(item.headline)}</h2><p class="dialog-source">Awaiting analysis · ${escapeHtml(item.source.name)}</p><a class="source-link" href="${safeUrl(item.url)}" target="_blank" rel="noopener noreferrer">Open original source ↗</a></div>`;
-    elements.dialog.showModal();
+function renderSources() {
+  if (!state.access?.pro) {
+    text("#source-summary", "Pro access");
+    elements.sourceList.innerHTML = `<div class="locked-state">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <strong>Source diagnostics are locked</strong>
+      <span>Real-time source state is available with Pro or developer access.</span>
+      <button class="text-button" data-open-settings type="button">Open access</button>
+    </div>`;
     return;
   }
-  const a = analysis.assessment;
-  elements.dialogContent.innerHTML = `
-    <div class="dialog-body">
-      <div class="dialog-kicker"><span class="tier ${analysis.alertTier}">${analysis.alertTier}</span><span class="direction ${a.stockDirection}">${escapeHtml(a.stockDirection)}</span></div>
-      <h2 class="dialog-title">${escapeHtml(item.headline)}</h2>
-      <div class="dialog-source">${escapeHtml(item.source.name)} · ${formatDate(item.publishedAt)} · ${escapeHtml(analysis.method === "openai" ? analysis.model : "demo heuristic")}</div>
-      <div class="score-grid">
-        <div class="score-cell"><span>Materiality</span><strong>${a.materiality}/100</strong></div>
-        <div class="score-cell"><span>Confidence</span><strong>${Math.round(a.confidence * 100)}%</strong></div>
-        <div class="score-cell"><span>Scenario range</span><strong>${signed(a.expectedMoveLowPct)}–${signed(a.expectedMoveHighPct)}</strong></div>
-      </div>
-      <section class="detail-section"><h3>Why it may matter</h3><p>${escapeHtml(a.rationale)}</p></section>
-      ${listSection("Evidence", a.evidence)}
-      ${listSection("Uncertainty", a.uncertainty)}
-      ${listSection("Disconfirming evidence", a.disconfirmingEvidence)}
-      ${listSection("Alert policy", analysis.policyReasons)}
-      <section class="detail-section"><h3>Clinical classification</h3><p>${escapeHtml(phaseLabel(a.trialPhase))} · ${escapeHtml(a.eventType.replaceAll("_", " "))} · primary endpoint: ${escapeHtml(a.primaryEndpointMet)} · safety: ${escapeHtml(a.safetyAssessment)}</p><a class="source-link" href="${safeUrl(item.url)}" target="_blank" rel="noopener noreferrer">Verify original source ↗</a></section>
-    </div>`;
-  elements.dialog.showModal();
+  const sources = state.status?.sources || [];
+  const healthy = sources.filter((source) => !source.lastError).length;
+  text("#source-summary", `${healthy}/${sources.length} healthy`);
+  if (!sources.length) {
+    elements.sourceList.innerHTML = emptyState("No source state yet", "A source appears after its first monitor fetch.");
+    return;
+  }
+  elements.sourceList.innerHTML = sources.map((source) => `<article class="source-row">
+    <span class="health-state ${source.lastError ? "error" : ""}">${source.lastError ? "Error" : "Healthy"}</span>
+    <span class="source-name"><strong>${escapeHtml(prettySource(source.sourceId))}</strong><small>${source.lastError ? escapeHtml(truncate(source.lastError, 120)) : "Official API or publication feed"}</small></span>
+    <time class="source-time">${source.lastFetchedAt ? relativeTime(source.lastFetchedAt) : "Never"}</time>
+  </article>`).join("");
 }
 
-function listSection(title, values) {
+function setTier(tier) {
+  state.tier = ["all", "urgent", "high", "watch"].includes(tier) ? tier : "all";
+  document.querySelectorAll('input[name="tier"]').forEach((input) => { input.checked = input.value === state.tier; });
+  document.querySelectorAll("#mobile-filters [data-tier]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tier === state.tier);
+  });
+  renderSignals();
+}
+
+function switchView(view, updateHash = true) {
+  const next = ["signals", "watchlist", "sources"].includes(view) ? view : "signals";
+  document.querySelectorAll("[data-view-panel]").forEach((panel) => {
+    const active = panel.dataset.viewPanel === next;
+    panel.hidden = !active;
+    panel.classList.toggle("active", active);
+  });
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === next);
+  });
+  if (updateHash) history.replaceState(null, "", `#${next}`);
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function openSettings() {
+  renderAccess();
+  if (!elements.settingsDialog.open) elements.settingsDialog.showModal();
+}
+
+function setConnection(kind, label) {
+  elements.connection.className = `connection ${kind}`;
+  elements.connection.querySelector("strong").textContent = label;
+}
+
+function initialView() {
+  return ["signals", "watchlist", "sources"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "signals";
+}
+
+function loadIdentity() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(IDENTITY_KEY));
+    if (/^[0-9a-f-]{36}$/i.test(parsed.installationId) && /^[0-9a-f]{64}$/i.test(parsed.clientToken)) return parsed;
+  } catch {}
+  const identity = createIdentity();
+  persistIdentity(identity);
+  return identity;
+}
+
+function createIdentity() {
+  return { installationId: randomUuid(), clientToken: randomHex(32) };
+}
+
+function persistIdentity(identity) {
+  try { localStorage.setItem(IDENTITY_KEY, JSON.stringify(identity)); } catch {}
+}
+
+function randomUuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const value = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function randomHex(length) {
+  return [...crypto.getRandomValues(new Uint8Array(length))]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function persistCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      entries: state.entries.slice(0, 80),
+      watchlist: state.watchlist,
+      status: state.status,
+      access: state.access,
+      freeFeedDelayMinutes: state.freeFeedDelayMinutes,
+      lastUpdatedAt: state.lastUpdatedAt,
+    }));
+  } catch {}
+}
+
+function restoreCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+    if (Array.isArray(cached.entries)) state.entries = cached.entries;
+    if (Array.isArray(cached.watchlist)) state.watchlist = cached.watchlist;
+    if (cached.status) state.status = cached.status;
+    if (cached.access) state.access = cached.access;
+    if (Number.isFinite(cached.freeFeedDelayMinutes)) state.freeFeedDelayMinutes = cached.freeFeedDelayMinutes;
+    if (cached.lastUpdatedAt) state.lastUpdatedAt = cached.lastUpdatedAt;
+  } catch {}
+}
+
+function detailList(title, values) {
   if (!values?.length) return "";
   return `<section class="detail-section"><h3>${escapeHtml(title)}</h3><ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></section>`;
 }
 
-function text(selector, value) { document.querySelector(selector).textContent = String(value); }
-function setConnection(kind, label) { elements.connection.className = `connection ${kind}`; elements.connection.lastChild.textContent = ` ${label}`; }
-function signed(value) { return `${value > 0 ? "+" : ""}${Number(value).toFixed(0)}%`; }
-function truncate(value, length) { return value.length > length ? `${value.slice(0, length - 1)}…` : value; }
-function prettySource(value) { return value.split("-").map((word) => ["sec", "fda"].includes(word) ? word.toUpperCase() : word === "x" ? "X" : word.charAt(0).toUpperCase() + word.slice(1)).join(" "); }
+function sourceLink(value) {
+  return `<a class="source-link" href="${safeUrl(value)}" target="_blank" rel="noopener noreferrer">Verify primary source<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>`;
+}
+
+function emptyState(title, copy) {
+  return `<div class="empty-state"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(copy)}</span></div>`;
+}
+
+function text(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) element.textContent = String(value);
+}
+
+function prettyLabel(value) {
+  return String(value || "unknown").replaceAll("_", " ");
+}
+
+function prettySource(value) {
+  return String(value).split("-").map((word) => {
+    if (["sec", "fda", "rss"].includes(word)) return word.toUpperCase();
+    if (word === "x") return "X";
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(" ");
+}
+
 function phaseLabel(value) {
-  if (!value) return "Pending";
-  if (value === "not_applicable") return "N/A";
+  if (!value || value === "unknown") return "Unknown phase";
+  if (value === "not_applicable") return "Not applicable";
   if (value === "post_market") return "Post-market";
   if (value === "preclinical") return "Preclinical";
-  if (value === "unknown") return "Unknown";
   return value.replace("phase_", "Phase ").replaceAll("_", "/");
 }
-function formatDate(value) { return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
+
+function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
 function relativeTime(value) {
-  const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
+  const milliseconds = new Date(value).getTime() - Date.now();
+  if (!Number.isFinite(milliseconds)) return "Unknown";
+  const seconds = Math.round(milliseconds / 1000);
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
   if (Math.abs(seconds) < 60) return formatter.format(seconds, "second");
   const minutes = Math.round(seconds / 60);
   if (Math.abs(minutes) < 60) return formatter.format(minutes, "minute");
   const hours = Math.round(minutes / 60);
   if (Math.abs(hours) < 24) return formatter.format(hours, "hour");
-  return formatter.format(Math.round(hours / 24), "day");
+  const days = Math.round(hours / 24);
+  if (Math.abs(days) < 30) return formatter.format(days, "day");
+  return formatDate(value);
 }
-function safeUrl(value) { try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? escapeHtml(url.toString()) : "#"; } catch { return "#"; } }
-function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char])); }
-function toast(message) { elements.toast.textContent = message; elements.toast.classList.add("show"); setTimeout(() => elements.toast.classList.remove("show"), 3200); }
 
-refresh().then(() => elements.overlay.classList.add("hidden")).catch(() => {});
-setInterval(() => refresh().catch(() => {}), 15_000);
+function signed(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number > 0 ? "+" : ""}${number.toFixed(0)}%` : "--";
+}
+
+function truncate(value, length) {
+  const textValue = String(value || "");
+  return textValue.length > length ? `${textValue.slice(0, length - 1)}…` : textValue;
+}
+
+function safeUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? escapeHtml(url.toString()) : "#";
+  } catch {
+    return "#";
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  }[character]));
+}
+
+let toastTimer;
+function toast(message) {
+  clearTimeout(toastTimer);
+  elements.toast.textContent = message;
+  elements.toast.classList.add("show");
+  toastTimer = setTimeout(() => elements.toast.classList.remove("show"), 3400);
+}
+
+initialize().catch(() => {
+  setConnection("error", "Unavailable");
+  if (!state.entries.length) elements.signalList.innerHTML = emptyState("Monitor unavailable", "The backend could not be reached.");
+});

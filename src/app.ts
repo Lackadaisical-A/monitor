@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
-import type { SignalDatabase } from "./db.js";
 import type { MonitorPipeline } from "./pipeline.js";
+import type { SignalStore } from "./store.js";
 import { AppStoreSubscriptionVerifier, type SubscriptionVerifier } from "./subscriptions.js";
 import type { InstallationAccess } from "./types.js";
 import { safeEqual } from "./utils.js";
@@ -38,7 +39,7 @@ const NotificationSchema = z.object({
 
 export async function createApp(
   config: AppConfig,
-  db: SignalDatabase,
+  db: SignalStore,
   pipeline: MonitorPipeline,
   subscriptionVerifier: SubscriptionVerifier = new AppStoreSubscriptionVerifier(config.entitlements),
 ): Promise<FastifyInstance> {
@@ -48,56 +49,66 @@ export async function createApp(
     bodyLimit: 300_000,
   });
   const publicPath = resolve("public");
+  await app.register(rateLimit, {
+    max: 120,
+    timeWindow: "1 minute",
+  });
   if (existsSync(publicPath)) {
     await app.register(fastifyStatic, { root: publicPath, prefix: "/" });
   }
 
   app.get("/api/health", async () => ({ ok: true, time: new Date().toISOString() }));
 
-  app.post("/api/installations", async (request, reply) => {
+  app.post("/api/installations", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
     const installation = InstallationSchema.parse(request.body);
-    const registered = db.registerInstallation(installation.installationId, hashToken(installation.clientToken));
+    const registered = await db.registerInstallation(installation.installationId, hashToken(installation.clientToken));
     if (!registered) throw httpError(401, "Installation credentials were not accepted");
-    return reply.code(201).send(entitlementResponse(config, db.getInstallationAccess(installation.installationId)));
+    return reply.code(201).send(entitlementResponse(config, await db.getInstallationAccess(installation.installationId)));
   });
 
   app.get("/api/entitlements", async (request) => {
-    const access = requireClientAccess(request, db);
+    const access = await requireClientAccess(request, db);
     return entitlementResponse(config, access);
   });
 
   app.post("/api/entitlements/storekit", async (request) => {
-    const access = requireClientAccess(request, db);
+    const access = await requireClientAccess(request, db);
     const body = SignedTransactionSchema.parse(request.body);
     const entitlement = await subscriptionVerifier.verifyTransaction(body.signedTransaction, access.installationId);
-    db.applyStoreTransaction(entitlement);
-    return entitlementResponse(config, db.getInstallationAccess(access.installationId));
+    await db.applyStoreTransaction(entitlement);
+    return entitlementResponse(config, await db.getInstallationAccess(access.installationId));
   });
 
   app.post("/api/entitlements/developer", async (request) => {
-    const access = requireClientAccess(request, db);
+    const access = await requireClientAccess(request, db);
     const body = DeveloperCredentialSchema.parse(request.body);
     if (!config.entitlements.developerPairingToken
       || !safeEqual(body.credential, config.entitlements.developerPairingToken)) {
       throw httpError(401, "Developer credential was not accepted");
     }
-    db.activateDeveloperAccess(access.installationId);
-    return entitlementResponse(config, db.getInstallationAccess(access.installationId));
+    await db.activateDeveloperAccess(access.installationId);
+    return entitlementResponse(config, await db.getInstallationAccess(access.installationId));
   });
 
   app.post("/api/app-store/notifications", async (request) => {
     const body = NotificationSchema.parse(request.body);
     const notification = await subscriptionVerifier.verifyNotification(body.signedPayload);
-    if (notification.transaction) db.applyStoreTransaction(notification.transaction);
+    if (notification.transaction) await db.applyStoreTransaction(notification.transaction);
     return { ok: true, notificationType: notification.notificationType };
   });
 
   app.get("/api/status", async (request) => {
     const dashboard = isDashboardAuthorized(request, config);
-    const access = dashboard ? null : requireClientAccess(request, db);
+    const access = dashboard ? null : await requireClientAccess(request, db);
+    const [stats, sources] = await Promise.all([
+      db.stats(),
+      dashboard || access?.pro ? db.listSourceState() : Promise.resolve([]),
+    ]);
     return {
-      stats: db.stats(),
-      sources: dashboard || access?.pro ? db.listSourceState() : [],
+      stats,
+      sources,
       access,
       configuration: {
         sourceCount: config.rssSources.length
@@ -125,14 +136,14 @@ export async function createApp(
   app.get("/api/feed", async (request) => {
     const query = z.object({ limit: z.coerce.number().int().min(1).max(250).default(100) }).parse(request.query);
     const dashboard = isDashboardAuthorized(request, config);
-    const access = dashboard ? null : requireClientAccess(request, db);
+    const access = dashboard ? null : await requireClientAccess(request, db);
     const free = !dashboard && !access?.pro;
     const publishedBefore = free
       ? new Date(Date.now() - config.entitlements.freeFeedDelayMinutes * 60_000).toISOString()
       : null;
     const limit = free ? Math.min(query.limit, 30) : query.limit;
     return {
-      entries: db.listFeed(limit, publishedBefore),
+      entries: await db.listFeed(limit, publishedBefore),
       access,
       delayedByMinutes: free ? config.entitlements.freeFeedDelayMinutes : 0,
     };
@@ -140,20 +151,35 @@ export async function createApp(
 
   app.get("/api/signals/:id", async (request, reply) => {
     const dashboard = isDashboardAuthorized(request, config);
-    const access = dashboard ? null : requireClientAccess(request, db);
+    const access = dashboard ? null : await requireClientAccess(request, db);
     const params = z.object({ id: z.string().min(1) }).parse(request.params);
-    const item = db.getItem(params.id);
+    const item = await db.getItem(params.id);
     if (!item) return reply.code(404).send({ error: "signal_not_found" });
     if (!dashboard && !access?.pro) {
       const cutoff = Date.now() - config.entitlements.freeFeedDelayMinutes * 60_000;
       if (Date.parse(item.publishedAt) > cutoff) return reply.code(403).send({ error: "pro_required" });
     }
-    return { item, analysis: db.getAnalysis(params.id) };
+    return { item, analysis: await db.getAnalysis(params.id) };
+  });
+
+  app.get("/api/watchlist", async (request) => {
+    const dashboard = isDashboardAuthorized(request, config);
+    const access = dashboard ? null : await requireClientAccess(request, db);
+    return {
+      access,
+      companies: config.watchlist.map(({ ticker, company, aliases, marketCapBand, programs }) => ({
+        ticker,
+        company,
+        aliases,
+        marketCapBand,
+        programs,
+      })),
+    };
   });
 
   app.post("/api/scan", async (request, reply) => {
     if (!isDashboardAuthorized(request, config)) {
-      const access = requireClientAccess(request, db);
+      const access = await requireClientAccess(request, db);
       if (!access.pro) throw httpError(403, "Catalyst Watch Pro is required to run a scan");
     }
     const result = await pipeline.run();
@@ -161,10 +187,10 @@ export async function createApp(
   });
 
   app.post("/api/devices", async (request, reply) => {
-    const access = requireClientAccess(request, db);
+    const access = await requireClientAccess(request, db);
     const device = DeviceSchema.parse(request.body);
     if (device.installationId !== access.installationId) throw httpError(403, "Installation does not match");
-    db.upsertDevice(device);
+    await db.upsertDevice(device);
     return reply.code(201).send({
       ok: true,
       pushEligible: access.pro,
@@ -184,16 +210,16 @@ export async function createApp(
   return app;
 }
 
-function requireClientAccess(request: FastifyRequest, db: SignalDatabase): InstallationAccess {
+async function requireClientAccess(request: FastifyRequest, db: SignalStore): Promise<InstallationAccess> {
   const installationId = headerValue(request, "x-installation-id");
   const clientToken = headerValue(request, "x-client-token");
   if (!z.string().uuid().safeParse(installationId).success || !/^[a-fA-F0-9]{64}$/.test(clientToken)) {
     throw httpError(401, "Installation credentials are required");
   }
-  if (!db.installationTokenMatches(installationId, hashToken(clientToken))) {
+  if (!await db.installationTokenMatches(installationId, hashToken(clientToken))) {
     throw httpError(401, "Installation credentials were not accepted");
   }
-  const access = db.getInstallationAccess(installationId);
+  const access = await db.getInstallationAccess(installationId);
   if (!access) throw httpError(401, "Installation is not registered");
   return access;
 }

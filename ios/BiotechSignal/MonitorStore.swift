@@ -13,6 +13,7 @@ final class MonitorStore: ObservableObject {
     @Published private(set) var access = AccessInfo.free
     @Published private(set) var products: [Product] = []
     @Published private(set) var productsLoaded = false
+    @Published private(set) var screenshotMode = false
     @Published private(set) var connection: ConnectionState = .notConfigured
     @Published private(set) var notificationStatus = "Not checked"
     @Published private(set) var scanInProgress = false
@@ -74,7 +75,8 @@ final class MonitorStore: ObservableObject {
             UserDefaults.standard.set(baseURL, forKey: baseURLKey)
         }
         debugDeveloperCredential = environment["CATALYST_WATCH_DEVELOPER_TOKEN"] ?? ""
-        showingPaywall = environment["CATALYST_WATCH_SHOW_PAYWALL"] == "1"
+        screenshotMode = environment["CATALYST_WATCH_SCREENSHOT_MODE"] == "1"
+        showingPaywall = environment["CATALYST_WATCH_SHOW_PAYWALL"] == "1" || screenshotMode
         #endif
 
         observers.append(NotificationCenter.default.addObserver(

@@ -15,6 +15,10 @@ Free access shows up to 30 recent signals after a 30-minute delay. Pro unlocks t
 7. To activate developer access on a Debug build, set `CATALYST_WATCH_DEVELOPER_TOKEN` or enter the credential under **Settings > Advanced connection**.
 8. Enable notifications and send a local test before enabling live APNs on the server.
 
+For deterministic App Store review screenshots, launch a Debug build with
+`CATALYST_WATCH_SCREENSHOT_MODE=1`. This opens the paywall with the configured
+monthly and annual plan metadata; Release builds ignore the variable.
+
 Debug builds register as APNs `sandbox`; archived Release builds register as `production`. The server routes each token to the matching APNs environment.
 
 The app creates a random installation ID and a 256-bit client credential. The client credential is stored in Keychain, never uses the dashboard bearer token, and is rotated once if a stale server record rejects it. StoreKit purchases, current entitlements, restores, and transaction updates are synchronized to the server using Apple's signed JWS representation.

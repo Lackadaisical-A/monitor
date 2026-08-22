@@ -36,6 +36,8 @@ struct SubscriptionView: View {
                         Label("Your Pro access is active", systemImage: "checkmark.seal.fill")
                             .font(.headline)
                             .foregroundStyle(Color.catalystGreen)
+                    } else if store.screenshotMode {
+                        screenshotPlans
                     } else if !store.productsLoaded {
                         HStack(spacing: 10) {
                             ProgressView()
@@ -117,6 +119,73 @@ struct SubscriptionView: View {
 
     private var selectedProduct: Product? {
         store.products.first { $0.id == selectedProductId }
+    }
+
+    @ViewBuilder
+    private var screenshotPlans: some View {
+        VStack(spacing: 10) {
+            screenshotProductButton(
+                id: MonitorStore.yearlyProductId,
+                name: "Catalyst Watch Pro Annual",
+                description: "Real-time signals, Time Sensitive alerts, and scans.",
+                price: "$79.99"
+            )
+            screenshotProductButton(
+                id: MonitorStore.monthlyProductId,
+                name: "Catalyst Watch Pro Monthly",
+                description: "Real-time signals, Time Sensitive alerts, and scans.",
+                price: "$9.99"
+            )
+        }
+
+        Button {
+        } label: {
+            HStack {
+                Text("Continue")
+                Spacer()
+                Text(selectedProductId == MonitorStore.yearlyProductId ? "$79.99" : "$9.99")
+            }
+            .font(.headline)
+            .foregroundStyle(.black)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(Color.catalystGreen, in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func screenshotProductButton(
+        id: String,
+        name: String,
+        description: String,
+        price: String
+    ) -> some View {
+        Button {
+            selectedProductId = id
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selectedProductId == id ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selectedProductId == id ? Color.catalystGreen : .secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(name).font(.headline)
+                        if id == MonitorStore.yearlyProductId {
+                            Image(systemName: "star.fill").font(.caption).foregroundStyle(Color.catalystAmber)
+                        }
+                    }
+                    Text(description).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer()
+                Text(price).font(.headline)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 70)
+            .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(selectedProductId == id ? Color.catalystGreen : Color.white.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func productButton(_ product: Product) -> some View {

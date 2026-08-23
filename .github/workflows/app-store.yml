@@ -2,6 +2,11 @@ name: Upload iOS build
 
 on:
   workflow_dispatch:
+    inputs:
+      build_number:
+        description: App Store build number (defaults to the workflow run number)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -21,6 +26,7 @@ jobs:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      IOS_BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -72,8 +78,15 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/CatalystWatch.xcarchive" \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
             clean archive
+
+      - name: Verify bundle version
+        run: |
+          set -euo pipefail
+          APP_PLIST="$RUNNER_TEMP/CatalystWatch.xcarchive/Products/Applications/BiotechSignal.app/Info.plist"
+          ACTUAL_BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PLIST")"
+          test "$ACTUAL_BUILD_NUMBER" = "$IOS_BUILD_NUMBER"
 
       - name: Export IPA
         run: |

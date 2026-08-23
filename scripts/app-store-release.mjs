@@ -82,7 +82,13 @@ async function api(path, options = {}) {
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const details = payload?.errors?.map((error) => `${error.code ?? response.status}: ${error.detail ?? error.title}`).join("; ")
+    const details = payload?.errors?.map((error) => {
+      const context = [error.source, error.meta]
+        .filter(Boolean)
+        .map((value) => JSON.stringify(value))
+        .join(" ");
+      return `${error.code ?? response.status}: ${error.detail ?? error.title}${context ? ` (${context})` : ""}`;
+    }).join("; ")
       ?? `${response.status} ${response.statusText}`;
     const error = new Error(`${options.method ?? "GET"} ${new URL(url).pathname} failed: ${details}`);
     error.status = response.status;

@@ -275,7 +275,7 @@ async function inspectRelease(version, build, group, subscriptions) {
   const submissions = await all(`/v1/apps/${config.appId}/reviewSubmissions?limit=200`);
   const activeSubmissions = [];
   for (const submission of submissions.filter((item) => item.attributes?.state !== "COMPLETE")) {
-    const items = await all(`/v1/reviewSubmissions/${submission.id}/items?limit=200`);
+    const items = await all(reviewItemsPath(submission.id));
     activeSubmissions.push({
       id: submission.id,
       state: submission.attributes?.state,
@@ -321,33 +321,46 @@ async function submitForReview(version, group, subscriptions) {
     targets.push({ relationship: "subscriptionVersion", type: "subscriptionVersions", id: latestVersion(versions).id });
   }
 
-  const existingItems = await all(`/v1/reviewSubmissions/${submission.id}/items?limit=200`);
+  const existingItems = await all(reviewItemsPath(submission.id));
   const existingTargetIds = new Set(existingItems.flatMap((item) => (
     Object.values(item.relationships ?? {}).map((relationship) => relationship?.data?.id).filter(Boolean)
   )));
   for (const target of targets) {
     if (existingTargetIds.has(target.id)) continue;
-    await api("/v1/reviewSubmissionItems", {
-      method: "POST",
-      body: {
-        data: {
-          type: "reviewSubmissionItems",
-          relationships: {
-            reviewSubmission: { data: { type: "reviewSubmissions", id: submission.id } },
-            [target.relationship]: { data: { type: target.type, id: target.id } },
+    try {
+      await api("/v1/reviewSubmissionItems", {
+        method: "POST",
+        body: {
+          data: {
+            type: "reviewSubmissionItems",
+            relationships: {
+              reviewSubmission: { data: { type: "reviewSubmissions", id: submission.id } },
+              [target.relationship]: { data: { type: target.type, id: target.id } },
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      throw new Error(`Could not add ${target.relationship} ${target.id}: ${error.message}`, { cause: error });
+    }
   }
 
-  const items = await all(`/v1/reviewSubmissions/${submission.id}/items?limit=200`);
+  const items = await all(reviewItemsPath(submission.id));
   const blocked = items.filter((item) => item.attributes?.state !== "READY_FOR_REVIEW");
   if (blocked.length) throw new Error(`Review items are not ready: ${blocked.map((item) => `${item.id}=${item.attributes?.state}`).join(", ")}`);
   await api(`/v1/reviewSubmissions/${submission.id}`, {
     method: "PATCH",
     body: { data: { type: "reviewSubmissions", id: submission.id, attributes: { submitted: true } } },
   });
+}
+
+function reviewItemsPath(submissionId) {
+  const params = new URLSearchParams({
+    "fields[reviewSubmissionItems]": "state,appStoreVersion,subscriptionVersion,subscriptionGroupVersion",
+    include: "appStoreVersion,subscriptionVersion,subscriptionGroupVersion",
+    limit: "200",
+  });
+  return `/v1/reviewSubmissions/${submissionId}/items?${params}`;
 }
 
 function latestVersion(versions) {

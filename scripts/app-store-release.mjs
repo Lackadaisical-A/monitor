@@ -242,8 +242,8 @@ async function configureAppMetadata(info) {
 }
 
 async function ensureFreeAppPrice() {
-  const existing = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
-  if (existing) return;
+  const existing = await getAppPriceScheduleReport();
+  if (existing?.manualPrices.some((price) => Number(price.customerPrice) === 0 && !price.endDate)) return;
 
   const params = new URLSearchParams({
     "filter[territory]": "USA",
@@ -254,7 +254,7 @@ async function ensureFreeAppPrice() {
   const freePricePoint = pricePoints.find((point) => Number(point.attributes?.customerPrice) === 0);
   if (!freePricePoint) throw new Error("The free USA app price point was not found");
 
-  const inlinePriceId = "${free-price}";
+  const inlinePriceId = "${p1}";
   await api("/v1/appPriceSchedules", {
     method: "POST",
     body: {
@@ -269,44 +269,54 @@ async function ensureFreeAppPrice() {
       included: [{
         type: "appPrices",
         id: inlinePriceId,
-        attributes: { startDate: null, endDate: null },
+        attributes: { startDate: null },
         relationships: {
           appPricePoint: { data: { type: "appPricePoints", id: freePricePoint.id } },
         },
       }],
     },
   });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const current = await getAppPriceScheduleReport();
+    if (current?.manualPrices.some((price) => Number(price.customerPrice) === 0 && !price.endDate)) return;
+    await sleep(3_000);
+  }
+  throw new Error("Apple accepted the free price request but did not create an active manual price");
+}
+
+async function getAppPriceScheduleReport() {
+  const schedule = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
+  if (!schedule) return null;
+
+  const priceParams = new URLSearchParams({
+    include: "appPricePoint,territory",
+    "fields[appPricePoints]": "customerPrice",
+    "fields[territories]": "currency",
+    limit: "200",
+  });
+  const manualPage = await api(`/v1/appPriceSchedules/${schedule.id}/manualPrices?${priceParams}`);
+  const includedById = new Map((manualPage.included ?? []).map((item) => [item.id, item]));
+  const automaticPrices = await all(`/v1/appPriceSchedules/${schedule.id}/automaticPrices?limit=200`);
+  const baseTerritory = (await optional(`/v1/appPriceSchedules/${schedule.id}/baseTerritory`))?.data ?? null;
+  return {
+    id: schedule.id,
+    baseTerritory: baseTerritory?.id ?? null,
+    manualPrices: (manualPage.data ?? []).map((price) => {
+      const pointId = price.relationships?.appPricePoint?.data?.id ?? null;
+      return {
+        id: price.id,
+        ...price.attributes,
+        territory: price.relationships?.territory?.data?.id ?? null,
+        customerPrice: includedById.get(pointId)?.attributes?.customerPrice ?? null,
+      };
+    }),
+    automaticPriceCount: automaticPrices.length,
+  };
 }
 
 async function inspectAppCommerce() {
-  const schedule = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
-  let priceSchedule = null;
-  if (schedule) {
-    const priceParams = new URLSearchParams({
-      include: "appPricePoint,territory",
-      "fields[appPricePoints]": "customerPrice",
-      "fields[territories]": "currency",
-      limit: "200",
-    });
-    const manualPage = await api(`/v1/appPriceSchedules/${schedule.id}/manualPrices?${priceParams}`);
-    const includedById = new Map((manualPage.included ?? []).map((item) => [item.id, item]));
-    const automaticPrices = await all(`/v1/appPriceSchedules/${schedule.id}/automaticPrices?limit=200`);
-    const baseTerritory = (await optional(`/v1/appPriceSchedules/${schedule.id}/baseTerritory`))?.data ?? null;
-    priceSchedule = {
-      id: schedule.id,
-      baseTerritory: baseTerritory?.id ?? null,
-      manualPrices: (manualPage.data ?? []).map((price) => {
-        const pointId = price.relationships?.appPricePoint?.data?.id ?? null;
-        return {
-          id: price.id,
-          ...price.attributes,
-          territory: price.relationships?.territory?.data?.id ?? null,
-          customerPrice: includedById.get(pointId)?.attributes?.customerPrice ?? null,
-        };
-      }),
-      automaticPriceCount: automaticPrices.length,
-    };
-  }
+  const priceSchedule = await getAppPriceScheduleReport();
 
   const availability = (await optional(`/v1/apps/${config.appId}/appAvailabilityV2`))?.data ?? null;
   const territoryAvailabilities = availability

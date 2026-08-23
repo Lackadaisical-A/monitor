@@ -4,7 +4,6 @@ import { basename, resolve } from "node:path";
 import { importPKCS8, SignJWT } from "jose";
 
 const API_BASE = "https://api.appstoreconnect.apple.com";
-const IRIS_API_BASE = API_BASE;
 const PRIVACY_POLICY_URL = "https://lackadaisical-a.github.io/monitor/privacy.html";
 const EU_TERRITORIES = new Set([
   "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN",
@@ -39,11 +38,6 @@ const AGE_RATING_ATTRIBUTES = {
   ageRatingOverrideV2: "NONE",
   koreaAgeRatingOverride: "NONE",
 };
-const APP_PRIVACY_USAGES = [
-  { category: "DEVICE_ID", purpose: "APP_FUNCTIONALITY", protection: "DATA_LINKED_TO_YOU" },
-  { category: "PURCHASE_HISTORY", purpose: "APP_FUNCTIONALITY", protection: "DATA_LINKED_TO_YOU" },
-];
-
 const action = process.argv[2] ?? "inspect";
 if (!["inspect", "configure", "submit"].includes(action)) {
   throw new Error("Usage: node scripts/app-store-release.mjs inspect|configure|submit");
@@ -245,7 +239,6 @@ async function configureAppMetadata(info) {
   }
 
   await ensureFreeAppPrice();
-  await ensureAppPrivacy();
 }
 
 async function ensureFreeAppPrice() {
@@ -283,60 +276,6 @@ async function ensureFreeAppPrice() {
       }],
     },
   });
-}
-
-async function ensureAppPrivacy() {
-  const usagePath = `${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsages?include=category,purpose,dataProtection&limit=500`;
-  const current = await all(usagePath);
-  const desired = new Set(APP_PRIVACY_USAGES.map(appPrivacyUsageKey));
-  const actual = new Set(current.map((usage) => appPrivacyUsageKey({
-    category: usage.relationships?.category?.data?.id,
-    purpose: usage.relationships?.purpose?.data?.id,
-    protection: usage.relationships?.dataProtection?.data?.id,
-  })));
-  const changed = desired.size !== actual.size || [...desired].some((key) => !actual.has(key));
-
-  if (changed) {
-    for (const usage of current) {
-      await api(`${IRIS_API_BASE}/v1/appDataUsages/${usage.id}`, { method: "DELETE" });
-    }
-    for (const usage of APP_PRIVACY_USAGES) {
-      await api(`${IRIS_API_BASE}/v1/appDataUsages`, {
-        method: "POST",
-        body: {
-          data: {
-            type: "appDataUsages",
-            relationships: {
-              app: { data: { type: "apps", id: config.appId } },
-              category: { data: { type: "appDataUsageCategories", id: usage.category } },
-              purpose: { data: { type: "appDataUsagePurposes", id: usage.purpose } },
-              dataProtection: { data: { type: "appDataUsageDataProtections", id: usage.protection } },
-            },
-          },
-        },
-      });
-    }
-  }
-
-  const publishPayload = await api(`${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsagePublishState`);
-  const publishState = Array.isArray(publishPayload.data) ? publishPayload.data[0] : publishPayload.data;
-  if (!publishState) throw new Error("App privacy publish state was not found");
-  if (changed || publishState.attributes?.published !== true) {
-    await api(`${IRIS_API_BASE}/v1/appDataUsagesPublishState/${publishState.id}`, {
-      method: "PATCH",
-      body: {
-        data: {
-          type: "appDataUsagesPublishState",
-          id: publishState.id,
-          attributes: { published: true },
-        },
-      },
-    });
-  }
-}
-
-function appPrivacyUsageKey(usage) {
-  return `${usage.category ?? ""}|${usage.purpose ?? ""}|${usage.protection ?? ""}`;
 }
 
 async function assignBuild(versionId, buildId) {
@@ -432,11 +371,6 @@ async function inspectRelease(version, info, build, group, subscriptions) {
   const ageRating = (await api(`/v1/appInfos/${info.id}/ageRatingDeclaration`)).data;
   const infoLocalizations = await all(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`);
   const priceSchedule = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
-  const privacyUsages = await all(`${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsages?include=category,purpose,dataProtection&limit=500`);
-  const privacyPublishPayload = await api(`${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsagePublishState`);
-  const privacyPublishState = Array.isArray(privacyPublishPayload.data)
-    ? privacyPublishPayload.data[0]
-    : privacyPublishPayload.data;
   const subscriptionReports = [];
   for (const subscription of subscriptions) {
     const current = (await api(`/v1/subscriptions/${subscription.id}`)).data;
@@ -481,14 +415,6 @@ async function inspectRelease(version, info, build, group, subscriptions) {
     ageRating: { id: ageRating.id, ...ageRating.attributes },
     appInfoLocalizations: infoLocalizations.map((localization) => ({ id: localization.id, ...localization.attributes })),
     appPriceSchedule: priceSchedule ? { id: priceSchedule.id, ...priceSchedule.attributes } : null,
-    appPrivacy: {
-      published: privacyPublishState?.attributes?.published ?? false,
-      usages: privacyUsages.map((usage) => ({
-        category: usage.relationships?.category?.data?.id ?? null,
-        purpose: usage.relationships?.purpose?.data?.id ?? null,
-        protection: usage.relationships?.dataProtection?.data?.id ?? null,
-      })),
-    },
     appVersion: { id: version.id, ...version.attributes },
     build: build ? { id: build.id, ...build.attributes } : null,
     assignedBuild: assignedBuild ? { id: assignedBuild.id, ...assignedBuild.attributes } : null,

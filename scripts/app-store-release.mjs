@@ -4,11 +4,45 @@ import { basename, resolve } from "node:path";
 import { importPKCS8, SignJWT } from "jose";
 
 const API_BASE = "https://api.appstoreconnect.apple.com";
+const IRIS_API_BASE = "https://appstoreconnect.apple.com/iris";
+const PRIVACY_POLICY_URL = "https://lackadaisical-a.github.io/monitor/privacy.html";
 const EU_TERRITORIES = new Set([
   "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN",
   "FRA", "DEU", "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX",
   "MLT", "NLD", "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE",
 ]);
+const AGE_RATING_ATTRIBUTES = {
+  advertising: false,
+  alcoholTobaccoOrDrugUseOrReferences: "NONE",
+  contests: "NONE",
+  gambling: false,
+  gamblingSimulated: "NONE",
+  gunsOrOtherWeapons: "NONE",
+  healthOrWellnessTopics: true,
+  horrorOrFearThemes: "NONE",
+  lootBox: false,
+  matureOrSuggestiveThemes: "NONE",
+  medicalOrTreatmentInformation: "FREQUENT",
+  messagingAndChat: false,
+  parentalControls: false,
+  profanityOrCrudeHumor: "NONE",
+  ageAssurance: false,
+  sexualContentGraphicAndNudity: "NONE",
+  sexualContentOrNudity: "NONE",
+  socialMedia: false,
+  socialMediaAgeRestricted: false,
+  unrestrictedWebAccess: false,
+  userGeneratedContent: false,
+  violenceCartoonOrFantasy: "NONE",
+  violenceRealistic: "NONE",
+  violenceRealisticProlongedGraphicOrSadistic: "NONE",
+  ageRatingOverrideV2: "NONE",
+  koreaAgeRatingOverride: "NONE",
+};
+const APP_PRIVACY_USAGES = [
+  { category: "DEVICE_ID", purpose: "APP_FUNCTIONALITY", protection: "DATA_LINKED_TO_YOU" },
+  { category: "PURCHASE_HISTORY", purpose: "APP_FUNCTIONALITY", protection: "DATA_LINKED_TO_YOU" },
+];
 
 const action = process.argv[2] ?? "inspect";
 if (!["inspect", "configure", "submit"].includes(action)) {
@@ -28,10 +62,12 @@ let token = "";
 let tokenExpiresAt = 0;
 
 const appVersion = await getAppVersion();
+const appInfo = await getAppInfo();
 const build = action === "inspect" ? await findBuild() : await waitForBuild();
 const { group, subscriptions } = await getSubscriptions();
 
 if (action !== "inspect") {
+  await configureAppMetadata(appInfo);
   await assignBuild(appVersion.id, build.id);
   for (const subscription of subscriptions) {
     await enforceSubscriptionAvailability(subscription);
@@ -39,7 +75,7 @@ if (action !== "inspect") {
   }
 }
 
-const report = await inspectRelease(appVersion, build, group, subscriptions);
+const report = await inspectRelease(appVersion, appInfo, build, group, subscriptions);
 console.log(JSON.stringify(report, null, 2));
 
 if (action === "submit") {
@@ -129,6 +165,14 @@ async function getAppVersion() {
   return version;
 }
 
+async function getAppInfo() {
+  const infos = await all(`/v1/apps/${config.appId}/appInfos?limit=200`);
+  const current = infos.find((info) => !["REPLACED_WITH_NEW_INFO", "ACCEPTED"].includes(info.attributes?.state))
+    ?? infos[0];
+  if (!current) throw new Error("App information was not found");
+  return current;
+}
+
 async function findBuild() {
   const params = new URLSearchParams({
     "filter[app]": config.appId,
@@ -159,6 +203,140 @@ async function getSubscriptions() {
     if (selected.length === config.productIds.length) return { group, subscriptions: selected };
   }
   throw new Error(`Could not find all subscription products: ${config.productIds.join(", ")}`);
+}
+
+async function configureAppMetadata(info) {
+  await api(`/v1/apps/${config.appId}`, {
+    method: "PATCH",
+    body: {
+      data: {
+        type: "apps",
+        id: config.appId,
+        attributes: { contentRightsDeclaration: "USES_THIRD_PARTY_CONTENT" },
+      },
+    },
+  });
+
+  const ageRating = (await api(`/v1/appInfos/${info.id}/ageRatingDeclaration`)).data;
+  await api(`/v1/ageRatingDeclarations/${ageRating.id}`, {
+    method: "PATCH",
+    body: {
+      data: {
+        type: "ageRatingDeclarations",
+        id: ageRating.id,
+        attributes: AGE_RATING_ATTRIBUTES,
+      },
+    },
+  });
+
+  const localizations = await all(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`);
+  if (!localizations.length) throw new Error("App information localization was not found");
+  for (const localization of localizations) {
+    await api(`/v1/appInfoLocalizations/${localization.id}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "appInfoLocalizations",
+          id: localization.id,
+          attributes: { privacyPolicyUrl: PRIVACY_POLICY_URL },
+        },
+      },
+    });
+  }
+
+  await ensureFreeAppPrice();
+  await ensureAppPrivacy();
+}
+
+async function ensureFreeAppPrice() {
+  const existing = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
+  if (existing) return;
+
+  const params = new URLSearchParams({
+    "filter[territory]": "USA",
+    "fields[appPricePoints]": "customerPrice",
+    limit: "200",
+  });
+  const pricePoints = await all(`/v1/apps/${config.appId}/appPricePoints?${params}`);
+  const freePricePoint = pricePoints.find((point) => Number(point.attributes?.customerPrice) === 0);
+  if (!freePricePoint) throw new Error("The free USA app price point was not found");
+
+  const inlinePriceId = "${free-price}";
+  await api("/v1/appPriceSchedules", {
+    method: "POST",
+    body: {
+      data: {
+        type: "appPriceSchedules",
+        relationships: {
+          app: { data: { type: "apps", id: config.appId } },
+          manualPrices: { data: [{ type: "appPrices", id: inlinePriceId }] },
+          baseTerritory: { data: { type: "territories", id: "USA" } },
+        },
+      },
+      included: [{
+        type: "appPrices",
+        id: inlinePriceId,
+        attributes: { startDate: null, endDate: null },
+        relationships: {
+          appPricePoint: { data: { type: "appPricePoints", id: freePricePoint.id } },
+        },
+      }],
+    },
+  });
+}
+
+async function ensureAppPrivacy() {
+  const usagePath = `${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsages?include=category,purpose,dataProtection&limit=500`;
+  const current = await all(usagePath);
+  const desired = new Set(APP_PRIVACY_USAGES.map(appPrivacyUsageKey));
+  const actual = new Set(current.map((usage) => appPrivacyUsageKey({
+    category: usage.relationships?.category?.data?.id,
+    purpose: usage.relationships?.purpose?.data?.id,
+    protection: usage.relationships?.dataProtection?.data?.id,
+  })));
+  const changed = desired.size !== actual.size || [...desired].some((key) => !actual.has(key));
+
+  if (changed) {
+    for (const usage of current) {
+      await api(`${IRIS_API_BASE}/v1/appDataUsages/${usage.id}`, { method: "DELETE" });
+    }
+    for (const usage of APP_PRIVACY_USAGES) {
+      await api(`${IRIS_API_BASE}/v1/appDataUsages`, {
+        method: "POST",
+        body: {
+          data: {
+            type: "appDataUsages",
+            relationships: {
+              app: { data: { type: "apps", id: config.appId } },
+              category: { data: { type: "appDataUsageCategories", id: usage.category } },
+              purpose: { data: { type: "appDataUsagePurposes", id: usage.purpose } },
+              dataProtection: { data: { type: "appDataUsageDataProtections", id: usage.protection } },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  const publishPayload = await api(`${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsagePublishState`);
+  const publishState = Array.isArray(publishPayload.data) ? publishPayload.data[0] : publishPayload.data;
+  if (!publishState) throw new Error("App privacy publish state was not found");
+  if (changed || publishState.attributes?.published !== true) {
+    await api(`${IRIS_API_BASE}/v1/appDataUsagesPublishState/${publishState.id}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "appDataUsagesPublishState",
+          id: publishState.id,
+          attributes: { published: true },
+        },
+      },
+    });
+  }
+}
+
+function appPrivacyUsageKey(usage) {
+  return `${usage.category ?? ""}|${usage.purpose ?? ""}|${usage.protection ?? ""}`;
 }
 
 async function assignBuild(versionId, buildId) {
@@ -248,8 +426,17 @@ async function ensureReviewScreenshot(subscription) {
   throw new Error(`Review screenshot processing timed out for ${subscription.attributes.productId}`);
 }
 
-async function inspectRelease(version, build, group, subscriptions) {
+async function inspectRelease(version, info, build, group, subscriptions) {
   const assignedBuild = (await optional(`/v1/appStoreVersions/${version.id}/build`))?.data ?? null;
+  const app = (await api(`/v1/apps/${config.appId}?fields[apps]=name,bundleId,contentRightsDeclaration`)).data;
+  const ageRating = (await api(`/v1/appInfos/${info.id}/ageRatingDeclaration`)).data;
+  const infoLocalizations = await all(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`);
+  const priceSchedule = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
+  const privacyUsages = await all(`${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsages?include=category,purpose,dataProtection&limit=500`);
+  const privacyPublishPayload = await api(`${IRIS_API_BASE}/v1/apps/${config.appId}/dataUsagePublishState`);
+  const privacyPublishState = Array.isArray(privacyPublishPayload.data)
+    ? privacyPublishPayload.data[0]
+    : privacyPublishPayload.data;
   const subscriptionReports = [];
   for (const subscription of subscriptions) {
     const current = (await api(`/v1/subscriptions/${subscription.id}`)).data;
@@ -289,6 +476,19 @@ async function inspectRelease(version, build, group, subscriptions) {
     });
   }
   return {
+    app: { id: app.id, ...app.attributes },
+    appInfo: { id: info.id, ...info.attributes },
+    ageRating: { id: ageRating.id, ...ageRating.attributes },
+    appInfoLocalizations: infoLocalizations.map((localization) => ({ id: localization.id, ...localization.attributes })),
+    appPriceSchedule: priceSchedule ? { id: priceSchedule.id, ...priceSchedule.attributes } : null,
+    appPrivacy: {
+      published: privacyPublishState?.attributes?.published ?? false,
+      usages: privacyUsages.map((usage) => ({
+        category: usage.relationships?.category?.data?.id ?? null,
+        purpose: usage.relationships?.purpose?.data?.id ?? null,
+        protection: usage.relationships?.dataProtection?.data?.id ?? null,
+      })),
+    },
     appVersion: { id: version.id, ...version.attributes },
     build: build ? { id: build.id, ...build.attributes } : null,
     assignedBuild: assignedBuild ? { id: assignedBuild.id, ...assignedBuild.attributes } : null,

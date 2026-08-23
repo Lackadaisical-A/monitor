@@ -15,6 +15,7 @@ describe("QuoteMediaPressReleaseSource", () => {
         return Response.json({
           results: {
             news: [{
+              topicstring: "MRNA",
               newsitem: [{
                 newsid: 123,
                 datetime: publishedAt,
@@ -41,6 +42,8 @@ describe("QuoteMediaPressReleaseSource", () => {
       sourceType: "company_ir",
       tier: "primary",
       symbol: "MRNA",
+      symbols: [],
+      watchlist: false,
       enabled: true,
     }, [{
       ticker: "MRNA",
@@ -74,6 +77,8 @@ describe("QuoteMediaPressReleaseSource", () => {
       sourceType: "company_ir",
       tier: "primary",
       symbol: "MRNA",
+      symbols: [],
+      watchlist: false,
       enabled: true,
     }, [], 5_000);
 
@@ -81,7 +86,7 @@ describe("QuoteMediaPressReleaseSource", () => {
     const result = await source.fetch(cursor);
     const requestURL = new URL(String(fetchMock.mock.calls[0]?.[0]));
 
-    expect(requestURL.searchParams.get("start")).toBe("2026-08-20");
+    expect(requestURL.searchParams.get("start")).toBe("2026-08-21");
     expect(result.cursor).toBe(cursor);
     expect(result.items).toEqual([]);
   });
@@ -95,9 +100,58 @@ describe("QuoteMediaPressReleaseSource", () => {
       sourceType: "company_ir",
       tier: "primary",
       symbol: "MRNA",
+      symbols: [],
+      watchlist: false,
       enabled: true,
     }, [], 5_000);
 
     expect((await source.fetch(null)).cursor).toBeUndefined();
+  });
+
+  it("uses the requested topic to map broad-watchlist releases", async () => {
+    const publishedAt = new Date().toISOString();
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("getStory")) return Response.json({ qmcistory: {} });
+      return Response.json({
+        results: {
+          news: [{
+            topicstring: "VRTX",
+            newsitem: [{
+              newsid: 456,
+              datetime: publishedAt,
+              headline: "Positive pivotal results announced for the ALPINE program",
+              qmsummary: "The primary endpoint was met.",
+              permalink: "https://example.test/alpine-results",
+            }],
+          }],
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const source = new QuoteMediaPressReleaseSource({
+      id: "watchlist-press-releases",
+      name: "Watchlist company press releases",
+      type: "quote_media",
+      sourceType: "outlet",
+      tier: "secondary",
+      symbols: [],
+      watchlist: true,
+      enabled: true,
+    }, [{
+      ticker: "VRTX",
+      company: "Vertex Pharmaceuticals",
+      aliases: [],
+      cik: "0000875320",
+      marketCapBand: "large",
+      xAccounts: [],
+      programs: [],
+    }], 5_000);
+
+    const result = await source.fetch(null);
+
+    expect(result.items[0]).toMatchObject({
+      tickerHint: "VRTX",
+      companyHint: "Vertex Pharmaceuticals",
+    });
   });
 });

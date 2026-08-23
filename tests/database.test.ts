@@ -144,6 +144,65 @@ describe("SignalDatabase", () => {
     expect(db.listDevices()).toMatchObject([{ installationId: currentId, deviceToken }]);
   });
 
+  it("stores an installation watchlist and filters its feed", () => {
+    db = new SignalDatabase(":memory:");
+    const id = "f4d6cddf-2353-4f0c-a0b4-2586ea5d4404";
+    db.registerInstallation(id, "client-token-hash");
+    db.insertItem({
+      ...signalItem("moderna", "MRNA"),
+      publishedAt: new Date(Date.now() - 1_000).toISOString(),
+    });
+    db.insertItem({
+      ...signalItem("vertex", "VRTX"),
+      publishedAt: new Date().toISOString(),
+    });
+
+    const preferences = db.updateInstallationPreferences({
+      installationId: id,
+      watchedTickers: ["MRNA"],
+      feedMode: "watchlist",
+      pushMode: "watchlist",
+      eventTypes: ["trial_topline", "regulatory_decision"],
+    });
+
+    expect(preferences).toMatchObject({
+      watchedTickers: ["MRNA"],
+      feedMode: "watchlist",
+      pushMode: "watchlist",
+      eventTypes: ["trial_topline", "regulatory_decision"],
+    });
+    expect(db.listFeed(100, null, preferences.watchedTickers).map((entry) => entry.item.tickerHint)).toEqual(["MRNA"]);
+  });
+
+  it("routes alerts by ticker and catalyst preference", () => {
+    db = new SignalDatabase(":memory:");
+    const modernaId = "f4d6cddf-2353-4f0c-a0b4-2586ea5d4404";
+    const allId = "bd9f36bc-42fc-4b7d-b0ba-528102defbce";
+    for (const id of [modernaId, allId]) {
+      db.registerInstallation(id, `hash-${id}`);
+      db.activateDeveloperAccess(id);
+      db.upsertDevice({
+        installationId: id,
+        deviceToken: id.replaceAll("-", "").padEnd(64, "0"),
+        environment: "sandbox",
+        timeSensitiveAuthorized: true,
+        criticalAuthorized: false,
+      });
+    }
+    db.updateInstallationPreferences({
+      installationId: modernaId,
+      watchedTickers: ["MRNA"],
+      feedMode: "watchlist",
+      pushMode: "watchlist",
+      eventTypes: ["regulatory_decision"],
+    });
+
+    expect(db.listAlertDevices("MRNA", "regulatory_decision").map((device) => device.installationId).sort())
+      .toEqual([allId, modernaId].sort());
+    expect(db.listAlertDevices("VRTX", "regulatory_decision").map((device) => device.installationId)).toEqual([allId]);
+    expect(db.listAlertDevices("MRNA", "trial_topline").map((device) => device.installationId)).toEqual([allId]);
+  });
+
   it("downgrades an expired subscription without deleting its purchase record", () => {
     db = new SignalDatabase(":memory:");
     const id = "f4d6cddf-2353-4f0c-a0b4-2586ea5d4404";
@@ -161,3 +220,21 @@ describe("SignalDatabase", () => {
     expect(db.getInstallationAccess(id)).toMatchObject({ level: "free", pro: false, source: "free" });
   });
 });
+
+function signalItem(id: string, ticker: string): NormalizedItem {
+  const timestamp = new Date().toISOString();
+  return {
+    id,
+    externalId: id,
+    source: { id: "wire", name: "Wire", type: "outlet", tier: "secondary" },
+    headline: `${ticker} catalyst`,
+    summary: "Summary",
+    url: `https://example.test/${id}`,
+    author: null,
+    publishedAt: timestamp,
+    discoveredAt: timestamp,
+    companyHint: ticker,
+    tickerHint: ticker,
+    raw: {},
+  };
+}

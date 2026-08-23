@@ -1,10 +1,14 @@
 import type {
   AlertTier,
   AnalysisRecord,
+  CatalystEventType,
   DeviceRegistration,
   FeedEntry,
+  FeedMode,
   InstallationAccess,
+  InstallationPreferences,
   NormalizedItem,
+  PushMode,
   StoreTransactionEntitlement,
 } from "./types.js";
 
@@ -44,7 +48,7 @@ export interface SignalStore {
   getItem(itemId: string): Awaitable<NormalizedItem | null>;
   getPendingItems(limit?: number): Awaitable<NormalizedItem[]>;
   findCorroboratingItems(item: NormalizedItem, sinceIso: string): Awaitable<NormalizedItem[]>;
-  listFeed(limit?: number, publishedBefore?: string | null): Awaitable<FeedEntry[]>;
+  listFeed(limit?: number, publishedBefore?: string | null, tickers?: readonly string[] | null): Awaitable<FeedEntry[]>;
   getAnalysis(itemId: string): Awaitable<AnalysisRecord | null>;
   getSourceCursor(sourceId: string): Awaitable<string | null>;
   getSourceCursors?(sourceIds: string[]): Awaitable<Map<string, string | null>>;
@@ -56,9 +60,17 @@ export interface SignalStore {
   getInstallationAccess(installationId: string): Awaitable<InstallationAccess | null>;
   activateDeveloperAccess(installationId: string): Awaitable<void>;
   applyStoreTransaction(entitlement: StoreTransactionEntitlement): Awaitable<number>;
+  getInstallationPreferences(installationId: string): Awaitable<InstallationPreferences>;
+  updateInstallationPreferences(input: {
+    installationId: string;
+    watchedTickers: string[];
+    feedMode: FeedMode;
+    pushMode: PushMode;
+    eventTypes: CatalystEventType[];
+  }): Awaitable<InstallationPreferences>;
   upsertDevice(device: DeviceRegistration): Awaitable<void>;
   listDevices(): Awaitable<Array<DeviceRegistration & { active: boolean }>>;
-  listAlertDevices(): Awaitable<Array<DeviceRegistration & { active: boolean }>>;
+  listAlertDevices(ticker?: string, eventType?: CatalystEventType): Awaitable<Array<DeviceRegistration & { active: boolean }>>;
   deactivateDevice(deviceToken: string): Awaitable<void>;
   hasRecentAlert(ticker: string, eventType: string, sinceIso: string): Awaitable<boolean>;
   saveAlert(input: AlertInput): Awaitable<void>;

@@ -4,11 +4,16 @@ struct ContentView: View {
     @EnvironmentObject private var store: MonitorStore
 
     var body: some View {
-        TabView {
+        TabView(selection: $store.selectedTab) {
             NavigationStack { SignalFeedView() }
                 .tabItem { Label("Signals", systemImage: "waveform.path.ecg") }
+                .tag("signals")
+            NavigationStack { WatchlistView() }
+                .tabItem { Label("Watchlist", systemImage: "star") }
+                .tag("watchlist")
             NavigationStack { SettingsView() }
                 .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
+                .tag("settings")
         }
         .tint(.catalystGreen)
         .sheet(item: $store.selectedSignal) { entry in
@@ -33,6 +38,7 @@ private struct SignalFeedView: View {
                     if !store.access.pro {
                         FreePlanBar()
                     }
+                    FeedScopeBar()
                     DisclaimerCard()
                     if store.scanInProgress {
                         ScanProgressCard()
@@ -54,9 +60,11 @@ private struct SignalFeedView: View {
                         )
                     } else if store.entries.isEmpty {
                         EmptyMonitorCard(
-                            icon: "scope",
-                            title: "No signals yet",
-                            message: "The server is watching for evidence that matches your company watchlist."
+                            icon: store.preferences.feedMode == "watchlist" ? "star" : "scope",
+                            title: store.preferences.feedMode == "watchlist" ? "No followed signals" : "No signals yet",
+                            message: store.preferences.feedMode == "watchlist"
+                                ? "Follow companies in Watchlist or switch this feed to All."
+                                : "The server is watching for new biotech evidence."
                         )
                     } else {
                         ForEach(store.entries) { entry in
@@ -102,6 +110,31 @@ private struct SignalFeedView: View {
                 ConnectionPill(state: store.connection)
             }
         }
+    }
+}
+
+private struct FeedScopeBar: View {
+    @EnvironmentObject private var store: MonitorStore
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Picker("Signal universe", selection: Binding(
+                get: { store.preferences.feedMode },
+                set: { mode in Task { await store.setFeedMode(mode) } }
+            )) {
+                Text("All").tag("all")
+                Text("Following \(store.preferences.watchedTickers.count)").tag("watchlist")
+            }
+            .pickerStyle(.segmented)
+            .disabled(store.preferenceUpdateInProgress)
+
+            Text("\(store.entries.count)")
+                .font(.system(.caption, design: .monospaced, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 28, alignment: .trailing)
+        }
+        .padding(10)
+        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

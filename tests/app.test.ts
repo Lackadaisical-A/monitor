@@ -110,6 +110,36 @@ describe("HTTP app", () => {
     expect(runCount).toBe(1);
     await app.close();
   });
+
+  it("persists a personal watchlist and filters the installation feed", async () => {
+    db = new SignalDatabase(":memory:");
+    db.insertItem({ ...item("moderna", Date.now() - 60 * 60_000), tickerHint: "MRNA", companyHint: "Moderna" });
+    db.insertItem({ ...item("vertex", Date.now() - 60 * 60_000), tickerHint: "VRTX", companyHint: "Vertex Pharmaceuticals" });
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const app = await createApp(config(), db, pipeline, verifier());
+    await bootstrap(app);
+
+    const update = await app.inject({
+      method: "PUT",
+      url: "/api/preferences",
+      headers: clientHeaders(),
+      payload: {
+        watchedTickers: ["MRNA"],
+        feedMode: "watchlist",
+        pushMode: "watchlist",
+        eventTypes: ["trial_topline", "regulatory_decision"],
+      },
+    });
+    const feed = await app.inject({ method: "GET", url: "/api/feed?scope=watchlist", headers: clientHeaders() });
+    const watchlist = await app.inject({ method: "GET", url: "/api/watchlist", headers: clientHeaders() });
+
+    expect(update.statusCode).toBe(200);
+    expect(update.json().preferences.watchedTickers).toEqual(["MRNA"]);
+    expect(feed.json().entries.map((entry: { item: { tickerHint: string } }) => entry.item.tickerHint)).toEqual(["MRNA"]);
+    expect(watchlist.json().companies.find((company: { ticker: string }) => company.ticker === "MRNA"))
+      .toMatchObject({ followed: true, coverage: { sec: false, clinicalTrials: false } });
+    await app.close();
+  });
 });
 
 function config(): AppConfig {
@@ -135,13 +165,23 @@ function config(): AppConfig {
     },
     openaiApiKey: "",
     openaiModel: "test-model",
-    watchlist: [],
+    watchlist: [
+      {
+        ticker: "MRNA", company: "Moderna", aliases: ["Moderna, Inc."], cik: "0001682852",
+        marketCapBand: "large", xAccounts: [], programs: ["mRNA-4157"],
+      },
+      {
+        ticker: "VRTX", company: "Vertex Pharmaceuticals", aliases: ["Vertex"], cik: "0000875320",
+        marketCapBand: "large", xAccounts: [], programs: ["CASGEVY"],
+      },
+    ],
     rssSources: [],
     quoteMediaSources: [],
     x: { bearerToken: "", query: "" },
     reddit: { clientId: "", clientSecret: "", userAgent: "", subreddits: "" },
     clinicalTrialsEnabled: false,
     secEnabled: false,
+    fdaAdcomEnabled: false,
     secUserAgent: "",
     alertPolicy: { dryRun: true, minMateriality: 88, minConfidence: 0.86, cooldownMinutes: 240 },
     apns: {

@@ -24,7 +24,7 @@ struct SubscriptionView: View {
                     VStack(spacing: 0) {
                         comparisonRow("Signal feed", free: "30-min delay", pro: "Real time")
                         Divider()
-                        comparisonRow("Watchlist", free: "Recent feed", pro: "258 companies")
+                        comparisonRow("Watchlist", free: "10 companies", pro: "Full universe")
                         Divider()
                         comparisonRow("Alerts", free: "In-app", pro: "Time Sensitive")
                         Divider()
@@ -127,13 +127,13 @@ struct SubscriptionView: View {
             screenshotProductButton(
                 id: MonitorStore.yearlyProductId,
                 name: "Catalyst Watch Pro Annual",
-                description: "Real-time signals, Time Sensitive alerts, and scans.",
+                description: "Full watchlist, filtered alerts, real-time signals, and scans.",
                 price: "$79.99"
             )
             screenshotProductButton(
                 id: MonitorStore.monthlyProductId,
                 name: "Catalyst Watch Pro Monthly",
-                description: "Real-time signals, Time Sensitive alerts, and scans.",
+                description: "Full watchlist, filtered alerts, real-time signals, and scans.",
                 price: "$9.99"
             )
         }

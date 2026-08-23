@@ -620,9 +620,14 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
   min-height: 64px;
   padding: 13px 16px;
   border-bottom: 1px solid var(--line);
+}
+
+.stream-toolbar > div:first-child {
+  min-width: 112px;
 }
 
 .stream-toolbar h2 {
@@ -632,6 +637,53 @@ h3 {
 .stream-toolbar span {
   color: var(--subtle);
   font-size: 9px;
+}
+
+.segmented-control {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(48px, max-content);
+  min-height: 34px;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px;
+  background: #101317;
+}
+
+.segmented-control button {
+  min-width: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.segmented-control button:hover {
+  color: var(--text);
+}
+
+.segmented-control button.active {
+  color: var(--text);
+  background: var(--surface-3);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.segmented-control button span {
+  display: inline-grid;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--subtle);
+  background: #0d0f12;
+  font-size: 8px;
 }
 
 .compact-search,
@@ -961,8 +1013,22 @@ h3 {
 }
 
 .heading-count {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.heading-count strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.heading-count span {
+  color: var(--subtle);
+  font-size: 9px;
 }
 
 .list-controls {
@@ -1003,9 +1069,9 @@ h3 {
 .company-table-header,
 .company-row {
   display: grid;
-  grid-template-columns: 110px minmax(240px, 1.3fr) minmax(220px, 1fr) 110px;
+  grid-template-columns: 34px 86px minmax(220px, 1.25fr) minmax(180px, 0.9fr) 96px;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .company-table-header,
@@ -1046,6 +1112,49 @@ h3 {
   font: 750 13px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.follow-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--subtle);
+  background: transparent;
+  cursor: pointer;
+}
+
+.follow-button:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.follow-button.followed {
+  border-color: #80652d;
+  color: var(--amber);
+  background: #211b10;
+}
+
+.follow-button:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.follow-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.follow-button.followed svg {
+  fill: currentColor;
+}
+
 .company-name {
   min-width: 0;
 }
@@ -1066,6 +1175,43 @@ h3 {
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.coverage-cell {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.coverage-cell small {
+  overflow: hidden;
+  color: var(--subtle);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coverage-level {
+  width: max-content;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.coverage-level.complete {
+  border-color: #2b7f61;
+  color: var(--green);
+  background: #10281f;
+}
+
+.coverage-level.strong {
+  border-color: #426c7d;
+  color: var(--cyan);
+  background: #111d22;
 }
 
 .program-list {
@@ -1394,7 +1540,7 @@ dialog::backdrop {
 
   .compact-search {
     display: flex;
-    width: min(220px, 48%);
+    width: min(200px, 38%);
   }
 
   .mobile-filters {
@@ -1569,12 +1715,18 @@ dialog::backdrop {
   }
 
   .stream-toolbar {
+    flex-wrap: wrap;
     min-height: 58px;
     padding: 10px 11px;
   }
 
   .compact-search {
-    width: 47%;
+    order: 3;
+    width: 100%;
+  }
+
+  .stream-toolbar .segmented-control {
+    margin-left: auto;
   }
 
   .signal-row {
@@ -1628,18 +1780,23 @@ dialog::backdrop {
   }
 
   .company-row {
-    grid-template-columns: 68px minmax(0, 1fr) auto;
+    grid-template-columns: 34px 60px minmax(0, 1fr) auto;
     gap: 8px;
-    min-height: 72px;
+    min-height: 88px;
     padding: 10px;
   }
 
-  .program-list {
-    grid-column: 2 / 4;
+  .coverage-cell {
+    grid-column: 3 / 5;
+    grid-row: 2;
   }
 
   .company-name strong {
     white-space: normal;
+  }
+
+  .cap-band {
+    justify-self: end;
   }
 
   .source-row {

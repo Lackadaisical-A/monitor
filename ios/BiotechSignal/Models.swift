@@ -4,6 +4,118 @@ struct FeedResponse: Decodable {
     let entries: [FeedEntry]
     let access: AccessInfo?
     let delayedByMinutes: Int?
+    let scope: String?
+}
+
+struct InstallationPreferences: Codable, Equatable {
+    let installationId: String
+    var watchedTickers: [String]
+    var feedMode: String
+    var pushMode: String
+    var eventTypes: [String]
+    let updatedAt: String?
+
+    static let initial = InstallationPreferences(
+        installationId: "",
+        watchedTickers: [],
+        feedMode: "all",
+        pushMode: "all",
+        eventTypes: CatalystEvent.allCases.map(\.rawValue),
+        updatedAt: nil
+    )
+}
+
+struct PreferenceLimits: Decodable {
+    let watchlist: Int
+    let monitoredUniverse: Int
+}
+
+struct PreferencesResponse: Decodable {
+    let access: AccessInfo
+    let preferences: InstallationPreferences
+    let limits: PreferenceLimits
+    let eventTypes: [String]
+}
+
+struct PreferencesUpdateRequest: Encodable {
+    let watchedTickers: [String]
+    let feedMode: String
+    let pushMode: String
+    let eventTypes: [String]
+}
+
+struct WatchlistResponse: Decodable {
+    let access: AccessInfo?
+    let preferences: InstallationPreferences?
+    let limit: Int
+    let companies: [WatchCompany]
+}
+
+struct WatchCompany: Decodable, Identifiable {
+    var id: String { ticker }
+    let ticker: String
+    let company: String
+    let aliases: [String]
+    let marketCapBand: String
+    let programs: [String]
+    let followed: Bool
+    let coverage: CompanyCoverage
+}
+
+struct CompanyCoverage: Decodable {
+    let sec: Bool
+    let clinicalTrials: Bool
+    let pressReleases: Bool
+    let companyIr: Bool
+    let programMetadata: Bool
+    let level: String
+
+    var labels: [String] {
+        [companyIr ? "IR" : nil, pressReleases ? "Press" : nil, sec ? "SEC" : nil,
+         clinicalTrials ? "Trials" : nil].compactMap { $0 }
+    }
+}
+
+enum CatalystEvent: String, CaseIterable, Identifiable {
+    case trialTopline = "trial_topline"
+    case trialUpdate = "trial_update"
+    case regulatoryDecision = "regulatory_decision"
+    case regulatoryUpdate = "regulatory_update"
+    case safetySignal = "safety_signal"
+    case publication
+    case financing
+    case partnership
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .trialTopline: "Trial topline"
+        case .trialUpdate: "Trial update"
+        case .regulatoryDecision: "Regulatory decision"
+        case .regulatoryUpdate: "Regulatory update"
+        case .safetySignal: "Safety signal"
+        case .publication: "Publication"
+        case .financing: "Financing"
+        case .partnership: "Partnership"
+        case .other: "Other catalyst"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .trialTopline: "chart.line.uptrend.xyaxis"
+        case .trialUpdate: "cross.case"
+        case .regulatoryDecision: "checkmark.seal"
+        case .regulatoryUpdate: "building.columns"
+        case .safetySignal: "exclamationmark.shield"
+        case .publication: "doc.text.magnifyingglass"
+        case .financing: "banknote"
+        case .partnership: "link"
+        case .other: "bolt"
+        }
+    }
 }
 
 struct AccessInfo: Decodable, Equatable {

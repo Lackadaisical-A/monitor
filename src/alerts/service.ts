@@ -45,7 +45,7 @@ export class AlertService {
       return { attempted: 0, sent: 0, failed: 0, dryRun: true, suppressedReason: this.apns.configured ? null : "apns_not_configured" };
     }
 
-    const devices = await this.db.listAlertDevices();
+    const devices = await this.db.listAlertDevices(ticker, eventType);
     let sent = 0;
     let failed = 0;
     for (const device of devices) {

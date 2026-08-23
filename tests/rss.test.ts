@@ -21,6 +21,7 @@ describe("RssSource", () => {
       sourceType: "outlet",
       tier: "secondary",
       url: "https://example.test/feed.xml",
+      tickers: [],
       enabled: true,
     }, [], 5_000);
 

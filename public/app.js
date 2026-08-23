@@ -1,5 +1,9 @@
 const IDENTITY_KEY = "catalyst-watch-installation-v1";
-const CACHE_KEY = "catalyst-watch-web-cache-v2";
+const CACHE_KEY = "catalyst-watch-web-cache-v3";
+const EVENT_TYPES = [
+  "trial_topline", "trial_update", "regulatory_decision", "regulatory_update",
+  "safety_signal", "publication", "financing", "partnership", "other",
+];
 
 const state = {
   identity: loadIdentity(),
@@ -9,10 +13,19 @@ const state = {
   entries: [],
   status: null,
   watchlist: [],
+  preferences: {
+    watchedTickers: [],
+    feedMode: "all",
+    pushMode: "all",
+    eventTypes: [...EVENT_TYPES],
+  },
+  watchlistLimit: 10,
+  monitoredUniverse: 0,
   selectedId: null,
   tier: "all",
   signalQuery: "",
   watchlistQuery: "",
+  watchlistScope: "all",
   marketCap: "all",
   lastUpdatedAt: null,
   refreshing: false,
@@ -35,6 +48,8 @@ const elements = {
   mobileSignalSearch: document.querySelector("#mobile-signal-search"),
   watchlistSearch: document.querySelector("#watchlist-search"),
   marketCapFilter: document.querySelector("#market-cap-filter"),
+  feedScope: document.querySelector("#feed-scope"),
+  watchlistScope: document.querySelector("#watchlist-scope"),
   developerForm: document.querySelector("#developer-form"),
   developerCredential: document.querySelector("#developer-credential"),
   developerError: document.querySelector("#developer-error"),
@@ -103,6 +118,23 @@ elements.marketCapFilter.addEventListener("change", () => {
   renderWatchlist();
 });
 
+elements.feedScope.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-feed-scope]");
+  if (button) setFeedScope(button.dataset.feedScope);
+});
+
+elements.watchlistScope.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-watchlist-scope]");
+  if (!button) return;
+  state.watchlistScope = button.dataset.watchlistScope === "followed" ? "followed" : "all";
+  renderWatchlist();
+});
+
+elements.watchlistGrid.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-follow-ticker]");
+  if (button) toggleFollow(button.dataset.followTicker, button);
+});
+
 elements.sourceList.addEventListener("click", (event) => {
   if (event.target.closest("[data-open-settings]")) openSettings();
 });
@@ -122,6 +154,7 @@ elements.developerForm.addEventListener("submit", async (event) => {
     state.freeFeedDelayMinutes = response.freeFeedDelayMinutes;
     elements.developerCredential.value = "";
     renderAccess();
+    await loadPreferences();
     await refresh({ forceWatchlist: false });
     toast("Developer access is active on this browser.");
   } catch (error) {
@@ -145,8 +178,14 @@ async function initialize() {
   renderAll();
   switchView(initialView(), false);
   await registerInstallation();
+  await loadPreferences();
   await refresh({ forceWatchlist: true });
   setInterval(() => refresh({ forceWatchlist: false }), 60_000);
+}
+
+async function loadPreferences() {
+  const response = await api("/api/preferences");
+  applyPreferencesResponse(response);
 }
 
 async function registerInstallation(canReset = true) {
@@ -176,14 +215,19 @@ async function refresh({ forceWatchlist }) {
   state.refreshing = true;
   elements.refreshButton.classList.add("loading");
   try {
-    const requests = [api("/api/status"), api("/api/feed?limit=150")];
+    const scope = state.preferences.feedMode === "watchlist" ? "watchlist" : "all";
+    const requests = [api("/api/status"), api(`/api/feed?limit=150&scope=${scope}`)];
     if (forceWatchlist || !state.watchlist.length) requests.push(api("/api/watchlist"));
     const responses = await Promise.all(requests);
     state.status = responses[0];
     state.entries = responses[1].entries;
     state.access = responses[1].access ?? state.status.access ?? state.access;
     state.freeFeedDelayMinutes = state.status.configuration.freeFeedDelayMinutes;
-    if (responses[2]) state.watchlist = responses[2].companies;
+    if (responses[2]) {
+      state.watchlist = responses[2].companies;
+      state.watchlistLimit = responses[2].limit ?? state.watchlistLimit;
+      if (responses[2].preferences) state.preferences = responses[2].preferences;
+    }
     state.lastUpdatedAt = new Date().toISOString();
     persistCache();
     renderAll();
@@ -196,6 +240,75 @@ async function refresh({ forceWatchlist }) {
   } finally {
     state.refreshing = false;
     elements.refreshButton.classList.remove("loading");
+  }
+}
+
+async function setFeedScope(scope) {
+  const next = scope === "watchlist" ? "watchlist" : "all";
+  if (next === "watchlist" && !state.preferences.watchedTickers.length) {
+    switchView("watchlist");
+    toast("Follow at least one company first.");
+    return;
+  }
+  if (next === state.preferences.feedMode) return;
+  try {
+    await savePreferences({ feedMode: next });
+    state.selectedId = null;
+    await refresh({ forceWatchlist: false });
+  } catch (error) {
+    toast(`Could not update feed: ${error.message}`);
+  }
+}
+
+async function toggleFollow(ticker, button) {
+  if (!ticker || button.disabled) return;
+  const watched = new Set(state.preferences.watchedTickers);
+  const adding = !watched.has(ticker);
+  if (adding && watched.size >= state.watchlistLimit) {
+    openSettings();
+    toast(state.access?.pro ? "This watchlist is full." : "Upgrade to follow the complete monitored universe.");
+    return;
+  }
+  adding ? watched.add(ticker) : watched.delete(ticker);
+  button.disabled = true;
+  try {
+    await savePreferences({ watchedTickers: [...watched] });
+    if (!watched.size && state.preferences.feedMode === "watchlist") {
+      await savePreferences({ feedMode: "all" });
+      await refresh({ forceWatchlist: false });
+    }
+    toast(adding ? `${ticker} added to your watchlist.` : `${ticker} removed from your watchlist.`);
+  } catch (error) {
+    toast(`Could not update watchlist: ${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function savePreferences(patch) {
+  const next = { ...state.preferences, ...patch };
+  const response = await api("/api/preferences", {
+    method: "PUT",
+    body: {
+      watchedTickers: next.watchedTickers,
+      feedMode: next.feedMode,
+      pushMode: next.pushMode,
+      eventTypes: next.eventTypes,
+    },
+  });
+  applyPreferencesResponse(response);
+  const followed = new Set(state.preferences.watchedTickers);
+  state.watchlist = state.watchlist.map((company) => ({ ...company, followed: followed.has(company.ticker) }));
+  persistCache();
+  renderAll();
+}
+
+function applyPreferencesResponse(response) {
+  if (response.access) state.access = response.access;
+  if (response.preferences) state.preferences = response.preferences;
+  if (response.limits) {
+    state.watchlistLimit = response.limits.watchlist;
+    state.monitoredUniverse = response.limits.monitoredUniverse;
   }
 }
 
@@ -286,10 +399,16 @@ function renderAccess() {
   text("#plan-depth", access.pro ? "150 signals" : "30 signals");
   text("#plan-scans", access.pro ? "Available" : "Locked");
   text("#plan-alerts", access.pro ? "Eligible" : "Locked");
+  text("#plan-watchlist", access.pro ? "Full universe" : `${state.watchlistLimit} companies`);
   text("#installation-id", `${state.identity.installationId.slice(0, 8)}...${state.identity.installationId.slice(-4)}`);
 }
 
 function renderSignals() {
+  const feedMode = state.preferences.feedMode === "watchlist" ? "watchlist" : "all";
+  elements.feedScope.querySelectorAll("[data-feed-scope]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.feedScope === feedMode);
+  });
+  text("#feed-followed-count", state.preferences.watchedTickers.length);
   const counts = { all: state.entries.length, urgent: 0, high: 0, watch: 0 };
   for (const entry of state.entries) {
     const tier = entry.analysis?.alertTier;
@@ -310,7 +429,7 @@ function renderSignals() {
       .includes(state.signalQuery);
   });
 
-  text("#feed-state", `${filtered.length} signal${filtered.length === 1 ? "" : "s"}${state.lastUpdatedAt ? ` · ${relativeTime(state.lastUpdatedAt)}` : ""}`);
+  text("#feed-state", `${feedMode === "watchlist" ? "Following" : "All companies"} · ${filtered.length} signal${filtered.length === 1 ? "" : "s"}${state.lastUpdatedAt ? ` · ${relativeTime(state.lastUpdatedAt)}` : ""}`);
   if (!filtered.length) {
     elements.signalList.innerHTML = emptyState(
       state.entries.length ? "No matching signals" : "No signals yet",
@@ -400,15 +519,21 @@ function signalDetail(entry) {
 }
 
 function renderWatchlist() {
+  const followedTickers = new Set(state.preferences.watchedTickers);
   const filtered = state.watchlist.filter((company) => {
+    if (state.watchlistScope === "followed" && !followedTickers.has(company.ticker)) return false;
     if (state.marketCap !== "all" && company.marketCapBand !== state.marketCap) return false;
     if (!state.watchlistQuery) return true;
     return [company.ticker, company.company, ...(company.aliases || []), ...(company.programs || [])]
       .join(" ")
       .toLowerCase()
       .includes(state.watchlistQuery);
+  }).sort((left, right) => Number(followedTickers.has(right.ticker)) - Number(followedTickers.has(left.ticker)));
+  elements.watchlistScope.querySelectorAll("[data-watchlist-scope]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.watchlistScope === state.watchlistScope);
   });
   text("#watchlist-total", `${filtered.length} compan${filtered.length === 1 ? "y" : "ies"}`);
+  text("#watchlist-followed", `${followedTickers.size}/${state.watchlistLimit} followed`);
   if (!filtered.length) {
     elements.watchlistGrid.innerHTML = emptyState(
       state.watchlist.length ? "No matching companies" : "Watchlist unavailable",
@@ -417,12 +542,18 @@ function renderWatchlist() {
     return;
   }
   elements.watchlistGrid.innerHTML = filtered.map((company) => {
-    const programs = (company.programs || []).slice(0, 2);
-    const remaining = Math.max(0, (company.programs || []).length - programs.length);
+    const followed = followedTickers.has(company.ticker);
+    const coverage = company.coverage || {};
+    const coverageLabels = [coverage.companyIr ? "IR" : null, coverage.pressReleases ? "Press" : null,
+      coverage.sec ? "SEC" : null, coverage.clinicalTrials ? "Trials" : null].filter(Boolean);
+    const programs = (company.programs || []).slice(0, 2).join(" · ");
     return `<article class="company-row">
+      <button class="follow-button ${followed ? "followed" : ""}" data-follow-ticker="${escapeHtml(company.ticker)}" type="button" aria-label="${followed ? "Unfollow" : "Follow"} ${escapeHtml(company.ticker)}" data-tooltip="${followed ? "Unfollow" : "Follow"}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg>
+      </button>
       <span class="ticker">${escapeHtml(company.ticker)}</span>
-      <span class="company-name"><strong>${escapeHtml(company.company)}</strong><small>${escapeHtml((company.aliases || []).slice(0, 3).join(" · ") || "Biotechnology")}</small></span>
-      <span class="program-list">${programs.map((program) => `<span>${escapeHtml(program)}</span>`).join("")}${remaining ? `<span>+${remaining}</span>` : ""}</span>
+      <span class="company-name"><strong>${escapeHtml(company.company)}</strong><small>${escapeHtml(programs || (company.aliases || []).slice(0, 2).join(" · ") || "Biotechnology")}</small></span>
+      <span class="coverage-cell"><strong class="coverage-level ${escapeHtml(coverage.level || "core")}">${escapeHtml(coverage.level || "core")}</strong><small>${escapeHtml(coverageLabels.join(" · ") || "Core monitoring")}</small></span>
       <span class="cap-band">${escapeHtml(company.marketCapBand)}</span>
     </article>`;
   }).join("");
@@ -531,6 +662,9 @@ function persistCache() {
       status: state.status,
       access: state.access,
       freeFeedDelayMinutes: state.freeFeedDelayMinutes,
+      preferences: state.preferences,
+      watchlistLimit: state.watchlistLimit,
+      monitoredUniverse: state.monitoredUniverse,
       lastUpdatedAt: state.lastUpdatedAt,
     }));
   } catch {}
@@ -544,6 +678,9 @@ function restoreCache() {
     if (cached.status) state.status = cached.status;
     if (cached.access) state.access = cached.access;
     if (Number.isFinite(cached.freeFeedDelayMinutes)) state.freeFeedDelayMinutes = cached.freeFeedDelayMinutes;
+    if (cached.preferences) state.preferences = cached.preferences;
+    if (Number.isFinite(cached.watchlistLimit)) state.watchlistLimit = cached.watchlistLimit;
+    if (Number.isFinite(cached.monitoredUniverse)) state.monitoredUniverse = cached.monitoredUniverse;
     if (cached.lastUpdatedAt) state.lastUpdatedAt = cached.lastUpdatedAt;
   } catch {}
 }

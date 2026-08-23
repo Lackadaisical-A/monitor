@@ -15,6 +15,8 @@ struct BiotechSignalApp: App {
                     guard url.scheme == "catalystwatch" else { return }
                     if url.host == "upgrade" {
                         store.showingPaywall = true
+                    } else if ["watchlist", "settings"].contains(url.host) {
+                        store.selectedTab = url.host ?? "signals"
                     } else if url.host == "signal" {
                         store.openSignal(id: url.lastPathComponent)
                     }

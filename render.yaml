@@ -21,6 +21,8 @@ services:
         value: gpt-5.6-luna
       - key: SCAN_INTERVAL_SECONDS
         value: 120
+      - key: FDA_ADCOM_ENABLED
+        value: true
       - key: FREE_FEED_DELAY_MINUTES
         value: 30
       - key: APP_STORE_BUNDLE_ID
@@ -32,7 +34,7 @@ services:
       - key: APPLE_ROOT_CA_DIR
         value: /app/config/apple
       - key: ALERT_DRY_RUN
-        value: true
+        value: false
       - key: APNS_TEAM_ID
         value: C2Y2PKW3VD
       - key: APNS_KEY_ID

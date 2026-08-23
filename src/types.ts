@@ -46,21 +46,24 @@ export interface WatchCompany {
   programs: string[];
 }
 
+export const CatalystEventTypeSchema = z.enum([
+  "trial_topline",
+  "trial_update",
+  "regulatory_decision",
+  "regulatory_update",
+  "safety_signal",
+  "publication",
+  "financing",
+  "partnership",
+  "other",
+]);
+export type CatalystEventType = z.infer<typeof CatalystEventTypeSchema>;
+
 export const ImpactAssessmentSchema = z.object({
   isBiotechCatalyst: z.boolean(),
   companyName: z.string(),
   ticker: z.string(),
-  eventType: z.enum([
-    "trial_topline",
-    "trial_update",
-    "regulatory_decision",
-    "regulatory_update",
-    "safety_signal",
-    "publication",
-    "financing",
-    "partnership",
-    "other",
-  ]),
+  eventType: CatalystEventTypeSchema,
   trialPhase: z.enum(["preclinical", "phase_1", "phase_1_2", "phase_2", "phase_2_3", "phase_3", "post_market", "not_applicable", "unknown"]),
   trialName: z.string(),
   indication: z.string(),
@@ -143,6 +146,30 @@ export interface InstallationAccess {
   productId: string | null;
   expiresAt: string | null;
   source: "free" | "app_store" | "developer";
+}
+
+export const FeedModeSchema = z.enum(["all", "watchlist"]);
+export type FeedMode = z.infer<typeof FeedModeSchema>;
+
+export const PushModeSchema = z.enum(["all", "watchlist"]);
+export type PushMode = z.infer<typeof PushModeSchema>;
+
+export interface InstallationPreferences {
+  installationId: string;
+  watchedTickers: string[];
+  feedMode: FeedMode;
+  pushMode: PushMode;
+  eventTypes: CatalystEventType[];
+  updatedAt: string | null;
+}
+
+export interface CompanyCoverage {
+  sec: boolean;
+  clinicalTrials: boolean;
+  pressReleases: boolean;
+  companyIr: boolean;
+  programMetadata: boolean;
+  level: "core" | "strong" | "complete";
 }
 
 export interface StoreTransactionEntitlement {

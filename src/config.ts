@@ -31,6 +31,7 @@ const EnvSchema = z.object({
   REDDIT_SUBREDDITS: z.string().default("biotech+Biotechplays"),
   CLINICAL_TRIALS_ENABLED: booleanEnv(true),
   SEC_ENABLED: booleanEnv(true),
+  FDA_ADCOM_ENABLED: booleanEnv(true),
   SEC_USER_AGENT: z.string().default("BiotechSignal/0.1 contact@example.com"),
   ALERT_DRY_RUN: booleanEnv(true),
   ALERT_MIN_MATERIALITY: z.coerce.number().int().min(0).max(100).default(88),
@@ -62,6 +63,7 @@ const RssSourceSchema = z.object({
   sourceType: z.enum(["company_ir", "regulator", "outlet"]).default("outlet"),
   tier: z.enum(["primary", "secondary"]).default("secondary"),
   url: z.string().url(),
+  tickers: z.array(z.string().min(1).transform((value) => value.toUpperCase())).default([]),
   enabled: z.boolean().default(true),
 });
 
@@ -71,7 +73,9 @@ const QuoteMediaSourceSchema = z.object({
   type: z.literal("quote_media"),
   sourceType: z.enum(["company_ir", "outlet"]).default("outlet"),
   tier: z.enum(["primary", "secondary"]).default("secondary"),
-  symbol: z.string().min(1).transform((value) => value.toUpperCase()),
+  symbol: z.string().min(1).transform((value) => value.toUpperCase()).optional(),
+  symbols: z.array(z.string().min(1).transform((value) => value.toUpperCase())).max(500).default([]),
+  watchlist: z.boolean().default(false),
   enabled: z.boolean().default(true),
 });
 
@@ -84,6 +88,7 @@ export interface RssSourceConfig {
   sourceType: Extract<SourceType, "company_ir" | "regulator" | "outlet">;
   tier: Extract<SourceTier, "primary" | "secondary">;
   url: string;
+  tickers: string[];
   enabled: boolean;
 }
 
@@ -93,7 +98,9 @@ export interface QuoteMediaSourceConfig {
   type: "quote_media";
   sourceType: Extract<SourceType, "company_ir" | "outlet">;
   tier: Extract<SourceTier, "primary" | "secondary">;
-  symbol: string;
+  symbol?: string | undefined;
+  symbols: string[];
+  watchlist: boolean;
   enabled: boolean;
 }
 
@@ -123,6 +130,7 @@ export interface AppConfig {
   reddit: { clientId: string; clientSecret: string; userAgent: string; subreddits: string };
   clinicalTrialsEnabled: boolean;
   secEnabled: boolean;
+  fdaAdcomEnabled: boolean;
   secUserAgent: string;
   alertPolicy: {
     dryRun: boolean;
@@ -178,6 +186,7 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
     },
     clinicalTrialsEnabled: env.CLINICAL_TRIALS_ENABLED,
     secEnabled: env.SEC_ENABLED,
+    fdaAdcomEnabled: env.FDA_ADCOM_ENABLED,
     secUserAgent: env.SEC_USER_AGENT,
     alertPolicy: {
       dryRun: env.ALERT_DRY_RUN,

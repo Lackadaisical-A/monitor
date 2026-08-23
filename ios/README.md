@@ -2,7 +2,7 @@
 
 The SwiftUI client displays the server's evidence record, registers a real APNs device token, and offers Catalyst Watch Pro through StoreKit 2. It targets iOS 17 or later.
 
-Free access shows up to 30 recent signals after a 30-minute delay. Pro unlocks the real-time 258-company feed, Time Sensitive alerts, and manual scans. A private developer credential can activate the same Pro feature set for the developer's installation without embedding a bypass in the binary.
+Free access shows up to 30 recent signals after a 30-minute delay and supports 10 followed companies. Pro unlocks the real-time full-universe feed, filtered Time Sensitive alerts, and manual scans. A private developer credential can activate the same Pro feature set for the developer's installation without embedding a bypass in the binary.
 
 ## Build
 
@@ -17,7 +17,8 @@ Free access shows up to 30 recent signals after a 30-minute delay. Pro unlocks t
 
 For deterministic App Store review screenshots, launch a Debug build with
 `CATALYST_WATCH_SCREENSHOT_MODE=1`. This opens the paywall with the configured
-monthly and annual plan metadata; Release builds ignore the variable.
+monthly and annual plan metadata. Set `CATALYST_WATCH_INITIAL_TAB` to `signals`,
+`watchlist`, or `settings` to select a starting tab. Release builds ignore both variables.
 
 Debug builds register as APNs `sandbox`; archived Release builds register as `production`. The server routes each token to the matching APNs environment.
 

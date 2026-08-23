@@ -12,7 +12,8 @@ It does **not** claim that any announcement will definitely move a stock. Market
 ## What is implemented
 
 - RSS/Atom adapter with FDA regulatory feeds, GlobeNewswire biotech/pharma wires, Fierce Biotech, STAT Biotech, and BioSpace defaults.
-- Full-text Moderna investor-relations press-release ingestion through the public feed embedded by Moderna IR.
+- Official Federal Register monitoring for newly published FDA advisory committee notices.
+- Press-release monitoring across the full configured watchlist, plus full-text primary-tier Moderna investor-relations ingestion.
 - Primary-tier support for company IR feeds you add to `config/sources.json`.
 - X API v2 recent search using a bearer token and `since_id` cursor.
 - Reddit OAuth Data API adapter, disabled without approved credentials.
@@ -24,11 +25,12 @@ It does **not** claim that any announcement will definitely move a stock. Market
 - Time Sensitive APNs notifications, plus guarded Critical Alert payload support.
 - Token-protected responsive dashboard and iOS 17+ SwiftUI app source.
 - Per-installation iPhone authentication, StoreKit 2 subscriptions, and server-side App Store JWS verification.
+- Per-installation company watchlists, All/Following feed modes, and company/event-specific Pro alert routing on web and iPhone.
 
 ## Free, Pro, and developer access
 
-- **Free:** up to 30 recent signals with a 30-minute publication delay.
-- **Catalyst Watch Pro:** the real-time feed across the complete 258-company watchlist, Time Sensitive APNs alerts, and manual scans.
+- **Free:** up to 30 recent signals with a 30-minute publication delay and a personal watchlist of up to 10 companies.
+- **Catalyst Watch Pro:** the real-time feed, the complete monitored universe, filtered Time Sensitive APNs alerts, and manual scans.
 - **Developer:** the same capabilities as Pro, activated for one installation with `DEVELOPER_PAIRING_TOKEN`. The credential stays server-side and is never compiled into the App Store build.
 
 The proposed App Store products are `com.yingcui.CatalystWatch.pro.monthly` at $9.99 per month and `com.yingcui.CatalystWatch.pro.yearly` at $79.99 per year. StoreKit supplies the localized customer price at runtime.
@@ -109,6 +111,8 @@ Add an RSS/Atom source to `config/sources.json`:
 
 Use `sourceType: "company_ir"` and `tier: "primary"` only for a feed controlled by the issuer. Syndicated press releases and journalism should remain `outlet` / `secondary`.
 
+The bundled `watchlist-press-releases` QuoteMedia source batches the entire configured universe in groups of 50 symbols. It is classified as secondary evidence because the feed is a syndication layer; issuer-controlled feeds remain the preferred primary source.
+
 The service intentionally uses official APIs and publisher-provided feeds instead of bypassing logins, bot protection, paywalls, or robots controls. It stores only the material supplied by those endpoints.
 
 ## API credentials
@@ -162,7 +166,7 @@ Create a Render Blueprint from this repository and provide the prompted secrets:
 - `SEC_USER_AGENT` in the form `Catalyst Watch contact@example.com`
 - `APNS_PRIVATE_KEY` containing the complete `.p8` key, including its `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines
 
-The Blueprint starts with `ALERT_DRY_RUN=true`. After deployment, confirm `/api/health`, pair a physical iPhone, inspect real classifications, and verify APNs delivery before changing that environment variable to `false`. Render redeploys the service after an environment change.
+The launch Blueprint sets `ALERT_DRY_RUN=false`; only authenticated Pro or developer devices with notification permission are eligible. For a new deployment, start with `true`, confirm `/api/health`, inspect real classifications, pair a physical iPhone, and then switch to `false`. Render redeploys the service after an environment change.
 
 The Blueprint also configures the App Store bundle ID, Apple app ID, product IDs, and bundled Apple root certificates used for signed-transaction verification. Configure App Store Server Notifications V2 to send production and sandbox notifications to `https://YOUR-SERVICE.onrender.com/api/app-store/notifications`.
 
@@ -208,8 +212,9 @@ npm start          Run compiled server
 - `POST /api/entitlements/developer` — activate developer Pro access for one installation.
 - `POST /api/app-store/notifications` — receive and verify App Store Server Notifications V2.
 - `GET /api/status` — configuration/source status; dashboard bearer or installation credentials required.
-- `GET /api/feed` — evidence and analysis feed, with the Free delay enforced server-side.
-- `GET /api/watchlist` — return the complete monitored company universe.
+- `GET /api/preferences` / `PUT /api/preferences` — read or update the authenticated installation's company, feed, and alert filters.
+- `GET /api/feed?scope=all|watchlist` — evidence and analysis feed, with personalization and the Free delay enforced server-side.
+- `GET /api/watchlist` — return the complete monitored company universe, follow state, and source-coverage diagnostics.
 - `GET /api/signals/:id` — one evidence record and analysis.
 - `POST /api/scan` — manually trigger a scan; dashboard, Pro, or developer access required.
 - `POST /api/devices` — register/update an APNs token for an authenticated installation.

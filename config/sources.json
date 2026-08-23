@@ -9,6 +9,15 @@
     "enabled": true
   },
   {
+    "id": "watchlist-press-releases",
+    "name": "Watchlist company press releases",
+    "type": "quote_media",
+    "sourceType": "outlet",
+    "tier": "secondary",
+    "watchlist": true,
+    "enabled": true
+  },
+  {
     "id": "fda-press-releases",
     "name": "FDA press releases",
     "type": "rss",

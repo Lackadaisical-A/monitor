@@ -11,8 +11,22 @@ struct APIClient {
         return try await request(path: "/api/installations", method: "POST", body: body)
     }
 
-    func fetchFeed() async throws -> FeedResponse {
-        try await request(path: "/api/feed?limit=150")
+    func fetchFeed(scope: String? = nil) async throws -> FeedResponse {
+        let scopeQuery = scope.map { "&scope=\($0)" } ?? ""
+        return try await request(path: "/api/feed?limit=150\(scopeQuery)")
+    }
+
+    func fetchWatchlist() async throws -> WatchlistResponse {
+        try await request(path: "/api/watchlist")
+    }
+
+    func fetchPreferences() async throws -> PreferencesResponse {
+        try await request(path: "/api/preferences")
+    }
+
+    func updatePreferences(_ preferences: PreferencesUpdateRequest) async throws -> PreferencesResponse {
+        let body = try JSONEncoder().encode(preferences)
+        return try await request(path: "/api/preferences", method: "PUT", body: body)
     }
 
     func fetchStatus() async throws -> StatusResponse {

@@ -5,11 +5,15 @@ import type {
   AccessLevel,
   AlertTier,
   AnalysisRecord,
+  CatalystEventType,
   DeviceRegistration,
   FeedEntry,
+  FeedMode,
   ImpactAssessment,
   InstallationAccess,
+  InstallationPreferences,
   NormalizedItem,
+  PushMode,
   SourceTier,
   SourceType,
   StoreTransactionEntitlement,
@@ -60,6 +64,27 @@ interface InstallationRow {
   created_at: string;
   updated_at: string;
 }
+
+interface PreferenceRow {
+  installation_id: string;
+  feed_mode: FeedMode;
+  push_mode: PushMode;
+  event_types_json: string;
+  updated_at: string;
+}
+
+const ALL_EVENT_TYPES: CatalystEventType[] = [
+  "trial_topline",
+  "trial_update",
+  "regulatory_decision",
+  "regulatory_update",
+  "safety_signal",
+  "publication",
+  "financing",
+  "partnership",
+  "other",
+];
+const EVENT_TYPE_SET = new Set<string>(ALL_EVENT_TYPES);
 
 export class SignalDatabase implements SignalStore {
   readonly sqlite: Database.Database;
@@ -171,7 +196,16 @@ export class SignalDatabase implements SignalStore {
     return rows.map(rowToItem);
   }
 
-  listFeed(limit = 100, publishedBefore: string | null = null): FeedEntry[] {
+  listFeed(limit = 100, publishedBefore: string | null = null, tickers: readonly string[] | null = null): FeedEntry[] {
+    const normalizedTickers = tickers === null
+      ? null
+      : [...new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))];
+    if (normalizedTickers?.length === 0) return [];
+    const tickerPlaceholders = normalizedTickers?.map(() => "?").join(", ") ?? "";
+    const tickerClause = normalizedTickers
+      ? `AND (UPPER(COALESCE(i.ticker_hint, '')) IN (${tickerPlaceholders})
+        OR UPPER(COALESCE(json_extract(a.assessment_json, '$.ticker'), '')) IN (${tickerPlaceholders}))`
+      : "";
     const rows = this.sqlite.prepare(`
       SELECT
         i.*,
@@ -186,6 +220,7 @@ export class SignalDatabase implements SignalStore {
       LEFT JOIN analyses a ON a.item_id = i.id
       WHERE i.status <> 'skipped'
         AND (? IS NULL OR i.published_at <= ?)
+        ${tickerClause}
       ORDER BY
         CASE
           WHEN a.alert_tier = 'urgent' AND julianday(i.published_at) >= julianday('now', '-7 days') THEN 0
@@ -194,7 +229,13 @@ export class SignalDatabase implements SignalStore {
         i.published_at DESC,
         i.discovered_at DESC
       LIMIT ?
-    `).all(publishedBefore, publishedBefore, Math.min(limit * 5, 1_250)) as Array<ItemRow & Partial<AnalysisRow> & { corroboration_count: number; alerted_at: string | null }>;
+    `).all(
+      publishedBefore,
+      publishedBefore,
+      ...(normalizedTickers ?? []),
+      ...(normalizedTickers ?? []),
+      Math.min(limit * 5, 1_250),
+    ) as Array<ItemRow & Partial<AnalysisRow> & { corroboration_count: number; alerted_at: string | null }>;
 
     const seenHeadlines = new Set<string>();
     return rows.map((row) => ({
@@ -330,6 +371,54 @@ export class SignalDatabase implements SignalStore {
     return changes;
   }
 
+  getInstallationPreferences(installationId: string): InstallationPreferences {
+    const row = this.sqlite.prepare("SELECT * FROM installation_preferences WHERE installation_id = ?")
+      .get(installationId) as PreferenceRow | undefined;
+    const watchedTickers = (this.sqlite.prepare(`
+      SELECT ticker FROM installation_watchlist
+      WHERE installation_id = ? ORDER BY position, ticker
+    `).all(installationId) as Array<{ ticker: string }>).map(({ ticker }) => ticker);
+    return {
+      installationId,
+      watchedTickers,
+      feedMode: row?.feed_mode ?? "all",
+      pushMode: row?.push_mode ?? "all",
+      eventTypes: parseEventTypes(row?.event_types_json),
+      updatedAt: row?.updated_at ?? null,
+    };
+  }
+
+  updateInstallationPreferences(input: {
+    installationId: string;
+    watchedTickers: string[];
+    feedMode: FeedMode;
+    pushMode: PushMode;
+    eventTypes: CatalystEventType[];
+  }): InstallationPreferences {
+    const watchedTickers = [...new Set(input.watchedTickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))];
+    const eventTypes = [...new Set(input.eventTypes)].filter((eventType) => EVENT_TYPE_SET.has(eventType));
+    const now = new Date().toISOString();
+    this.sqlite.transaction(() => {
+      this.sqlite.prepare(`
+        INSERT INTO installation_preferences (
+          installation_id, feed_mode, push_mode, event_types_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(installation_id) DO UPDATE SET
+          feed_mode = excluded.feed_mode,
+          push_mode = excluded.push_mode,
+          event_types_json = excluded.event_types_json,
+          updated_at = excluded.updated_at
+      `).run(input.installationId, input.feedMode, input.pushMode, JSON.stringify(eventTypes), now);
+      this.sqlite.prepare("DELETE FROM installation_watchlist WHERE installation_id = ?").run(input.installationId);
+      const insertTicker = this.sqlite.prepare(`
+        INSERT INTO installation_watchlist (installation_id, ticker, position, created_at)
+        VALUES (?, ?, ?, ?)
+      `);
+      watchedTickers.forEach((ticker, position) => insertTicker.run(input.installationId, ticker, position, now));
+    })();
+    return this.getInstallationPreferences(input.installationId);
+  }
+
   upsertDevice(device: DeviceRegistration): void {
     const deviceToken = device.deviceToken.toLowerCase();
     this.sqlite.transaction(() => {
@@ -377,22 +466,35 @@ export class SignalDatabase implements SignalStore {
     }));
   }
 
-  listAlertDevices(): Array<DeviceRegistration & { active: boolean }> {
+  listAlertDevices(ticker?: string, eventType?: CatalystEventType): Array<DeviceRegistration & { active: boolean }> {
     const rows = this.sqlite.prepare(`
-      SELECT d.* FROM devices d
+      SELECT d.*, COALESCE(p.push_mode, 'all') AS push_mode,
+        COALESCE(p.event_types_json, ?) AS event_types_json,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM installation_watchlist w
+          WHERE w.installation_id = d.installation_id AND w.ticker = ?
+        ) THEN 1 ELSE 0 END AS watches_ticker
+      FROM devices d
       INNER JOIN installations i ON i.installation_id = d.installation_id
+      LEFT JOIN installation_preferences p ON p.installation_id = d.installation_id
       WHERE d.active = 1
         AND (i.access_level = 'developer' OR (i.access_level = 'pro' AND i.expires_at > ?))
       ORDER BY d.updated_at DESC
-    `).all(new Date().toISOString()) as Array<{
+    `).all(JSON.stringify(ALL_EVENT_TYPES), ticker?.toUpperCase() ?? "", new Date().toISOString()) as Array<{
       installation_id: string;
       device_token: string;
       environment: "sandbox" | "production";
       time_sensitive_authorized: number;
       critical_authorized: number;
       active: number;
+      push_mode: PushMode;
+      event_types_json: string;
+      watches_ticker: number;
     }>;
-    return rows.map((row) => ({
+    return rows.filter((row) => {
+      if (row.push_mode === "watchlist" && !row.watches_ticker) return false;
+      return !eventType || parseEventTypes(row.event_types_json).includes(eventType);
+    }).map((row) => ({
       installationId: row.installation_id,
       deviceToken: row.device_token,
       environment: row.environment,
@@ -444,7 +546,8 @@ export class SignalDatabase implements SignalStore {
     const alertCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM alerts WHERE status IN ('sent', 'dry_run')").get() as { count: number }).count;
     const deviceCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM devices WHERE active = 1").get() as { count: number }).count;
     const urgentCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM analyses WHERE alert_tier = 'urgent'").get() as { count: number }).count;
-    return { ...counts, alertCount, deviceCount, urgent_count: urgentCount };
+    const personalizedCount = (this.sqlite.prepare("SELECT COUNT(DISTINCT installation_id) AS count FROM installation_watchlist").get() as { count: number }).count;
+    return { ...counts, alertCount, deviceCount, urgent_count: urgentCount, personalized_count: personalizedCount };
   }
 
   private migrate(): void {
@@ -515,6 +618,24 @@ export class SignalDatabase implements SignalStore {
       CREATE INDEX IF NOT EXISTS installations_original_transaction_idx
         ON installations(original_transaction_id);
 
+      CREATE TABLE IF NOT EXISTS installation_preferences (
+        installation_id TEXT PRIMARY KEY REFERENCES installations(installation_id) ON DELETE CASCADE,
+        feed_mode TEXT NOT NULL DEFAULT 'all',
+        push_mode TEXT NOT NULL DEFAULT 'all',
+        event_types_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS installation_watchlist (
+        installation_id TEXT NOT NULL REFERENCES installations(installation_id) ON DELETE CASCADE,
+        ticker TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (installation_id, ticker)
+      );
+      CREATE INDEX IF NOT EXISTS installation_watchlist_ticker_idx
+        ON installation_watchlist(ticker, installation_id);
+
       CREATE TABLE IF NOT EXISTS alerts (
         id TEXT PRIMARY KEY,
         item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -564,4 +685,18 @@ function rowToAnalysis(row: AnalysisRow): AnalysisRecord {
     policyReasons: JSON.parse(row.policy_reasons_json) as string[],
     createdAt: row.created_at,
   };
+}
+
+function parseEventTypes(value: string | undefined): CatalystEventType[] {
+  if (!value) return [...ALL_EVENT_TYPES];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [...ALL_EVENT_TYPES];
+    const valid = parsed.filter((eventType): eventType is CatalystEventType => (
+      typeof eventType === "string" && EVENT_TYPE_SET.has(eventType)
+    ));
+    return valid.length ? valid : [...ALL_EVENT_TYPES];
+  } catch {
+    return [...ALL_EVENT_TYPES];
+  }
 }

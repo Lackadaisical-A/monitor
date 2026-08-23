@@ -9,7 +9,14 @@ import type { AppConfig } from "./config.js";
 import type { MonitorPipeline } from "./pipeline.js";
 import type { SignalStore } from "./store.js";
 import { AppStoreSubscriptionVerifier, type SubscriptionVerifier } from "./subscriptions.js";
-import type { InstallationAccess } from "./types.js";
+import {
+  CatalystEventTypeSchema,
+  FeedModeSchema,
+  PushModeSchema,
+  type CompanyCoverage,
+  type InstallationAccess,
+  type WatchCompany,
+} from "./types.js";
 import { safeEqual } from "./utils.js";
 
 const InstallationSchema = z.object({
@@ -36,6 +43,15 @@ const DeveloperCredentialSchema = z.object({
 const NotificationSchema = z.object({
   signedPayload: z.string().min(100).max(250_000),
 });
+
+const PreferencesUpdateSchema = z.object({
+  watchedTickers: z.array(z.string().trim().min(1).max(12)).max(500),
+  feedMode: FeedModeSchema,
+  pushMode: PushModeSchema,
+  eventTypes: z.array(CatalystEventTypeSchema).min(1),
+});
+
+const FREE_WATCHLIST_LIMIT = 10;
 
 export async function createApp(
   config: AppConfig,
@@ -71,6 +87,36 @@ export async function createApp(
   app.get("/api/entitlements", async (request) => {
     const access = await requireClientAccess(request, db);
     return entitlementResponse(config, access);
+  });
+
+  app.get("/api/preferences", async (request) => {
+    const access = await requireClientAccess(request, db);
+    return preferencesResponse(config, access, await db.getInstallationPreferences(access.installationId));
+  });
+
+  app.put("/api/preferences", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (request) => {
+    const access = await requireClientAccess(request, db);
+    const body = PreferencesUpdateSchema.parse(request.body);
+    const knownTickers = new Set(config.watchlist.map((company) => company.ticker));
+    const watchedTickers = [...new Set(body.watchedTickers.map((ticker) => ticker.toUpperCase()))];
+    const unknownTickers = watchedTickers.filter((ticker) => !knownTickers.has(ticker));
+    if (unknownTickers.length) throw httpError(400, `Unknown watchlist ticker: ${unknownTickers[0]}`);
+    const limit = watchlistLimit(config, access);
+    if (watchedTickers.length > limit) {
+      throw httpError(access.pro ? 400 : 403, access.pro
+        ? `Watchlists are limited to ${limit} companies`
+        : `Free watchlists are limited to ${limit} companies; Catalyst Watch Pro unlocks the full universe`);
+    }
+    const preferences = await db.updateInstallationPreferences({
+      installationId: access.installationId,
+      watchedTickers,
+      feedMode: body.feedMode,
+      pushMode: body.pushMode,
+      eventTypes: body.eventTypes,
+    });
+    return preferencesResponse(config, access, preferences);
   });
 
   app.post("/api/entitlements/storekit", async (request) => {
@@ -116,7 +162,8 @@ export async function createApp(
           + Number(Boolean(config.x.bearerToken))
           + Number(Boolean(config.reddit.clientId && config.reddit.clientSecret))
           + Number(config.clinicalTrialsEnabled && config.watchlist.length > 0)
-          + Number(config.secEnabled && config.watchlist.some((company) => company.cik)),
+          + Number(config.secEnabled && config.watchlist.some((company) => company.cik))
+          + Number(config.fdaAdcomEnabled),
         watchlistCount: config.watchlist.length,
         analysisMode: config.openaiApiKey ? "OpenAI structured analysis" : "demo heuristic (urgent alerts blocked)",
         model: config.openaiApiKey ? config.openaiModel : "heuristic-demo-v1",
@@ -134,18 +181,24 @@ export async function createApp(
   });
 
   app.get("/api/feed", async (request) => {
-    const query = z.object({ limit: z.coerce.number().int().min(1).max(250).default(100) }).parse(request.query);
+    const query = z.object({
+      limit: z.coerce.number().int().min(1).max(250).default(100),
+      scope: FeedModeSchema.optional(),
+    }).parse(request.query);
     const dashboard = isDashboardAuthorized(request, config);
     const access = dashboard ? null : await requireClientAccess(request, db);
+    const preferences = access ? await db.getInstallationPreferences(access.installationId) : null;
+    const scope = dashboard ? "all" : query.scope ?? preferences?.feedMode ?? "all";
     const free = !dashboard && !access?.pro;
     const publishedBefore = free
       ? new Date(Date.now() - config.entitlements.freeFeedDelayMinutes * 60_000).toISOString()
       : null;
     const limit = free ? Math.min(query.limit, 30) : query.limit;
     return {
-      entries: await db.listFeed(limit, publishedBefore),
+      entries: await db.listFeed(limit, publishedBefore, scope === "watchlist" ? preferences?.watchedTickers ?? [] : null),
       access,
       delayedByMinutes: free ? config.entitlements.freeFeedDelayMinutes : 0,
+      scope,
     };
   });
 
@@ -165,15 +218,24 @@ export async function createApp(
   app.get("/api/watchlist", async (request) => {
     const dashboard = isDashboardAuthorized(request, config);
     const access = dashboard ? null : await requireClientAccess(request, db);
+    const preferences = access ? await db.getInstallationPreferences(access.installationId) : null;
+    const followed = new Set(preferences?.watchedTickers ?? []);
     return {
       access,
-      companies: config.watchlist.map(({ ticker, company, aliases, marketCapBand, programs }) => ({
+      preferences,
+      limit: access ? watchlistLimit(config, access) : config.watchlist.length,
+      companies: config.watchlist.map((watchCompany) => {
+        const { ticker, company, aliases, marketCapBand, programs } = watchCompany;
+        return {
         ticker,
         company,
         aliases,
         marketCapBand,
         programs,
-      })),
+          followed: followed.has(ticker),
+          coverage: companyCoverage(config, watchCompany),
+        };
+      }),
     };
   });
 
@@ -238,6 +300,43 @@ function entitlementResponse(config: AppConfig, access: InstallationAccess | nul
     products: config.entitlements.productIds,
     freeFeedDelayMinutes: config.entitlements.freeFeedDelayMinutes,
   };
+}
+
+function preferencesResponse(
+  config: AppConfig,
+  access: InstallationAccess,
+  preferences: Awaited<ReturnType<SignalStore["getInstallationPreferences"]>>,
+) {
+  return {
+    access,
+    preferences,
+    limits: {
+      watchlist: watchlistLimit(config, access),
+      monitoredUniverse: config.watchlist.length,
+    },
+    eventTypes: CatalystEventTypeSchema.options,
+  };
+}
+
+function watchlistLimit(config: AppConfig, access: InstallationAccess): number {
+  return access.pro ? config.watchlist.length : Math.min(FREE_WATCHLIST_LIMIT, config.watchlist.length);
+}
+
+function companyCoverage(config: AppConfig, company: WatchCompany): CompanyCoverage {
+  const quoteMediaSources = config.quoteMediaSources.filter((source) => (
+    source.symbol === company.ticker || source.symbols.includes(company.ticker) || source.watchlist
+  ));
+  const companyIr = quoteMediaSources.some((source) => source.sourceType === "company_ir")
+    || config.rssSources.some((source) => source.sourceType === "company_ir" && source.tickers.includes(company.ticker));
+  const coverage = {
+    sec: Boolean(company.cik && config.secEnabled),
+    clinicalTrials: config.clinicalTrialsEnabled,
+    pressReleases: quoteMediaSources.length > 0,
+    companyIr,
+    programMetadata: company.programs.length > 0,
+  };
+  const score = Object.values(coverage).filter(Boolean).length;
+  return { ...coverage, level: score >= 5 ? "complete" : score >= 3 ? "strong" : "core" };
 }
 
 function hashToken(token: string): string {

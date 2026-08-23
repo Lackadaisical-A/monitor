@@ -2905,18 +2905,8 @@
     "programs": []
   },
   {
-    "ticker": "-",
-    "company": "Arcellx Inc Cvr",
-    "aliases": [
-      "$-"
-    ],
-    "marketCapBand": "unknown",
-    "xAccounts": [],
-    "programs": []
-  },
-  {
     "ticker": "ABBV",
-    "company": "Abbvie",
+    "company": "AbbVie",
     "aliases": [
       "$ABBV",
       "AbbVie Inc."

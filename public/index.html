@@ -109,6 +109,10 @@
                   <h2 id="stream-title">Latest catalysts</h2>
                   <span id="feed-state">Loading</span>
                 </div>
+                <div id="feed-scope" class="segmented-control" role="group" aria-label="Signal universe">
+                  <button class="active" data-feed-scope="all" type="button">All</button>
+                  <button data-feed-scope="watchlist" type="button">Following <span id="feed-followed-count">0</span></button>
+                </div>
                 <label class="compact-search" for="mobile-signal-search">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                   <input id="mobile-signal-search" type="search" placeholder="Search" autocomplete="off" />
@@ -141,7 +145,7 @@
               <div class="kicker">Monitored universe</div>
               <h1>Company watchlist</h1>
             </div>
-            <div id="watchlist-total" class="heading-count">-- companies</div>
+            <div class="heading-count"><strong id="watchlist-followed">0 followed</strong><span id="watchlist-total">-- companies</span></div>
           </div>
           <div class="list-controls">
             <label class="search-field wide" for="watchlist-search">
@@ -160,8 +164,12 @@
                 <option value="unknown">Unclassified</option>
               </select>
             </label>
+            <div id="watchlist-scope" class="segmented-control" role="group" aria-label="Company filter">
+              <button class="active" data-watchlist-scope="all" type="button">All</button>
+              <button data-watchlist-scope="followed" type="button">Following</button>
+            </div>
           </div>
-          <div class="company-table-header" aria-hidden="true"><span>Ticker</span><span>Company</span><span>Programs</span><span>Market cap</span></div>
+          <div class="company-table-header" aria-hidden="true"><span></span><span>Ticker</span><span>Company</span><span>Coverage</span><span>Market cap</span></div>
           <div id="watchlist-grid" class="company-table" aria-live="polite"></div>
         </section>
 
@@ -214,6 +222,7 @@
         <div><span>Feed depth</span><strong id="plan-depth">30 signals</strong></div>
         <div><span>Manual scans</span><strong id="plan-scans">Locked</strong></div>
         <div><span>Phone alerts</span><strong id="plan-alerts">Locked</strong></div>
+        <div><span>Personal watchlist</span><strong id="plan-watchlist">10 companies</strong></div>
       </div>
       <a class="primary-button full" href="https://apps.apple.com/app/id6803988538" target="_blank" rel="noopener noreferrer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>

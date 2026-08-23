@@ -27,6 +27,7 @@ const STRATEGIC_ADDITIONS = [
 ];
 
 const OVERRIDES = {
+  ABBV: { company: "AbbVie", marketCapBand: "mega" },
   AMGN: { company: "Amgen", marketCapBand: "mega" },
   GILD: { company: "Gilead Sciences", marketCapBand: "mega" },
   MRNA: {
@@ -64,7 +65,7 @@ const headers = rows[headerIndex];
 const records = rows.slice(headerIndex + 1)
   .filter((row) => row.length >= headers.length)
   .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])))
-  .filter((row) => row["Asset Class"] === "Equity" && /^[A-Z0-9.-]{1,10}$/.test(row.Ticker));
+  .filter((row) => row["Asset Class"] === "Equity" && /^[A-Z0-9][A-Z0-9.-]{0,9}$/.test(row.Ticker));
 
 const candidates = [
   ...records.map((row) => ({ ticker: row.Ticker, company: row.Name, marketCapBand: "unknown", fundWeight: Number(row["Weight (%)"]) || 0 })),

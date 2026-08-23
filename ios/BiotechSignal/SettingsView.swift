@@ -43,6 +43,19 @@ struct SettingsView: View {
                 } label: {
                     Label("Send local test", systemImage: "bell.and.waves.left.and.right")
                 }
+                if store.access.pro {
+                    NavigationLink {
+                        AlertPreferencesView()
+                    } label: {
+                        Label("Alert routing", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                } else {
+                    Button {
+                        store.showingPaywall = true
+                    } label: {
+                        Label("Unlock alert routing", systemImage: "lock")
+                    }
+                }
             }
 
             if let status = store.status {
@@ -119,5 +132,55 @@ struct SettingsView: View {
         } catch {
             store.lastError = error.localizedDescription
         }
+    }
+}
+
+private struct AlertPreferencesView: View {
+    @EnvironmentObject private var store: MonitorStore
+
+    var body: some View {
+        Form {
+            Section("Companies") {
+                Picker("Send alerts for", selection: Binding(
+                    get: { store.preferences.pushMode },
+                    set: { mode in Task { await store.setPushMode(mode) } }
+                )) {
+                    Text("All companies").tag("all")
+                    Text("Following").tag("watchlist")
+                }
+                .pickerStyle(.segmented)
+                .disabled(store.preferenceUpdateInProgress)
+
+                if store.preferences.pushMode == "watchlist" {
+                    LabeledContent("Following", value: "\(store.preferences.watchedTickers.count)")
+                }
+            }
+
+            Section {
+                ForEach(CatalystEvent.allCases) { event in
+                    Toggle(isOn: Binding(
+                        get: { store.preferences.eventTypes.contains(event.rawValue) },
+                        set: { _ in Task { await store.toggleEvent(event) } }
+                    )) {
+                        Label(event.label, systemImage: event.symbol)
+                    }
+                    .disabled(
+                        store.preferenceUpdateInProgress
+                        || (store.preferences.eventTypes.count == 1
+                            && store.preferences.eventTypes.contains(event.rawValue))
+                    )
+                }
+            } header: {
+                HStack {
+                    Text("Catalyst types")
+                    Spacer()
+                    Text("\(store.preferences.eventTypes.count) selected")
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.catalystBackground)
+        .navigationTitle("Alert routing")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

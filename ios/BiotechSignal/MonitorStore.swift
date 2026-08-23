@@ -9,6 +9,10 @@ final class MonitorStore: ObservableObject {
     static let productIds = [monthlyProductId, yearlyProductId]
 
     @Published private(set) var entries: [FeedEntry] = []
+    @Published private(set) var watchlist: [WatchCompany] = []
+    @Published private(set) var preferences = InstallationPreferences.initial
+    @Published private(set) var watchlistLimit = 10
+    @Published private(set) var monitoredUniverse = 0
     @Published private(set) var status: StatusResponse?
     @Published private(set) var access = AccessInfo.free
     @Published private(set) var products: [Product] = []
@@ -18,8 +22,10 @@ final class MonitorStore: ObservableObject {
     @Published private(set) var notificationStatus = "Not checked"
     @Published private(set) var scanInProgress = false
     @Published private(set) var purchaseInProgress = false
+    @Published private(set) var preferenceUpdateInProgress = false
     @Published private(set) var lastScanSummary: ScanResponse?
     @Published var selectedSignal: FeedEntry?
+    @Published var selectedTab = "signals"
     @Published var showingPaywall = false
     @Published var lastError: String?
     @Published var purchaseMessage: String?
@@ -77,6 +83,10 @@ final class MonitorStore: ObservableObject {
         debugDeveloperCredential = environment["CATALYST_WATCH_DEVELOPER_TOKEN"] ?? ""
         screenshotMode = environment["CATALYST_WATCH_SCREENSHOT_MODE"] == "1"
         showingPaywall = environment["CATALYST_WATCH_SHOW_PAYWALL"] == "1" || screenshotMode
+        if let initialTab = environment["CATALYST_WATCH_INITIAL_TAB"],
+           ["signals", "watchlist", "settings"].contains(initialTab) {
+            selectedTab = initialTab
+        }
         #endif
 
         observers.append(NotificationCenter.default.addObserver(
@@ -129,17 +139,23 @@ final class MonitorStore: ObservableObject {
     }
 
     func refresh() async {
-        let current = settings
-        guard current.isComplete else { connection = .notConfigured; return }
+        guard settings.isComplete else { connection = .notConfigured; return }
         connection = .connecting
         do {
             try await bootstrapInstallation()
-            async let feedResponse = APIClient(settings: current).fetchFeed()
-            async let monitorStatus = APIClient(settings: current).fetchStatus()
-            let (feed, statusResponse) = try await (feedResponse, monitorStatus)
+            let client = APIClient(settings: settings)
+            async let feedResponse = client.fetchFeed()
+            async let monitorStatus = client.fetchStatus()
+            async let watchlistResponse = client.fetchWatchlist()
+            async let preferencesResponse = client.fetchPreferences()
+            let (feed, statusResponse, watchlistResult, preferenceResult) = try await (
+                feedResponse, monitorStatus, watchlistResponse, preferencesResponse
+            )
             entries = feed.entries
             status = statusResponse
+            watchlist = watchlistResult.companies
             access = feed.access ?? statusResponse.access ?? access
+            applyPreferences(preferenceResult)
             connection = .connected
             lastError = nil
             await updateNotificationStatus()
@@ -165,6 +181,58 @@ final class MonitorStore: ObservableObject {
             connection = .failed(error.localizedDescription)
             lastError = error.localizedDescription
         }
+    }
+
+    func setFeedMode(_ mode: String) async {
+        let normalized = mode == "watchlist" ? "watchlist" : "all"
+        guard normalized != preferences.feedMode else { return }
+        var next = preferences
+        next.feedMode = normalized
+        if await persistPreferences(next) { await refreshFeed() }
+    }
+
+    func toggleFollow(_ ticker: String) async {
+        guard !preferenceUpdateInProgress else { return }
+        var followed = Set(preferences.watchedTickers)
+        if followed.contains(ticker) {
+            followed.remove(ticker)
+        } else {
+            guard followed.count < watchlistLimit else {
+                if !access.pro { showingPaywall = true }
+                return
+            }
+            followed.insert(ticker)
+        }
+        var next = preferences
+        next.watchedTickers = watchlist
+            .map(\.ticker)
+            .filter(followed.contains)
+        if next.watchedTickers.isEmpty && next.feedMode == "watchlist" { next.feedMode = "all" }
+        let shouldRefreshFeed = next.feedMode == "watchlist" || next.feedMode != preferences.feedMode
+        if await persistPreferences(next), shouldRefreshFeed { await refreshFeed() }
+    }
+
+    func setPushMode(_ mode: String) async {
+        guard access.pro else { showingPaywall = true; return }
+        let normalized = mode == "watchlist" ? "watchlist" : "all"
+        guard normalized != preferences.pushMode else { return }
+        var next = preferences
+        next.pushMode = normalized
+        _ = await persistPreferences(next)
+    }
+
+    func toggleEvent(_ event: CatalystEvent) async {
+        guard access.pro else { showingPaywall = true; return }
+        var selected = Set(preferences.eventTypes)
+        if selected.contains(event.rawValue) {
+            guard selected.count > 1 else { return }
+            selected.remove(event.rawValue)
+        } else {
+            selected.insert(event.rawValue)
+        }
+        var next = preferences
+        next.eventTypes = CatalystEvent.allCases.map(\.rawValue).filter(selected.contains)
+        _ = await persistPreferences(next)
     }
 
     func saveSettings(baseURL: String, developerCredential: String) async throws {
@@ -279,6 +347,46 @@ final class MonitorStore: ObservableObject {
     private func activateDeveloper(credential: String) async throws {
         let response = try await APIClient(settings: settings).activateDeveloper(credential: credential)
         applyEntitlement(response)
+    }
+
+    private func persistPreferences(_ next: InstallationPreferences) async -> Bool {
+        guard settings.isComplete, !preferenceUpdateInProgress else { return false }
+        preferenceUpdateInProgress = true
+        defer { preferenceUpdateInProgress = false }
+        do {
+            let response = try await APIClient(settings: settings).updatePreferences(
+                PreferencesUpdateRequest(
+                    watchedTickers: next.watchedTickers,
+                    feedMode: next.feedMode,
+                    pushMode: next.pushMode,
+                    eventTypes: next.eventTypes
+                )
+            )
+            applyPreferences(response)
+            lastError = nil
+            return true
+        } catch {
+            lastError = error.localizedDescription
+            return false
+        }
+    }
+
+    private func refreshFeed() async {
+        do {
+            let response = try await APIClient(settings: settings).fetchFeed(scope: preferences.feedMode)
+            entries = response.entries
+            access = response.access ?? access
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func applyPreferences(_ response: PreferencesResponse) {
+        access = response.access
+        preferences = response.preferences
+        watchlistLimit = response.limits.watchlist
+        monitoredUniverse = response.limits.monitoredUniverse
     }
 
     private func loadProducts() async {

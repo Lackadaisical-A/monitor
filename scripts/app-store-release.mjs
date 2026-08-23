@@ -278,6 +278,54 @@ async function ensureFreeAppPrice() {
   });
 }
 
+async function inspectAppCommerce() {
+  const schedule = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
+  let priceSchedule = null;
+  if (schedule) {
+    const priceParams = new URLSearchParams({
+      include: "appPricePoint,territory",
+      "fields[appPricePoints]": "customerPrice",
+      "fields[territories]": "currency",
+      limit: "200",
+    });
+    const manualPage = await api(`/v1/appPriceSchedules/${schedule.id}/manualPrices?${priceParams}`);
+    const includedById = new Map((manualPage.included ?? []).map((item) => [item.id, item]));
+    const automaticPrices = await all(`/v1/appPriceSchedules/${schedule.id}/automaticPrices?limit=200`);
+    const baseTerritory = (await optional(`/v1/appPriceSchedules/${schedule.id}/baseTerritory`))?.data ?? null;
+    priceSchedule = {
+      id: schedule.id,
+      baseTerritory: baseTerritory?.id ?? null,
+      manualPrices: (manualPage.data ?? []).map((price) => {
+        const pointId = price.relationships?.appPricePoint?.data?.id ?? null;
+        return {
+          id: price.id,
+          ...price.attributes,
+          territory: price.relationships?.territory?.data?.id ?? null,
+          customerPrice: includedById.get(pointId)?.attributes?.customerPrice ?? null,
+        };
+      }),
+      automaticPriceCount: automaticPrices.length,
+    };
+  }
+
+  const availability = (await optional(`/v1/apps/${config.appId}/appAvailabilityV2`))?.data ?? null;
+  const territoryAvailabilities = availability
+    ? await all(`/v2/appAvailabilities/${availability.id}/territoryAvailabilities?limit=200`)
+    : [];
+  const availableTerritories = territoryAvailabilities.filter((item) => item.attributes?.available);
+  return {
+    priceSchedule,
+    availability: availability ? {
+      id: availability.id,
+      availableInNewTerritories: availability.attributes?.availableInNewTerritories,
+      availableTerritoryCount: availableTerritories.length,
+      euTerritoryCount: availableTerritories.filter((item) => EU_TERRITORIES.has(
+        item.relationships?.territory?.data?.id,
+      )).length,
+    } : null,
+  };
+}
+
 async function assignBuild(versionId, buildId) {
   await api(`/v1/appStoreVersions/${versionId}/relationships/build`, {
     method: "PATCH",
@@ -370,7 +418,7 @@ async function inspectRelease(version, info, build, group, subscriptions) {
   const app = (await api(`/v1/apps/${config.appId}?fields[apps]=name,bundleId,contentRightsDeclaration`)).data;
   const ageRating = (await api(`/v1/appInfos/${info.id}/ageRatingDeclaration`)).data;
   const infoLocalizations = await all(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`);
-  const priceSchedule = (await optional(`/v1/apps/${config.appId}/appPriceSchedule`))?.data ?? null;
+  const commerce = await inspectAppCommerce();
   const subscriptionReports = [];
   for (const subscription of subscriptions) {
     const current = (await api(`/v1/subscriptions/${subscription.id}`)).data;
@@ -414,7 +462,7 @@ async function inspectRelease(version, info, build, group, subscriptions) {
     appInfo: { id: info.id, ...info.attributes },
     ageRating: { id: ageRating.id, ...ageRating.attributes },
     appInfoLocalizations: infoLocalizations.map((localization) => ({ id: localization.id, ...localization.attributes })),
-    appPriceSchedule: priceSchedule ? { id: priceSchedule.id, ...priceSchedule.attributes } : null,
+    appCommerce: commerce,
     appVersion: { id: version.id, ...version.attributes },
     build: build ? { id: build.id, ...build.attributes } : null,
     assignedBuild: assignedBuild ? { id: assignedBuild.id, ...assignedBuild.attributes } : null,

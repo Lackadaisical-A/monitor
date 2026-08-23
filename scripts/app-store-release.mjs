@@ -4,7 +4,7 @@ import { basename, resolve } from "node:path";
 import { importPKCS8, SignJWT } from "jose";
 
 const API_BASE = "https://api.appstoreconnect.apple.com";
-const IRIS_API_BASE = "https://appstoreconnect.apple.com/iris";
+const IRIS_API_BASE = API_BASE;
 const PRIVACY_POLICY_URL = "https://lackadaisical-a.github.io/monitor/privacy.html";
 const EU_TERRITORIES = new Set([
   "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN",

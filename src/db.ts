@@ -203,8 +203,14 @@ export class SignalDatabase implements SignalStore {
     if (normalizedTickers?.length === 0) return [];
     const tickerPlaceholders = normalizedTickers?.map(() => "?").join(", ") ?? "";
     const tickerClause = normalizedTickers
-      ? `AND (UPPER(COALESCE(i.ticker_hint, '')) IN (${tickerPlaceholders})
-        OR UPPER(COALESCE(json_extract(a.assessment_json, '$.ticker'), '')) IN (${tickerPlaceholders}))`
+      ? `AND (
+        (a.item_id IS NULL AND UPPER(COALESCE(i.ticker_hint, '')) IN (${tickerPlaceholders}))
+        OR (
+          json_extract(a.assessment_json, '$.isBiotechCatalyst') = 1
+          AND UPPER(COALESCE(NULLIF(json_extract(a.assessment_json, '$.ticker'), ''), i.ticker_hint, ''))
+            IN (${tickerPlaceholders})
+        )
+      )`
       : "";
     const rows = this.sqlite.prepare(`
       SELECT

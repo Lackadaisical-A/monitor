@@ -156,6 +156,22 @@ describe("SignalDatabase", () => {
       ...signalItem("vertex", "VRTX"),
       publishedAt: new Date().toISOString(),
     });
+    db.insertItem({
+      ...signalItem("stat-roundup", "MRNA"),
+      headline: "Lady Gaga and her fiance launch a biotech startup",
+      summary: "A newsletter roundup also mentions Moderna.",
+      publishedAt: new Date(Date.now() + 1_000).toISOString(),
+    });
+    db.saveAnalysis({
+      itemId: "stat-roundup",
+      model: "test-model",
+      method: "openai",
+      assessment: assessment({ isBiotechCatalyst: false, materiality: 0 }),
+      policyScore: 0,
+      alertTier: "none",
+      policyReasons: ["not classified as a biotech catalyst"],
+      createdAt: new Date().toISOString(),
+    });
 
     const preferences = db.updateInstallationPreferences({
       installationId: id,
@@ -171,7 +187,7 @@ describe("SignalDatabase", () => {
       pushMode: "watchlist",
       eventTypes: ["trial_topline", "regulatory_decision"],
     });
-    expect(db.listFeed(100, null, preferences.watchedTickers).map((entry) => entry.item.tickerHint)).toEqual(["MRNA"]);
+    expect(db.listFeed(100, null, preferences.watchedTickers).map((entry) => entry.item.id)).toEqual(["moderna"]);
   });
 
   it("routes alerts by ticker and catalyst preference", () => {
@@ -236,5 +252,36 @@ function signalItem(id: string, ticker: string): NormalizedItem {
     companyHint: ticker,
     tickerHint: ticker,
     raw: {},
+  };
+}
+
+function assessment(overrides: Partial<ImpactAssessment> = {}): ImpactAssessment {
+  return {
+    isBiotechCatalyst: true,
+    companyName: "Moderna",
+    ticker: "MRNA",
+    eventType: "trial_update",
+    trialPhase: "unknown",
+    trialName: "",
+    indication: "",
+    resultDirection: "unclear",
+    stockDirection: "unclear",
+    materiality: 60,
+    confidence: 0.9,
+    probabilityPositiveMove: 0.5,
+    expectedMoveLowPct: -5,
+    expectedMoveBasePct: 0,
+    expectedMoveHighPct: 5,
+    timeHorizon: "intraday",
+    primaryEndpointMet: "not_reported",
+    statisticalStrength: "not_reported",
+    safetyAssessment: "not_reported",
+    noveltyVsPriorDisclosure: "new",
+    rationale: "Test assessment",
+    evidence: [],
+    uncertainty: [],
+    disconfirmingEvidence: [],
+    requiresHumanReview: false,
+    ...overrides,
   };
 }

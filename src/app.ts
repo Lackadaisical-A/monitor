@@ -301,10 +301,13 @@ async function attachMarketMovements(
 ): Promise<Array<FeedEntry & { marketMovement: FeedEntry["marketMovement"] }>> {
   if (!enabled || !marketData.configured) return entries.map((entry) => ({ ...entry, marketMovement: null }));
   try {
-    const movements = await marketData.getMovements(entries.flatMap((entry) => {
-      const ticker = entry.analysis?.assessment.ticker || entry.item.tickerHint;
+    const candidates = entries.flatMap((entry) => {
+      const assessment = entry.analysis?.assessment;
+      const ticker = assessment?.isBiotechCatalyst ? assessment.ticker.trim() : "";
       return ticker ? [{ id: entry.item.id, ticker, publishedAt: entry.item.publishedAt }] : [];
-    }));
+    });
+    if (!candidates.length) return entries.map((entry) => ({ ...entry, marketMovement: null }));
+    const movements = await marketData.getMovements(candidates);
     return entries.map((entry) => ({ ...entry, marketMovement: movements.get(entry.item.id) ?? null }));
   } catch (error) {
     logger.warn({ err: error }, "Market movement enrichment failed");

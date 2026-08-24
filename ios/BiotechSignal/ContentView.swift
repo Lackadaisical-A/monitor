@@ -213,7 +213,7 @@ private struct SignalCard: View {
         let assessment = analysis?.assessment
         VStack(alignment: .leading, spacing: 13) {
             HStack {
-                Text(assessment?.ticker.nonEmpty ?? entry.item.tickerHint ?? "—")
+                Text(displayTicker(entry) ?? "—")
                     .font(.system(.headline, design: .monospaced, weight: .bold))
                     .foregroundStyle(Color.catalystGreen)
                 TierPill(tier: analysis?.alertTier ?? "pending")
@@ -281,7 +281,7 @@ private struct SignalDetailView: View {
             .padding(20)
         }
         .background(Color.catalystBackground)
-        .navigationTitle(entry.analysis?.assessment.ticker ?? "Signal")
+        .navigationTitle(displayTicker(entry) ?? "Signal")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
     }
@@ -438,6 +438,14 @@ private func relativeDate(_ value: String) -> String {
 
 private extension String {
     var nonEmpty: String? { isEmpty ? nil : self }
+}
+
+private func displayTicker(_ entry: FeedEntry) -> String? {
+    if let assessment = entry.analysis?.assessment {
+        guard assessment.isBiotechCatalyst else { return nil }
+        return assessment.ticker.nonEmpty ?? entry.item.tickerHint?.nonEmpty
+    }
+    return entry.item.tickerHint?.nonEmpty
 }
 
 extension Color {

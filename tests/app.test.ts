@@ -6,7 +6,7 @@ import { SignalDatabase } from "../src/db.js";
 import type { MarketDataProvider } from "../src/market-data/alpaca.js";
 import type { MonitorPipeline } from "../src/pipeline.js";
 import type { SubscriptionVerifier } from "../src/subscriptions.js";
-import type { NormalizedItem } from "../src/types.js";
+import type { ImpactAssessment, NormalizedItem } from "../src/types.js";
 
 const installationId = "9c62cb51-26e7-48f3-a68b-f2e38ff8ab7a";
 const clientToken = "a".repeat(64);
@@ -145,6 +145,7 @@ describe("HTTP app", () => {
   it("adds configured event-session movement to feed entries without exposing credentials", async () => {
     db = new SignalDatabase(":memory:");
     db.insertItem({ ...item("market-move", Date.now() - 60 * 60_000), tickerHint: "MRNA" });
+    db.saveAnalysis(analysis("market-move"));
     const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
     const appConfig = config();
     appConfig.alpaca.scope = "all";
@@ -181,6 +182,48 @@ describe("HTTP app", () => {
       basis: "previous_close",
     });
     expect(JSON.stringify(feed.json())).not.toMatch(/secret|api.?key/i);
+    await app.close();
+  });
+
+  it("does not attach stock movement to an analyzed non-catalyst", async () => {
+    db = new SignalDatabase(":memory:");
+    db.insertItem({
+      ...item("stat-roundup", Date.now() - 60 * 60_000),
+      headline: "Lady Gaga and her fiance launch a biotech startup",
+      summary: "A newsletter roundup also mentions Moderna.",
+      companyHint: "Moderna",
+      tickerHint: "MRNA",
+    });
+    db.saveAnalysis(analysis("stat-roundup", {
+      isBiotechCatalyst: false,
+      materiality: 0,
+      stockDirection: "neutral",
+      rationale: "The headline is unrelated to Moderna.",
+    }, "none"));
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const appConfig = config();
+    appConfig.alpaca.scope = "all";
+    let marketDataCalls = 0;
+    const marketData: MarketDataProvider = {
+      configured: true,
+      feed: "iex",
+      getMovements: async () => {
+        marketDataCalls += 1;
+        return new Map();
+      },
+    };
+    const app = await createApp(appConfig, db, pipeline, verifier(), marketData);
+    await bootstrap(app);
+
+    const feed = await app.inject({ method: "GET", url: "/api/feed", headers: clientHeaders() });
+
+    expect(feed.statusCode).toBe(200);
+    expect(feed.json().entries[0]).toMatchObject({
+      item: { id: "stat-roundup", tickerHint: "MRNA" },
+      analysis: { assessment: { isBiotechCatalyst: false } },
+      marketMovement: null,
+    });
+    expect(marketDataCalls).toBe(0);
     await app.close();
   });
 
@@ -309,6 +352,50 @@ function item(id: string, publishedAt: number): NormalizedItem {
     companyHint: null,
     tickerHint: null,
     raw: {},
+  };
+}
+
+function analysis(
+  itemId: string,
+  overrides: Partial<ImpactAssessment> = {},
+  alertTier: "none" | "watch" | "high" | "urgent" = "watch",
+) {
+  return {
+    itemId,
+    model: "test-model",
+    method: "openai" as const,
+    assessment: {
+      isBiotechCatalyst: true,
+      companyName: "Moderna",
+      ticker: "MRNA",
+      eventType: "trial_update" as const,
+      trialPhase: "unknown" as const,
+      trialName: "",
+      indication: "",
+      resultDirection: "unclear" as const,
+      stockDirection: "unclear" as const,
+      materiality: 60,
+      confidence: 0.9,
+      probabilityPositiveMove: 0.5,
+      expectedMoveLowPct: -5,
+      expectedMoveBasePct: 0,
+      expectedMoveHighPct: 5,
+      timeHorizon: "intraday" as const,
+      primaryEndpointMet: "not_reported" as const,
+      statisticalStrength: "not_reported" as const,
+      safetyAssessment: "not_reported" as const,
+      noveltyVsPriorDisclosure: "new" as const,
+      rationale: "Test catalyst",
+      evidence: [],
+      uncertainty: [],
+      disconfirmingEvidence: [],
+      requiresHumanReview: false,
+      ...overrides,
+    },
+    policyScore: 60,
+    alertTier,
+    policyReasons: [],
+    createdAt: new Date().toISOString(),
   };
 }
 

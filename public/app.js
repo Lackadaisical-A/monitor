@@ -1,5 +1,5 @@
 const IDENTITY_KEY = "catalyst-watch-installation-v1";
-const CACHE_KEY = "catalyst-watch-web-cache-v4";
+const CACHE_KEY = "catalyst-watch-web-cache-v5";
 const EVENT_TYPES = [
   "trial_topline", "trial_update", "regulatory_decision", "regulatory_update",
   "safety_signal", "publication", "financing", "partnership", "other",
@@ -426,8 +426,9 @@ function renderSignals() {
     if (state.tier !== "all" && tier !== state.tier) return false;
     if (!state.signalQuery) return true;
     const assessment = entry.analysis?.assessment;
-    return [entry.item.headline, entry.item.summary, entry.item.source.name, entry.item.tickerHint,
-      entry.item.companyHint, assessment?.ticker, assessment?.companyName]
+    const acceptedAssessment = assessment?.isBiotechCatalyst ? assessment : null;
+    return [entry.item.headline, entry.item.summary, entry.item.source.name, displayTicker(entry),
+      entry.analysis ? acceptedAssessment?.companyName : entry.item.companyHint]
       .filter(Boolean)
       .join(" ")
       .toLowerCase()
@@ -446,7 +447,7 @@ function renderSignals() {
   elements.signalList.innerHTML = filtered.map((entry) => {
     const { item, analysis } = entry;
     const assessment = analysis?.assessment;
-    const ticker = assessment?.ticker || item.tickerHint || "--";
+    const ticker = displayTicker(entry) || "--";
     const tier = analysis?.alertTier || "none";
     const tierLabel = analysis?.alertTier || "pending";
     const confidence = Math.round((assessment?.confidence || 0) * 100);
@@ -702,6 +703,12 @@ function detailList(title, values) {
 function movementInline(movement) {
   if (!movement) return "";
   return `<i></i><span class="day-move ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)} news day</span>`;
+}
+
+function displayTicker(entry) {
+  const assessment = entry.analysis?.assessment;
+  if (assessment) return assessment.isBiotechCatalyst ? assessment.ticker || entry.item.tickerHint || "" : "";
+  return entry.item.tickerHint || "";
 }
 
 function marketMovementPanel(movement) {

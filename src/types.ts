@@ -187,4 +187,22 @@ export interface FeedEntry {
   analysis: AnalysisRecord | null;
   corroborationCount: number;
   alertedAt: string | null;
+  marketMovement?: StockMovement | null;
+}
+
+export interface StockMovement {
+  ticker: string;
+  sessionDate: string;
+  status: "live" | "closed";
+  previousClose: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  change: number;
+  changePct: number;
+  fetchedAt: string;
+  feed: "iex" | "sip";
+  provider: "alpaca";
+  basis: "previous_close";
 }

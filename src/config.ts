@@ -21,6 +21,10 @@ const EnvSchema = z.object({
   APPLE_ROOT_CA_DIR: z.string().default("./config/apple"),
   OPENAI_API_KEY: z.string().default(""),
   OPENAI_MODEL: z.string().default("gpt-5.6-luna"),
+  ALPACA_MARKET_DATA_SCOPE: z.enum(["disabled", "developer", "all"]).default("disabled"),
+  ALPACA_API_KEY_ID: z.string().default(""),
+  ALPACA_API_SECRET_KEY: z.string().default(""),
+  ALPACA_DATA_FEED: z.enum(["iex", "sip"]).default("iex"),
   SOURCES_FILE: z.string().default("./config/sources.json"),
   WATCHLIST_FILE: z.string().default("./config/watchlist.json"),
   X_BEARER_TOKEN: z.string().default(""),
@@ -123,6 +127,12 @@ export interface AppConfig {
   };
   openaiApiKey: string;
   openaiModel: string;
+  alpaca: {
+    scope: "disabled" | "developer" | "all";
+    keyId: string;
+    secretKey: string;
+    feed: "iex" | "sip";
+  };
   watchlist: WatchCompany[];
   rssSources: RssSourceConfig[];
   quoteMediaSources: QuoteMediaSourceConfig[];
@@ -174,6 +184,12 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
     },
     openaiApiKey: env.OPENAI_API_KEY,
     openaiModel: env.OPENAI_MODEL,
+    alpaca: {
+      scope: env.ALPACA_MARKET_DATA_SCOPE,
+      keyId: env.ALPACA_API_KEY_ID.trim(),
+      secretKey: env.ALPACA_API_SECRET_KEY.trim(),
+      feed: env.ALPACA_DATA_FEED,
+    },
     watchlist,
     rssSources,
     quoteMediaSources,

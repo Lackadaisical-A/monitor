@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
+import { AlpacaMarketDataService, type MarketDataProvider } from "./market-data/alpaca.js";
 import type { MonitorPipeline } from "./pipeline.js";
 import type { SignalStore } from "./store.js";
 import { AppStoreSubscriptionVerifier, type SubscriptionVerifier } from "./subscriptions.js";
@@ -14,6 +15,7 @@ import {
   FeedModeSchema,
   PushModeSchema,
   type CompanyCoverage,
+  type FeedEntry,
   type InstallationAccess,
   type WatchCompany,
 } from "./types.js";
@@ -58,6 +60,7 @@ export async function createApp(
   db: SignalStore,
   pipeline: MonitorPipeline,
   subscriptionVerifier: SubscriptionVerifier = new AppStoreSubscriptionVerifier(config.entitlements),
+  marketDataProvider?: MarketDataProvider,
 ): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: config.logLevel },
@@ -65,6 +68,10 @@ export async function createApp(
     bodyLimit: 300_000,
   });
   const publicPath = resolve("public");
+  const marketData = marketDataProvider ?? new AlpacaMarketDataService(config.alpaca, {
+    timeoutMs: Math.min(config.sourceTimeoutMs, 8_000),
+    onError: (error) => app.log.warn({ err: error }, "Alpaca market data request failed"),
+  });
   await app.register(rateLimit, {
     max: 120,
     timeWindow: "1 minute",
@@ -173,6 +180,11 @@ export async function createApp(
           && (config.apns.privateKey || config.apns.privateKeyPath)),
         criticalAlertsEnabled: config.apns.allowCritical,
         freeFeedDelayMinutes: config.entitlements.freeFeedDelayMinutes,
+        marketData: {
+          configured: marketData.configured,
+          scope: config.alpaca.scope,
+          feed: marketData.feed,
+        },
         urgentThresholds: {
           materiality: config.alertPolicy.minMateriality,
           confidence: config.alertPolicy.minConfidence,
@@ -195,8 +207,9 @@ export async function createApp(
       ? new Date(Date.now() - config.entitlements.freeFeedDelayMinutes * 60_000).toISOString()
       : null;
     const limit = free ? Math.min(query.limit, 30) : query.limit;
+    const entries = await db.listFeed(limit, publishedBefore, scope === "watchlist" ? preferences?.watchedTickers ?? [] : null);
     return {
-      entries: await db.listFeed(limit, publishedBefore, scope === "watchlist" ? preferences?.watchedTickers ?? [] : null),
+      entries: await attachMarketMovements(entries, marketData, canDisplayMarketData(config, access, dashboard), request.log),
       access,
       delayedByMinutes: free ? config.entitlements.freeFeedDelayMinutes : 0,
       scope,
@@ -213,7 +226,14 @@ export async function createApp(
       const cutoff = Date.now() - config.entitlements.freeFeedDelayMinutes * 60_000;
       if (Date.parse(item.publishedAt) > cutoff) return reply.code(403).send({ error: "pro_required" });
     }
-    return { item, analysis: await db.getAnalysis(params.id) };
+    const analysis = await db.getAnalysis(params.id);
+    const [entry] = await attachMarketMovements([{
+      item,
+      analysis,
+      corroborationCount: 0,
+      alertedAt: null,
+    }], marketData, canDisplayMarketData(config, access, dashboard), request.log);
+    return entry ?? { item, analysis, marketMovement: null };
   });
 
   app.get("/api/watchlist", async (request) => {
@@ -271,6 +291,31 @@ export async function createApp(
     return reply.code(statusCode).send({ error: statusCode < 500 ? message : "internal_error" });
   });
   return app;
+}
+
+async function attachMarketMovements(
+  entries: readonly FeedEntry[],
+  marketData: MarketDataProvider,
+  enabled: boolean,
+  logger: FastifyRequest["log"],
+): Promise<Array<FeedEntry & { marketMovement: FeedEntry["marketMovement"] }>> {
+  if (!enabled || !marketData.configured) return entries.map((entry) => ({ ...entry, marketMovement: null }));
+  try {
+    const movements = await marketData.getMovements(entries.flatMap((entry) => {
+      const ticker = entry.analysis?.assessment.ticker || entry.item.tickerHint;
+      return ticker ? [{ id: entry.item.id, ticker, publishedAt: entry.item.publishedAt }] : [];
+    }));
+    return entries.map((entry) => ({ ...entry, marketMovement: movements.get(entry.item.id) ?? null }));
+  } catch (error) {
+    logger.warn({ err: error }, "Market movement enrichment failed");
+    return entries.map((entry) => ({ ...entry, marketMovement: null }));
+  }
+}
+
+function canDisplayMarketData(config: AppConfig, access: InstallationAccess | null, dashboard: boolean): boolean {
+  if (config.alpaca.scope === "disabled") return false;
+  if (config.alpaca.scope === "all") return true;
+  return dashboard || access?.level === "developer";
 }
 
 async function requireClientAccess(request: FastifyRequest, db: SignalStore): Promise<InstallationAccess> {

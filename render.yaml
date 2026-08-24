@@ -19,6 +19,14 @@ services:
         value: /app/data/biotech-signal.db
       - key: OPENAI_MODEL
         value: gpt-5.6-luna
+      - key: ALPACA_MARKET_DATA_SCOPE
+        value: disabled
+      - key: ALPACA_API_KEY_ID
+        sync: false
+      - key: ALPACA_API_SECRET_KEY
+        sync: false
+      - key: ALPACA_DATA_FEED
+        value: iex
       - key: SCAN_INTERVAL_SECONDS
         value: 60
       - key: FDA_ADCOM_ENABLED

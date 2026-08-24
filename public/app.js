@@ -1,5 +1,5 @@
 const IDENTITY_KEY = "catalyst-watch-installation-v1";
-const CACHE_KEY = "catalyst-watch-web-cache-v3";
+const CACHE_KEY = "catalyst-watch-web-cache-v4";
 const EVENT_TYPES = [
   "trial_topline", "trial_update", "regulatory_decision", "regulatory_update",
   "safety_signal", "publication", "financing", "partnership", "other",
@@ -373,6 +373,11 @@ function renderStatus() {
   text("#urgent-count", stats.urgent_count || 0);
   text("#analysis-mode", configuration.analysisMode);
   text("#model-name", configuration.model);
+  if (Number.isFinite(configuration.scanIntervalSeconds)) {
+    text("#monitor-cadence", configuration.scanIntervalSeconds < 60
+      ? `${configuration.scanIntervalSeconds} sec`
+      : `${Math.round(configuration.scanIntervalSeconds / 60)} min`);
+  }
   text("#thresholds", `${configuration.urgentThresholds.materiality} / ${Math.round(configuration.urgentThresholds.confidence * 100)}%`);
 }
 
@@ -457,6 +462,7 @@ function renderSignals() {
             <span class="source-meta">${escapeHtml(item.source.name)}</span><i></i>
             <span>${relativeTime(item.publishedAt)}</span>
             ${entry.corroborationCount ? `<i></i><span>${entry.corroborationCount + 1} sources</span>` : ""}
+            ${movementInline(entry.marketMovement)}
           </span>
         </span>
         <span class="signal-score">
@@ -499,6 +505,7 @@ function signalDetail(entry) {
     </div>`;
   }
   const assessment = analysis.assessment;
+  const movement = entry.marketMovement;
   const range = `${signed(assessment.expectedMoveLowPct)} to ${signed(assessment.expectedMoveHighPct)}`;
   return `<div class="detail-content">
     <div class="detail-kicker"><span>${escapeHtml(analysis.alertTier)}</span><time>${relativeTime(item.publishedAt)}</time></div>
@@ -508,7 +515,9 @@ function signalDetail(entry) {
       <div><span>Materiality</span><strong>${assessment.materiality}/100</strong></div>
       <div><span>Confidence</span><strong>${Math.round(assessment.confidence * 100)}%</strong></div>
       <div><span>Scenario range</span><strong>${escapeHtml(range)}</strong></div>
+      ${movement ? `<div><span>News-day move</span><strong class="movement-value ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)}</strong></div>` : ""}
     </div>
+    ${marketMovementPanel(movement)}
     <section class="detail-section"><h3>Assessment</h3><p>${escapeHtml(assessment.rationale)}</p></section>
     ${detailList("Evidence", assessment.evidence)}
     ${detailList("Uncertainty", assessment.uncertainty)}
@@ -690,6 +699,34 @@ function detailList(title, values) {
   return `<section class="detail-section"><h3>${escapeHtml(title)}</h3><ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></section>`;
 }
 
+function movementInline(movement) {
+  if (!movement) return "";
+  return `<i></i><span class="day-move ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)} news day</span>`;
+}
+
+function marketMovementPanel(movement) {
+  if (!movement) return "";
+  const closeLabel = movement.status === "live" ? "Last" : "Close";
+  return `<section class="market-movement-panel">
+    <header>
+      <span><small>News session</small><strong>${escapeHtml(marketSessionDate(movement.sessionDate))}</strong></span>
+      <span class="market-movement-change ${movementClass(movement.changePct)}"><small>${escapeHtml(movement.status)}</small><strong>${marketSigned(movement.changePct)}</strong></span>
+    </header>
+    <div class="market-prices">
+      ${marketPrice("Prev close", movement.previousClose)}
+      ${marketPrice("Open", movement.open)}
+      ${marketPrice("High", movement.high)}
+      ${marketPrice("Low", movement.low)}
+      ${marketPrice(closeLabel, movement.close)}
+    </div>
+    <footer>Alpaca · ${escapeHtml(String(movement.feed).toUpperCase())} · Change versus previous close</footer>
+  </section>`;
+}
+
+function marketPrice(label, value) {
+  return `<span><small>${escapeHtml(label)}</small><strong>${formatPrice(value)}</strong></span>`;
+}
+
 function sourceLink(value) {
   return `<a class="source-link" href="${safeUrl(value)}" target="_blank" rel="noopener noreferrer">Verify primary source<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>`;
 }
@@ -747,6 +784,28 @@ function relativeTime(value) {
 function signed(value) {
   const number = Number(value);
   return Number.isFinite(number) ? `${number > 0 ? "+" : ""}${number.toFixed(0)}%` : "--";
+}
+
+function marketSigned(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number > 0 ? "+" : ""}${number.toFixed(1)}%` : "--";
+}
+
+function formatPrice(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "--";
+  return `$${number.toFixed(Math.abs(number) < 1 ? 4 : 2)}`;
+}
+
+function marketSessionDate(value) {
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return String(value || "Unknown session");
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" }).format(date);
+}
+
+function movementClass(value) {
+  const number = Number(value);
+  return number > 0 ? "positive" : number < 0 ? "negative" : "flat";
 }
 
 function truncate(value, length) {

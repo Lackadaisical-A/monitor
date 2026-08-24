@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import type { AppConfig } from "../src/config.js";
 import { SignalDatabase } from "../src/db.js";
+import type { MarketDataProvider } from "../src/market-data/alpaca.js";
 import type { MonitorPipeline } from "../src/pipeline.js";
 import type { SubscriptionVerifier } from "../src/subscriptions.js";
 import type { NormalizedItem } from "../src/types.js";
@@ -140,6 +141,74 @@ describe("HTTP app", () => {
       .toMatchObject({ followed: true, coverage: { sec: false, clinicalTrials: false } });
     await app.close();
   });
+
+  it("adds configured event-session movement to feed entries without exposing credentials", async () => {
+    db = new SignalDatabase(":memory:");
+    db.insertItem({ ...item("market-move", Date.now() - 60 * 60_000), tickerHint: "MRNA" });
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const appConfig = config();
+    appConfig.alpaca.scope = "all";
+    const marketData: MarketDataProvider = {
+      configured: true,
+      feed: "iex",
+      getMovements: async () => new Map([["market-move", {
+        ticker: "MRNA",
+        sessionDate: "2026-08-24",
+        status: "closed",
+        previousClose: 30,
+        open: 28,
+        high: 29,
+        low: 22,
+        close: 23.1,
+        change: -6.9,
+        changePct: -23,
+        fetchedAt: new Date().toISOString(),
+        feed: "iex",
+        provider: "alpaca",
+        basis: "previous_close",
+      }]]),
+    };
+    const app = await createApp(appConfig, db, pipeline, verifier(), marketData);
+    await bootstrap(app);
+
+    const feed = await app.inject({ method: "GET", url: "/api/feed", headers: clientHeaders() });
+
+    expect(feed.statusCode).toBe(200);
+    expect(feed.json().entries[0].marketMovement).toMatchObject({
+      ticker: "MRNA",
+      sessionDate: "2026-08-24",
+      changePct: -23,
+      basis: "previous_close",
+    });
+    expect(JSON.stringify(feed.json())).not.toMatch(/secret|api.?key/i);
+    await app.close();
+  });
+
+  it("keeps developer-scoped market data out of public feeds", async () => {
+    db = new SignalDatabase(":memory:");
+    db.insertItem({ ...item("private-market-move", Date.now() - 60 * 60_000), tickerHint: "MRNA" });
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const appConfig = config();
+    appConfig.alpaca.scope = "developer";
+    let marketDataCalls = 0;
+    const marketData: MarketDataProvider = {
+      configured: true,
+      feed: "iex",
+      getMovements: async () => {
+        marketDataCalls += 1;
+        return new Map();
+      },
+    };
+    const app = await createApp(appConfig, db, pipeline, verifier(), marketData);
+    await bootstrap(app);
+
+    const feed = await app.inject({ method: "GET", url: "/api/feed", headers: clientHeaders() });
+
+    expect(feed.statusCode).toBe(200);
+    expect(feed.json().entries[0].marketMovement).toBeNull();
+    expect(marketDataCalls).toBe(0);
+    await app.close();
+  });
 });
 
 function config(): AppConfig {
@@ -165,6 +234,7 @@ function config(): AppConfig {
     },
     openaiApiKey: "",
     openaiModel: "test-model",
+    alpaca: { scope: "disabled", keyId: "", secretKey: "", feed: "iex" },
     watchlist: [
       {
         ticker: "MRNA", company: "Moderna", aliases: ["Moderna, Inc."], cik: "0001682852",

@@ -810,6 +810,29 @@ h3 {
   background: #53606d;
 }
 
+.signal-meta .day-move {
+  flex: 0 0 auto;
+  font-weight: 750;
+}
+
+.movement-value.positive,
+.day-move.positive,
+.market-movement-change.positive {
+  color: var(--green);
+}
+
+.movement-value.negative,
+.day-move.negative,
+.market-movement-change.negative {
+  color: var(--red);
+}
+
+.movement-value.flat,
+.day-move.flat,
+.market-movement-change.flat {
+  color: var(--muted);
+}
+
 .signal-score {
   display: grid;
   align-content: center;
@@ -939,7 +962,7 @@ h3 {
 
 .score-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   margin-bottom: 20px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -965,6 +988,72 @@ h3 {
 
 .score-strip strong {
   font-size: 13px;
+}
+
+.market-movement-panel {
+  margin-bottom: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.market-movement-panel header,
+.market-movement-panel header span,
+.market-prices span {
+  display: flex;
+}
+
+.market-movement-panel header {
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+.market-movement-panel header span,
+.market-prices span {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.market-movement-panel header small,
+.market-prices small {
+  color: var(--subtle);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.market-movement-panel header strong {
+  font-size: 14px;
+}
+
+.market-movement-change {
+  align-items: flex-end;
+}
+
+.market-movement-change strong {
+  font: 750 22px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.market-prices {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding: 13px 0;
+}
+
+.market-prices strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.market-movement-panel footer {
+  color: var(--subtle);
+  font-size: 8px;
 }
 
 .detail-section {
@@ -1829,6 +1918,10 @@ dialog::backdrop {
 
   .score-strip {
     grid-template-columns: 1fr;
+  }
+
+  .market-prices {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .score-strip div {

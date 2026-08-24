@@ -121,6 +121,10 @@ The service intentionally uses official APIs and publisher-provided feeds instea
 
 Set `OPENAI_API_KEY`. Keep it on the server; never put it in the iOS app. `OPENAI_MODEL` defaults to `gpt-5.6-luna` with low reasoning effort for latency-sensitive classification and can be changed without code edits. If the key is absent, the demo heuristic runs with confidence capped at 0.40 and urgent alerts blocked.
 
+### Event-session market movement
+
+Set `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY` only on the server. `ALPACA_DATA_FEED` defaults to `iex`. `ALPACA_MARKET_DATA_SCOPE=developer` exposes movement only to the dashboard and developer entitlement; use `all` only when the account's market-data agreement permits display to end users. Movement is measured from the prior trading close through the news session. Premarket and regular-hours announcements use the same session, while announcements at or after 4:00 PM New York time use the next session.
+
 ### X
 
 Create an X developer Project/App, set `X_BEARER_TOKEN`, and tune `X_QUERY`. The adapter calls `/2/tweets/search/recent`, requests up to 100 recent posts, and advances with `since_id`. Access and cost depend on your X plan.

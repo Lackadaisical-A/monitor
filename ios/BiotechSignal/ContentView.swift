@@ -228,6 +228,9 @@ private struct SignalCard: View {
                 Metric(label: "Confidence", value: assessment.map { "\(Int($0.confidence * 100))%" } ?? "—")
                 Metric(label: "Direction", value: assessment?.stockDirection.capitalized ?? "Pending")
             }
+            if let movement = entry.marketMovement {
+                MarketMovementLine(movement: movement)
+            }
             HStack(spacing: 6) {
                 Image(systemName: sourceIcon(entry.item.source.type))
                 Text(entry.item.source.name)
@@ -257,6 +260,9 @@ private struct SignalDetailView: View {
                         DetailScore(label: "Materiality", value: "\(analysis.assessment.materiality)/100")
                         DetailScore(label: "Confidence", value: "\(Int(analysis.assessment.confidence * 100))%")
                         DetailScore(label: "Base case", value: signed(analysis.assessment.expectedMoveBasePct))
+                    }
+                    if let movement = entry.marketMovement {
+                        MarketMovementDetail(movement: movement)
                     }
                     DetailSection(title: "Why it may matter", text: analysis.assessment.rationale)
                     DetailList(title: "Evidence", values: analysis.assessment.evidence)
@@ -309,6 +315,78 @@ private struct Metric: View {
     var body: some View { VStack(alignment: .leading, spacing: 3) { Text(value).font(.subheadline.bold()); Text(label).font(.system(size: 9)).foregroundStyle(.tertiary).textCase(.uppercase) } }
 }
 
+private struct MarketMovementLine: View {
+    let movement: StockMovement
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: movement.changePct >= 0 ? "arrow.up.right" : "arrow.down.right")
+                .font(.caption.bold())
+            Text("News-day move")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(marketSigned(movement.changePct))
+                .font(.system(.subheadline, design: .monospaced, weight: .bold))
+            Spacer()
+            Text("\(marketSessionDate(movement.sessionDate)) · \(movement.status.capitalized)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .foregroundStyle(movementColor(movement.changePct))
+        .padding(.top, 2)
+    }
+}
+
+private struct MarketMovementDetail: View {
+    let movement: StockMovement
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("NEWS-DAY MOVE")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                    Text(marketSigned(movement.changePct))
+                        .font(.system(.title2, design: .monospaced, weight: .bold))
+                        .foregroundStyle(movementColor(movement.changePct))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(marketSessionDate(movement.sessionDate)).font(.caption.weight(.semibold))
+                    Text(movement.status.capitalized).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            HStack(spacing: 10) {
+                MarketPrice(label: "Prev close", value: movement.previousClose)
+                MarketPrice(label: "Open", value: movement.open)
+                MarketPrice(label: "High", value: movement.high)
+                MarketPrice(label: "Low", value: movement.low)
+                MarketPrice(label: movement.status == "live" ? "Last" : "Close", value: movement.close)
+            }
+            Text("Alpaca · \(movement.feed.uppercased()) · Change versus previous close")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.07)))
+    }
+}
+
+private struct MarketPrice: View {
+    let label: String
+    let value: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(marketPrice(value)).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
+            Text(label).font(.system(size: 8)).foregroundStyle(.tertiary).textCase(.uppercase)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct DetailScore: View {
     let label: String; let value: String
     var body: some View { VStack(alignment: .leading, spacing: 5) { Text(label.uppercased()).font(.system(size: 8, weight: .bold)).tracking(1).foregroundStyle(.secondary); Text(value).font(.headline) }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(Color.catalystPanel, in: RoundedRectangle(cornerRadius: 8)) }
@@ -339,6 +417,17 @@ private func tierColor(_ tier: String) -> Color { switch tier { case "urgent": .
 private func directionColor(_ direction: String) -> Color { direction == "bullish" ? .catalystGreen : direction == "bearish" ? .red : .secondary }
 private func sourceIcon(_ type: String) -> String { switch type { case "regulator": "checkmark.seal"; case "sec": "building.columns"; case "clinical_trials": "cross.case"; case "x": "bubble.left"; case "reddit": "person.3"; default: "newspaper" } }
 private func signed(_ value: Double) -> String { String(format: "%@%.0f%%", value > 0 ? "+" : "", value) }
+private func marketSigned(_ value: Double) -> String { String(format: "%@%.1f%%", value > 0 ? "+" : "", value) }
+private func marketPrice(_ value: Double) -> String { String(format: value < 1 ? "$%.4f" : "$%.2f", value) }
+private func movementColor(_ value: Double) -> Color { value > 0 ? .catalystGreen : value < 0 ? .red : .secondary }
+private func marketSessionDate(_ value: String) -> String {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    guard let date = formatter.date(from: value) else { return value }
+    return date.formatted(.dateTime.month(.abbreviated).day())
+}
 private func relativeDate(_ value: String) -> String {
     let fractional = ISO8601DateFormatter()
     fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

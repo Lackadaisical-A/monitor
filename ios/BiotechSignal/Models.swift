@@ -148,6 +148,24 @@ struct FeedEntry: Decodable, Identifiable {
     let analysis: AnalysisRecord?
     let corroborationCount: Int
     let alertedAt: String?
+    let marketMovement: StockMovement?
+}
+
+struct StockMovement: Decodable {
+    let ticker: String
+    let sessionDate: String
+    let status: String
+    let previousClose: Double
+    let open: Double
+    let high: Double
+    let low: Double
+    let close: Double
+    let change: Double
+    let changePct: Double
+    let fetchedAt: String
+    let feed: String
+    let provider: String
+    let basis: String
 }
 
 struct SignalItem: Decodable, Identifiable {

@@ -299,20 +299,33 @@ async function attachMarketMovements(
   enabled: boolean,
   logger: FastifyRequest["log"],
 ): Promise<Array<FeedEntry & { marketMovement: FeedEntry["marketMovement"] }>> {
-  if (!enabled || !marketData.configured) return entries.map((entry) => ({ ...entry, marketMovement: null }));
+  const publicEntries = entries.map(sanitizeRejectedHints);
+  if (!enabled || !marketData.configured) return publicEntries.map((entry) => ({ ...entry, marketMovement: null }));
   try {
-    const candidates = entries.flatMap((entry) => {
+    const candidates = publicEntries.flatMap((entry) => {
       const assessment = entry.analysis?.assessment;
       const ticker = assessment?.isBiotechCatalyst ? assessment.ticker.trim() : "";
       return ticker ? [{ id: entry.item.id, ticker, publishedAt: entry.item.publishedAt }] : [];
     });
-    if (!candidates.length) return entries.map((entry) => ({ ...entry, marketMovement: null }));
+    if (!candidates.length) return publicEntries.map((entry) => ({ ...entry, marketMovement: null }));
     const movements = await marketData.getMovements(candidates);
-    return entries.map((entry) => ({ ...entry, marketMovement: movements.get(entry.item.id) ?? null }));
+    return publicEntries.map((entry) => ({ ...entry, marketMovement: movements.get(entry.item.id) ?? null }));
   } catch (error) {
     logger.warn({ err: error }, "Market movement enrichment failed");
-    return entries.map((entry) => ({ ...entry, marketMovement: null }));
+    return publicEntries.map((entry) => ({ ...entry, marketMovement: null }));
   }
+}
+
+function sanitizeRejectedHints(entry: FeedEntry): FeedEntry {
+  if (!entry.analysis || entry.analysis.assessment.isBiotechCatalyst) return entry;
+  return {
+    ...entry,
+    item: { ...entry.item, companyHint: null, tickerHint: null },
+    analysis: {
+      ...entry.analysis,
+      assessment: { ...entry.analysis.assessment, companyName: "", ticker: "" },
+    },
+  };
 }
 
 function canDisplayMarketData(config: AppConfig, access: InstallationAccess | null, dashboard: boolean): boolean {

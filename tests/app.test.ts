@@ -219,8 +219,8 @@ describe("HTTP app", () => {
 
     expect(feed.statusCode).toBe(200);
     expect(feed.json().entries[0]).toMatchObject({
-      item: { id: "stat-roundup", tickerHint: "MRNA" },
-      analysis: { assessment: { isBiotechCatalyst: false } },
+      item: { id: "stat-roundup", companyHint: null, tickerHint: null },
+      analysis: { assessment: { isBiotechCatalyst: false, companyName: "", ticker: "" } },
       marketMovement: null,
     });
     expect(marketDataCalls).toBe(0);

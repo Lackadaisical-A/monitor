@@ -8,6 +8,7 @@ const bootstrapLogger = {
 };
 
 const { config, db, pipeline } = bootstrap(bootstrapLogger);
+await pipeline.reconcileStoredPolicies();
 const app = await createApp(config, db, pipeline);
 
 const shutdown = async (signal: string) => {

@@ -88,6 +88,18 @@ export function decideAlert(
     && !assessment.requiresHumanReview
     && assessment.noveltyVsPriorDisclosure === "new"
     && assessment.evidence.length > 0;
+  const severeNegativeHigh = SEVERE_NEGATIVE_EVENT_TYPES.has(assessment.eventType)
+    && hasSevereNegativeSignal(context)
+    && (hasPrimary || hasIndependentCorroboration)
+    && assessment.materiality >= 75
+    && assessment.confidence >= 0.8
+    && assessment.stockDirection === "bearish"
+    && ["negative", "mixed"].includes(assessment.resultDirection)
+    && assessment.expectedMoveBasePct < 0
+    && assessment.expectedMoveHighPct < 0
+    && rangeConsistent
+    && assessment.noveltyVsPriorDisclosure === "new"
+    && assessment.evidence.length > 0;
 
   if (!assessment.isBiotechCatalyst) reasons.push("not classified as a biotech catalyst");
   if (!assessment.ticker) reasons.push("no public-company ticker established");
@@ -104,6 +116,10 @@ export function decideAlert(
   if (severeNegativeUrgent) {
     reasons.push("passed primary-source severe negative catalyst escalation gate");
     return { score, tier: "urgent", reasons };
+  }
+  if (severeNegativeHigh) {
+    reasons.push("passed severe negative high-priority gate");
+    return { score, tier: "high", reasons };
   }
 
   if (!MATERIAL_EVENT_TYPES.has(assessment.eventType)) reasons.push("event is not a top-line result, regulatory decision, or safety signal");

@@ -9,6 +9,7 @@ import type {
   InstallationPreferences,
   NormalizedItem,
   PushMode,
+  SourceDescriptor,
   StoreTransactionEntitlement,
 } from "./types.js";
 
@@ -43,6 +44,7 @@ export interface SignalStore {
   close?(): Awaitable<void>;
   insertItem(item: NormalizedItem): Awaitable<boolean>;
   insertItems?(items: NormalizedItem[]): Awaitable<number>;
+  syncSourceDescriptors?(sources: readonly SourceDescriptor[]): Awaitable<number>;
   saveAnalysis(record: AnalysisRecord): Awaitable<void>;
   markItem(itemId: string, status: "skipped" | "error"): Awaitable<void>;
   getItem(itemId: string): Awaitable<NormalizedItem | null>;

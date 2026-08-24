@@ -129,6 +129,37 @@ describe("deterministic alert policy", () => {
     expect(decision.reasons).toContain("no primary evidence or independent non-social corroboration");
   });
 
+  it("promotes an independently corroborated severe negative report to high", () => {
+    const clinicalHold: ImpactAssessment = {
+      ...strongPositive,
+      eventType: "regulatory_update",
+      resultDirection: "negative",
+      stockDirection: "bearish",
+      materiality: 82,
+      confidence: 0.9,
+      probabilityPositiveMove: 0.1,
+      expectedMoveLowPct: -35,
+      expectedMoveBasePct: -20,
+      expectedMoveHighPct: -5,
+      safetyAssessment: "concerning",
+    };
+    const context = makeContext("secondary", {
+      headline: "FDA places clinical hold on Example Bio program",
+      summary: "The clinical hold paused the registrational study.",
+    });
+    context.corroboratingItems = [{
+      ...context.item,
+      id: "item-2",
+      externalId: "external-2",
+      source: { id: "second-news", name: "Second News", type: "outlet", tier: "secondary" },
+    }];
+
+    const decision = decideAlert(clinicalHold, context, "openai", { minMateriality: 88, minConfidence: 0.86 });
+
+    expect(decision.tier).toBe("high");
+    expect(decision.reasons).toContain("passed severe negative high-priority gate");
+  });
+
   it("does not treat a positive hold-lift announcement as a severe negative", () => {
     const holdLifted = { ...strongPositive, eventType: "regulatory_decision" as const };
     const context = makeContext("primary", {

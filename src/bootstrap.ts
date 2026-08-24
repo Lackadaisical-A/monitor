@@ -10,6 +10,7 @@ export function bootstrap(logger: PipelineLogger) {
   const config = loadConfig();
   const db = new SignalDatabase(config.databasePath);
   const sources = createSources(config);
+  db.syncSourceDescriptors(sources.map((source) => source.descriptor));
   const analyzer = config.openaiApiKey
     ? new OpenAICatalystAnalyzer(config.openaiApiKey, config.openaiModel)
     : new HeuristicDemoAnalyzer();

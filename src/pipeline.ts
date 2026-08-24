@@ -26,6 +26,12 @@ export interface ScanSummary {
   alreadyRunning: boolean;
 }
 
+export interface PolicyReconciliationSummary {
+  checkedCount: number;
+  updatedCount: number;
+  errorCount: number;
+}
+
 export class MonitorPipeline {
   private running = false;
 
@@ -37,6 +43,46 @@ export class MonitorPipeline {
     private readonly alerts: AlertService,
     private readonly logger: PipelineLogger,
   ) {}
+
+  async reconcileStoredPolicies(limit = 1_000): Promise<PolicyReconciliationSummary> {
+    let checkedCount = 0;
+    let updatedCount = 0;
+    let errorCount = 0;
+    const entries = await this.db.listFeed(limit);
+    for (const entry of entries) {
+      if (!entry.analysis) continue;
+      checkedCount += 1;
+      try {
+        const context = await this.buildContext(entry.item);
+        const decision = decideAlert(
+          entry.analysis.assessment,
+          context,
+          entry.analysis.method,
+          this.config.alertPolicy,
+        );
+        const reasonsChanged = JSON.stringify(decision.reasons) !== JSON.stringify(entry.analysis.policyReasons);
+        if (decision.score === entry.analysis.policyScore
+          && decision.tier === entry.analysis.alertTier
+          && !reasonsChanged) continue;
+        await this.db.saveAnalysis({
+          ...entry.analysis,
+          policyScore: decision.score,
+          alertTier: decision.tier,
+          policyReasons: decision.reasons,
+        });
+        updatedCount += 1;
+      } catch (error) {
+        errorCount += 1;
+        this.logger.warn({
+          itemId: entry.item.id,
+          error: error instanceof Error ? error.message : String(error),
+        }, "stored signal policy reconciliation failed");
+      }
+    }
+    const summary = { checkedCount, updatedCount, errorCount };
+    this.logger.info(summary, "stored signal policies reconciled");
+    return summary;
+  }
 
   async run(): Promise<ScanSummary> {
     const startedAt = new Date().toISOString();

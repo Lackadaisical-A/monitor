@@ -14,6 +14,7 @@ import type {
   InstallationPreferences,
   NormalizedItem,
   PushMode,
+  SourceDescriptor,
   SourceTier,
   SourceType,
   StoreTransactionEntitlement,
@@ -129,7 +130,43 @@ export class SignalDatabase implements SignalStore {
       tickerHint: item.tickerHint,
       rawJson: JSON.stringify(item.raw),
     });
-    return result.changes > 0;
+    if (result.changes > 0) return true;
+    this.sqlite.prepare(`
+      UPDATE items
+      SET source_name = ?, source_type = ?, source_tier = ?
+      WHERE id = ? AND (source_name <> ? OR source_type <> ? OR source_tier <> ?)
+    `).run(
+      item.source.name,
+      item.source.type,
+      item.source.tier,
+      item.id,
+      item.source.name,
+      item.source.type,
+      item.source.tier,
+    );
+    return false;
+  }
+
+  syncSourceDescriptors(sources: readonly SourceDescriptor[]): number {
+    const update = this.sqlite.prepare(`
+      UPDATE items
+      SET source_name = ?, source_type = ?, source_tier = ?
+      WHERE source_id = ?
+        AND (source_name <> ? OR source_type <> ? OR source_tier <> ?)
+    `);
+    const sync = this.sqlite.transaction((descriptors: readonly SourceDescriptor[]) => descriptors.reduce(
+      (changed, source) => changed + update.run(
+        source.name,
+        source.type,
+        source.tier,
+        source.id,
+        source.name,
+        source.type,
+        source.tier,
+      ).changes,
+      0,
+    ));
+    return sync(sources);
   }
 
   saveAnalysis(record: AnalysisRecord): void {
@@ -577,6 +614,7 @@ export class SignalDatabase implements SignalStore {
         status TEXT NOT NULL DEFAULT 'pending'
       );
       CREATE UNIQUE INDEX IF NOT EXISTS items_source_external_idx ON items(source_id, external_id);
+      CREATE INDEX IF NOT EXISTS items_source_id_idx ON items(source_id);
       CREATE INDEX IF NOT EXISTS items_published_idx ON items(published_at DESC);
       CREATE INDEX IF NOT EXISTS items_ticker_idx ON items(ticker_hint, published_at DESC);
 

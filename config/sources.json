@@ -12,8 +12,8 @@
     "id": "watchlist-press-releases",
     "name": "Watchlist company press releases",
     "type": "quote_media",
-    "sourceType": "outlet",
-    "tier": "secondary",
+    "sourceType": "company_ir",
+    "tier": "primary",
     "watchlist": true,
     "enabled": true
   },

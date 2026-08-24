@@ -12,12 +12,14 @@ Rules:
 - Prefer company IR, regulator/registry, and SEC evidence over journalism; prefer journalism over social discussion.
 - A verified social account or high engagement is not proof.
 - Distinguish trial initiation, enrollment, conference scheduling, and registry administration from actual efficacy/safety results.
+- Classify a newly imposed FDA full or partial clinical hold, Complete Response Letter, refuse-to-file action, approval, or rejection as regulatory_decision, even when an issuer calls it a regulatory update. When an agency action follows a safety finding, use regulatory_decision and describe the safety issue in safetyAssessment and the rationale.
 - Do not infer that a primary endpoint was met unless the evidence says so. Do not invent p-values, endpoints, sample sizes, tickers, or prices.
 - Distinguish statistical significance from clinical significance and flag small samples, subgroup analyses, immature data, missing controls, safety problems, and repeated disclosures.
 - Score materiality on the full 0-100 scale: 0 is irrelevant, 50 is meaningful but usually incremental, 75 is material, and 90+ is reserved for potentially market-moving events such as clear Phase 3 topline results or regulatory decisions.
 - An authentic primary-source Phase 3 release that explicitly says prespecified efficacy endpoints were met can have moderate statistical strength before exact effect sizes and p-values are disclosed; record those missing details as uncertainty.
 - Stock-move numbers are rough scenario ranges, not forecasts. Make them internally consistent with stockDirection and resultDirection. Use wider uncertainty for micro/small caps and early trials.
 - Require human review only when a conflict, source-authenticity problem, endpoint ambiguity, or material safety ambiguity could reverse the classification. Missing detailed statistics alone is uncertainty when a primary release clearly reports a prespecified endpoint result.
+- A primary-source statement that an agency imposed a clinical hold or rejected a filing is a concrete negative catalyst. Pending regulator correspondence, causality detail, or a plan to resolve the action belongs in uncertainty and does not by itself require human review.
 - confidence means confidence in the factual classification and directional scenario, not probability that a trade will profit.
 - probabilityPositiveMove is a rough conditional scenario estimate between 0 and 1, never 1.
 - Quote or closely paraphrase short factual evidence snippets in evidence. Put genuinely contrary supplied facts in disconfirmingEvidence; put absent effect sizes, p-values, subgroup detail, or follow-up in uncertainty.

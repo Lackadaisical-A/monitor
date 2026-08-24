@@ -165,6 +165,7 @@ export async function createApp(
           + Number(config.secEnabled && config.watchlist.some((company) => company.cik))
           + Number(config.fdaAdcomEnabled),
         watchlistCount: config.watchlist.length,
+        scanIntervalSeconds: config.scanIntervalSeconds,
         analysisMode: config.openaiApiKey ? "OpenAI structured analysis" : "demo heuristic (urgent alerts blocked)",
         model: config.openaiApiKey ? config.openaiModel : "heuristic-demo-v1",
         dryRun: config.alertPolicy.dryRun,

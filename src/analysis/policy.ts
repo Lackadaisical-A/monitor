@@ -18,6 +18,25 @@ const MATERIAL_EVENT_TYPES = new Set<ImpactAssessment["eventType"]>([
   "safety_signal",
 ]);
 
+const SEVERE_NEGATIVE_EVENT_TYPES = new Set<ImpactAssessment["eventType"]>([
+  "trial_topline",
+  "trial_update",
+  "regulatory_decision",
+  "regulatory_update",
+  "safety_signal",
+]);
+
+const SEVERE_NEGATIVE_SIGNALS = [
+  /\b(?:full |partial )?clinical hold\b/i,
+  /\bcomplete response letter\b|\bCRL\b/,
+  /\brefus(?:e|ed|es|ing)[ -]to[ -]file\b/i,
+  /\b(?:approval (?:was )?(?:denied|rejected)|declined to approve|did not approve|not approved)\b/i,
+  /\b(?:failed|fails|did not meet|does not meet|missed|misses) (?:its |the )?(?:primary|co-primary) endpoint\b/i,
+  /\b(?:primary|co-primary) endpoint (?:was |were )?(?:not met|missed)\b/i,
+  /\b(?:trial|study|program|development)\b.{0,50}\b(?:halted|paused|suspended|terminated|discontinued)\b/i,
+  /\b(?:patient|subject) deaths?\b|\bfatalit(?:y|ies)\b|\bserious adverse events?\b/i,
+];
+
 export function decideAlert(
   assessment: ImpactAssessment,
   context: EvidenceContext,
@@ -52,24 +71,29 @@ export function decideAlert(
   const score = Math.round(clamp(rawScore - penalty, 0, 100));
   const rangeConsistent = assessment.expectedMoveLowPct <= assessment.expectedMoveBasePct
     && assessment.expectedMoveBasePct <= assessment.expectedMoveHighPct;
-  const safetyReady = assessment.eventType === "regulatory_decision"
+  const positiveSafetyReady = assessment.eventType === "regulatory_decision"
     ? assessment.safetyAssessment !== "concerning"
     : ["favorable", "manageable"].includes(assessment.safetyAssessment);
+  const severeNegativeUrgent = SEVERE_NEGATIVE_EVENT_TYPES.has(assessment.eventType)
+    && hasSevereNegativeSignal(context)
+    && hasPrimary
+    && assessment.materiality >= 75
+    && assessment.confidence >= 0.8
+    && assessment.stockDirection === "bearish"
+    && ["negative", "mixed"].includes(assessment.resultDirection)
+    && assessment.probabilityPositiveMove <= 0.35
+    && assessment.expectedMoveBasePct < 0
+    && assessment.expectedMoveHighPct < 0
+    && rangeConsistent
+    && !assessment.requiresHumanReview
+    && assessment.noveltyVsPriorDisclosure === "new"
+    && assessment.evidence.length > 0;
 
   if (!assessment.isBiotechCatalyst) reasons.push("not classified as a biotech catalyst");
   if (!assessment.ticker) reasons.push("no public-company ticker established");
   else if (!tickerMapped) reasons.push("ticker is not mapped to the configured watchlist");
-  if (!MATERIAL_EVENT_TYPES.has(assessment.eventType)) reasons.push("event is not a top-line result, regulatory decision, or safety signal");
   if (!hasPrimary && !hasIndependentCorroboration) reasons.push("no primary evidence or independent non-social corroboration");
   if (context.item.source.tier === "social" && !hasPrimary && !hasIndependentCorroboration) reasons.push("social-only evidence cannot escalate");
-  if (assessment.materiality < config.minMateriality) reasons.push(`materiality ${assessment.materiality} is below ${config.minMateriality}`);
-  if (assessment.confidence < config.minConfidence) reasons.push(`confidence ${assessment.confidence.toFixed(2)} is below ${config.minConfidence.toFixed(2)}`);
-  if (assessment.requiresHumanReview) reasons.push("analysis explicitly requires human review");
-  if (assessment.noveltyVsPriorDisclosure !== "new") reasons.push("announcement is not clearly new");
-  if (!rangeConsistent) reasons.push("stock-move scenario range is internally inconsistent");
-  if (!safetyReady) reasons.push("safety evidence is insufficient for positive escalation");
-  if (assessment.evidence.length === 0) reasons.push("analysis returned no quoted or paraphrased evidence");
-  if (assessment.disconfirmingEvidence.length > 0) reasons.push("disconfirming evidence requires review");
 
   if (!assessment.isBiotechCatalyst || !assessment.ticker) return { score, tier: "none", reasons };
   if (method !== "openai") {
@@ -77,6 +101,20 @@ export function decideAlert(
     return { score: Math.min(score, 49), tier: "watch", reasons };
   }
   if (!tickerMapped) return { score: Math.min(score, 69), tier: "watch", reasons };
+  if (severeNegativeUrgent) {
+    reasons.push("passed primary-source severe negative catalyst escalation gate");
+    return { score, tier: "urgent", reasons };
+  }
+
+  if (!MATERIAL_EVENT_TYPES.has(assessment.eventType)) reasons.push("event is not a top-line result, regulatory decision, or safety signal");
+  if (assessment.materiality < config.minMateriality) reasons.push(`materiality ${assessment.materiality} is below ${config.minMateriality}`);
+  if (assessment.confidence < config.minConfidence) reasons.push(`confidence ${assessment.confidence.toFixed(2)} is below ${config.minConfidence.toFixed(2)}`);
+  if (assessment.requiresHumanReview) reasons.push("analysis explicitly requires human review");
+  if (assessment.noveltyVsPriorDisclosure !== "new") reasons.push("announcement is not clearly new");
+  if (!rangeConsistent) reasons.push("stock-move scenario range is internally inconsistent");
+  if (assessment.stockDirection === "bullish" && !positiveSafetyReady) reasons.push("safety evidence is insufficient for positive escalation");
+  if (assessment.evidence.length === 0) reasons.push("analysis returned no quoted or paraphrased evidence");
+  if (assessment.disconfirmingEvidence.length > 0) reasons.push("disconfirming evidence requires review");
 
   const high = MATERIAL_EVENT_TYPES.has(assessment.eventType)
     && assessment.materiality >= config.minMateriality
@@ -91,7 +129,7 @@ export function decideAlert(
     && assessment.expectedMoveBasePct > 0
     && rangeConsistent
     && !assessment.requiresHumanReview
-    && safetyReady
+    && positiveSafetyReady
     && assessment.evidence.length > 0
     && assessment.disconfirmingEvidence.length === 0
     && (
@@ -107,4 +145,11 @@ export function decideAlert(
 
   reasons.push("material but does not pass the positive urgent-alert gate");
   return { score, tier: "high", reasons };
+}
+
+function hasSevereNegativeSignal(context: EvidenceContext): boolean {
+  return [context.item, ...context.corroboratingItems].some((item) => {
+    const text = `${item.headline}\n${item.summary.slice(0, 6_000)}`;
+    return SEVERE_NEGATIVE_SIGNALS.some((pattern) => pattern.test(text));
+  });
 }

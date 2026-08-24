@@ -8,7 +8,7 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   HOST: z.string().default("127.0.0.1"),
   DATABASE_PATH: z.string().default("./data/biotech-signal.db"),
-  SCAN_INTERVAL_SECONDS: z.coerce.number().int().min(30).default(120),
+  SCAN_INTERVAL_SECONDS: z.coerce.number().int().min(30).default(60),
   SOURCE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(15_000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DASHBOARD_TOKEN: z.string().default(""),

@@ -132,8 +132,8 @@ describe("QuoteMediaPressReleaseSource", () => {
       id: "watchlist-press-releases",
       name: "Watchlist company press releases",
       type: "quote_media",
-      sourceType: "outlet",
-      tier: "secondary",
+      sourceType: "company_ir",
+      tier: "primary",
       symbols: [],
       watchlist: true,
       enabled: true,
@@ -150,6 +150,7 @@ describe("QuoteMediaPressReleaseSource", () => {
     const result = await source.fetch(null);
 
     expect(result.items[0]).toMatchObject({
+      source: { type: "company_ir", tier: "primary" },
       tickerHint: "VRTX",
       companyHint: "Vertex Pharmaceuticals",
     });

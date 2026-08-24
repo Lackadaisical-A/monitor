@@ -18,20 +18,23 @@
 <body>
   <main>
     <h1>Catalyst Watch Privacy Policy</h1>
-    <p>Effective August 21, 2026</p>
+    <p>Effective August 23, 2026</p>
     <p>Catalyst Watch provides a free delayed feed and an optional Pro subscription. It has no advertising, analytics SDK, or third-party tracking.</p>
 
     <h2>Data the app uses</h2>
     <p>The app stores its server address and a random installation identifier in Apple UserDefaults, and stores a random installation credential in the iOS Keychain. It sends the installation identifier and a one-way representation of the credential to the Catalyst Watch server to authenticate requests. When notifications are enabled, it also sends the Apple Push Notification service device token and notification authorization state so the server can deliver eligible alerts.</p>
 
+    <h2>Watchlists and preferences</h2>
+    <p>The Catalyst Watch server stores the companies and tickers you choose to watch, along with your feed mode, alert event filters, and notification preferences. This information is associated with the random installation identifier and is used only to personalize the feed and deliver requested alerts.</p>
+
     <h2>Subscriptions</h2>
     <p>Purchases are processed by Apple through StoreKit. To verify and maintain Pro access, the app sends App Store-signed transaction information to the Catalyst Watch server. The server stores the product identifier, transaction identifiers, App Store environment, verification date, and subscription expiration or revocation state. Catalyst Watch does not receive full payment-card details.</p>
 
     <h2>Who receives data</h2>
-    <p>Installation, subscription, and device-registration data goes to the Catalyst Watch server and to Apple as required for purchases and push-notification delivery. The developer does not sell personal data or share it for advertising or tracking.</p>
+    <p>Installation, watchlist, preference, subscription, and device-registration data goes to the Catalyst Watch server and to Apple as required for purchases and push-notification delivery. The developer does not sell personal data or share it for advertising or tracking.</p>
 
     <h2>Retention and deletion</h2>
-    <p>On-device settings remain until changed or the app is removed. Server-side installation, entitlement, and push-registration records are retained while needed to provide the service, prevent unauthorized access, and honor subscription status. Deletion requests can be submitted through the support page.</p>
+    <p>On-device settings remain until changed or the app is removed. Server-side installation, watchlist, preference, entitlement, and push-registration records are retained while needed to provide the service, prevent unauthorized access, and honor subscription status. Deletion requests can be submitted through the support page.</p>
 
     <h2>Security</h2>
     <p>The production service uses HTTPS, installation credentials are stored in the iOS Keychain, and App Store transactions are cryptographically verified using Apple's signed transaction data. Developer credentials are not embedded in the app.</p>

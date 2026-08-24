@@ -1,78 +1,89 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AlpacaMarketDataService, eventSessionAnchorDate } from "../src/market-data/alpaca.js";
+import { AlpacaMarketDataService } from "../src/market-data/alpaca.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("AlpacaMarketDataService", () => {
-  it("maps premarket news to the same session and calculates change from the prior close", async () => {
-    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({
-      RGNX: {
-        dailyBar: bar("2026-08-24T04:00:00Z", 6.7, 6.9, 5.9, 6.16),
-        prevDailyBar: bar("2026-08-21T04:00:00Z", 8.1, 8.2, 7.9, 8),
-      },
-    }));
+  it("measures regular-hours news from the last completed minute before publication", async () => {
+    const baseline = bar("2026-08-24T13:30:00Z", 8.1, 8.2, 7.9, 8);
+    const reaction = [
+      bar("2026-08-24T13:32:00Z", 8, 8.2, 7.9, 8.1),
+      bar("2026-08-24T14:00:00Z", 8.2, 8.4, 7.8, 8),
+      bar("2026-08-24T14:59:00Z", 6.2, 6.3, 6, 6.16),
+    ];
+    const fetchMock = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
+      const url = new URL(String(input));
+      return barsResponse("RGNX", url.searchParams.get("sort") === "desc" ? [baseline] : reaction);
+    });
     vi.stubGlobal("fetch", fetchMock);
-    const service = configuredService("2026-08-24T14:00:00Z");
+    const service = configuredService(() => new Date("2026-08-24T15:00:00Z"));
+    const request = { id: "rgnx-news", ticker: "RGNX", publishedAt: "2026-08-24T13:31:30Z" };
 
-    const movements = await service.getMovements([{
-      id: "rgnx-news",
-      ticker: "RGNX",
-      publishedAt: "2026-08-24T11:05:00Z",
-    }]);
-    await service.getMovements([{
-      id: "rgnx-news-cached",
-      ticker: "RGNX",
-      publishedAt: "2026-08-24T11:05:00Z",
-    }]);
+    const movements = await service.getMovements([request]);
+    const cached = await service.getMovements([{ ...request, id: "rgnx-news-cached" }]);
 
     expect(movements.get("rgnx-news")).toMatchObject({
       sessionDate: "2026-08-24",
       status: "live",
+      announcementAt: "2026-08-24T13:31:30.000Z",
+      priceStartAt: "2026-08-24T13:31:00.000Z",
+      priceEndAt: "2026-08-24T15:00:00.000Z",
+      window: "since_announcement",
+      refreshIntervalSeconds: 300,
       previousClose: 8,
       close: 6.16,
       changePct: -23,
       feed: "iex",
-      basis: "previous_close",
+      basis: "pre_announcement_price",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [input, init] = fetchMock.mock.calls[0]!;
-    expect(String(input)).toContain("/v2/stocks/snapshots");
-    expect((init?.headers as Record<string, string>)["APCA-API-KEY-ID"]).toBe("test-key");
-    expect((init?.headers as Record<string, string>)["APCA-API-SECRET-KEY"]).toBe("test-secret");
+    expect(cached.get("rgnx-news-cached")?.changePct).toBe(-23);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const ascendingCall = fetchMock.mock.calls.find((call) => query(call).get("sort") === "asc")!;
+    const baselineCall = fetchMock.mock.calls.find((call) => query(call).get("sort") === "desc")!;
+    expect(query(ascendingCall).get("start")).toBe("2026-08-24T13:31:30.000Z");
+    expect(query(baselineCall).get("end")).toBe("2026-08-24T13:30:59.999Z");
+    expect((ascendingCall[1]?.headers as Record<string, string>)["APCA-API-KEY-ID"]).toBe("test-key");
+    expect((ascendingCall[1]?.headers as Record<string, string>)["APCA-API-SECRET-KEY"]).toBe("test-secret");
   });
 
-  it("maps an after-close announcement to the next trading session", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
-      EXBI: {
-        dailyBar: bar("2026-08-25T04:00:00Z", 15, 16, 14, 15.75),
-        prevDailyBar: bar("2026-08-24T04:00:00Z", 12, 13, 11, 12.5),
-      },
-    })));
-    const service = configuredService("2026-08-25T18:00:00Z");
+  it("preserves the premarket announcement gap from the prior close", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      return barsResponse("RGNX", url.searchParams.get("sort") === "desc"
+        ? [bar("2026-08-21T19:59:00Z", 10.7, 10.72, 10.69, 10.71)]
+        : [
+          bar("2026-08-24T13:30:00Z", 8.39, 8.61, 8.3, 8.4),
+          bar("2026-08-24T17:59:00Z", 7.9, 7.95, 7.77, 7.88),
+        ]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const service = configuredService(() => new Date("2026-08-24T18:00:00Z"));
 
     const movements = await service.getMovements([{
-      id: "night-news",
-      ticker: "EXBI",
-      publishedAt: "2026-08-24T21:30:00Z",
+      id: "premarket-news",
+      ticker: "RGNX",
+      publishedAt: "2026-08-24T11:05:00Z",
     }]);
 
-    expect(movements.get("night-news")).toMatchObject({
-      sessionDate: "2026-08-25",
+    expect(movements.get("premarket-news")).toMatchObject({
+      sessionDate: "2026-08-24",
       status: "live",
-      previousClose: 12.5,
-      close: 15.75,
-      changePct: 26,
+      priceStartAt: "2026-08-21T20:00:00.000Z",
+      previousClose: 10.71,
+      close: 7.88,
+      changePct: -26.4239,
     });
   });
 
-  it("uses Alpaca's returned sessions to skip a weekend", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
-      EXBI: {
-        dailyBar: bar("2026-08-24T04:00:00Z", 9, 10, 8, 9.5),
-        prevDailyBar: bar("2026-08-21T04:00:00Z", 10, 10.5, 9.5, 10),
-      },
-    })));
-    const service = configuredService("2026-08-24T18:00:00Z");
+  it("uses the prior session for a weekend announcement", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      return barsResponse("EXBI", url.searchParams.get("sort") === "desc"
+        ? [bar("2026-08-21T19:59:00Z", 9.9, 10.1, 9.9, 10)]
+        : [bar("2026-08-24T13:30:00Z", 10, 10.5, 9.9, 10.25)]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const service = configuredService(() => new Date("2026-08-24T18:00:00Z"));
 
     const movements = await service.getMovements([{
       id: "weekend-news",
@@ -80,44 +91,76 @@ describe("AlpacaMarketDataService", () => {
       publishedAt: "2026-08-22T14:00:00Z",
     }]);
 
-    expect(movements.get("weekend-news")?.sessionDate).toBe("2026-08-24");
+    expect(movements.get("weekend-news")).toMatchObject({
+      sessionDate: "2026-08-22",
+      priceStartAt: "2026-08-21T20:00:00.000Z",
+      previousClose: 10,
+      close: 10.25,
+      changePct: 2.5,
+    });
   });
 
-  it("falls back to historical daily bars for an older announcement", async () => {
+  it("freezes an older announcement at its five-day cutoff", async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
-      if (String(input).includes("snapshots")) {
-        return Response.json({
-          EXBI: {
-            dailyBar: bar("2026-08-24T04:00:00Z", 20, 21, 19, 20),
-            prevDailyBar: bar("2026-08-21T04:00:00Z", 19, 20, 18, 19),
-          },
-        });
-      }
-      return Response.json({
-        bars: {
-          EXBI: [
-            bar("2026-08-19T04:00:00Z", 9, 10, 8, 10),
-            bar("2026-08-20T04:00:00Z", 8, 9, 7, 8),
-          ],
-        },
-        next_page_token: null,
-      });
+      const url = new URL(String(input));
+      return barsResponse("EXBI", url.searchParams.get("sort") === "desc"
+        ? [bar("2026-08-24T11:59:00Z", 9.9, 10.1, 9.9, 10)]
+        : [
+          bar("2026-08-24T12:01:00Z", 10, 10.2, 9.9, 10.1),
+          bar("2026-08-28T19:59:00Z", 11.8, 12.1, 11.7, 12),
+        ]);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const service = configuredService("2026-08-24T18:00:00Z");
+    const service = configuredService(() => new Date("2026-08-30T18:00:00Z"));
 
     const movements = await service.getMovements([{
       id: "old-news",
       ticker: "EXBI",
-      publishedAt: "2026-08-20T12:00:00Z",
+      publishedAt: "2026-08-24T12:00:00Z",
     }]);
 
     expect(movements.get("old-news")).toMatchObject({
-      sessionDate: "2026-08-20",
       status: "closed",
-      changePct: -20,
+      cutoffAt: "2026-08-29T12:00:00.000Z",
+      window: "five_day",
+      previousClose: 10,
+      close: 12,
+      changePct: 20,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const ascendingCall = fetchMock.mock.calls.find((call) => query(call).get("sort") === "asc")!;
+    expect(query(ascendingCall).get("end")).toBe("2026-08-29T12:00:00.000Z");
+  });
+
+  it("refreshes a live return after five minutes and incrementally requests new bars", async () => {
+    let now = new Date("2026-08-24T14:00:00Z");
+    let reactionCalls = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.searchParams.get("sort") === "desc") {
+        return barsResponse("EXBI", [bar("2026-08-24T13:29:00Z", 9.9, 10.1, 9.9, 10)]);
+      }
+      reactionCalls += 1;
+      return barsResponse("EXBI", reactionCalls === 1
+        ? [
+          bar("2026-08-24T13:30:00Z", 10, 10.2, 9.9, 10),
+          bar("2026-08-24T13:59:00Z", 10.9, 11.1, 10.8, 11),
+        ]
+        : [bar("2026-08-24T14:04:00Z", 11.8, 12.1, 11.7, 12)]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const service = configuredService(() => now);
+    const request = { id: "live", ticker: "EXBI", publishedAt: "2026-08-24T13:30:00Z" };
+
+    expect((await service.getMovements([request])).get("live")?.changePct).toBe(10);
+    now = new Date("2026-08-24T14:04:59Z");
+    expect((await service.getMovements([request])).get("live")?.changePct).toBe(10);
+    now = new Date("2026-08-24T14:05:01Z");
+    const updated = (await service.getMovements([request])).get("live");
+    expect(updated).toMatchObject({ changePct: 20, high: 12.1, low: 9.9 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const ascendingCalls = fetchMock.mock.calls.filter((call) => query(call).get("sort") === "asc");
+    expect(query(ascendingCalls[1]!).get("start")).toBe("2026-08-24T14:00:00.000Z");
   });
 
   it("does not call Alpaca when market data is disabled", async () => {
@@ -136,23 +179,21 @@ describe("AlpacaMarketDataService", () => {
   });
 });
 
-describe("eventSessionAnchorDate", () => {
-  it("keeps premarket news on the same New York date", () => {
-    expect(eventSessionAnchorDate("2026-08-24T08:30:00Z")).toBe("2026-08-24");
-  });
-
-  it("moves news at the regular close to the following date", () => {
-    expect(eventSessionAnchorDate("2026-08-24T20:00:00Z")).toBe("2026-08-25");
-  });
-});
-
-function configuredService(now: string) {
+function configuredService(now: () => Date) {
   return new AlpacaMarketDataService({
     scope: "developer",
     keyId: "test-key",
     secretKey: "test-secret",
     feed: "iex",
-  }, { now: () => new Date(now) });
+  }, { now });
+}
+
+function query(call: readonly unknown[]): URLSearchParams {
+  return new URL(String(call[0])).searchParams;
+}
+
+function barsResponse(ticker: string, bars: ReturnType<typeof bar>[]) {
+  return Response.json({ bars: { [ticker]: bars }, next_page_token: null });
 }
 
 function bar(t: string, o: number, h: number, l: number, c: number) {

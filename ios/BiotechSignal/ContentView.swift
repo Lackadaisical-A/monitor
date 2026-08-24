@@ -322,13 +322,13 @@ private struct MarketMovementLine: View {
         HStack(spacing: 8) {
             Image(systemName: movement.changePct >= 0 ? "arrow.up.right" : "arrow.down.right")
                 .font(.caption.bold())
-            Text("News-day move")
+            Text(movementWindowTitle(movement))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(marketSigned(movement.changePct))
                 .font(.system(.subheadline, design: .monospaced, weight: .bold))
             Spacer()
-            Text("\(marketSessionDate(movement.sessionDate)) · \(movement.status.capitalized)")
+            Text(movement.window == "five_day" ? "Final" : "Updating")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -344,7 +344,7 @@ private struct MarketMovementDetail: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("NEWS-DAY MOVE")
+                    Text(movementWindowTitle(movement).uppercased())
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)
                     Text(marketSigned(movement.changePct))
@@ -352,19 +352,21 @@ private struct MarketMovementDetail: View {
                         .foregroundStyle(movementColor(movement.changePct))
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(marketSessionDate(movement.sessionDate)).font(.caption.weight(.semibold))
-                    Text(movement.status.capitalized).font(.caption2).foregroundStyle(.secondary)
-                }
+                Text(movement.window == "five_day" ? "Final" : "Updating")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
+            Text(movementWindowRange(movement))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
             HStack(spacing: 10) {
-                MarketPrice(label: "Prev close", value: movement.previousClose)
-                MarketPrice(label: "Open", value: movement.open)
+                MarketPrice(label: "Before news", value: movement.previousClose)
                 MarketPrice(label: "High", value: movement.high)
                 MarketPrice(label: "Low", value: movement.low)
-                MarketPrice(label: movement.status == "live" ? "Last" : "Close", value: movement.close)
+                MarketPrice(label: movement.window == "five_day" ? "5-day" : "Latest", value: movement.close)
             }
-            Text("Alpaca · \(movement.feed.uppercased()) · Change versus previous close")
+            Text("Alpaca · \(movement.feed.uppercased()) · Last available trade before announcement")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -420,6 +422,26 @@ private func signed(_ value: Double) -> String { String(format: "%@%.0f%%", valu
 private func marketSigned(_ value: Double) -> String { String(format: "%@%.1f%%", value > 0 ? "+" : "", value) }
 private func marketPrice(_ value: Double) -> String { String(format: value < 1 ? "$%.4f" : "$%.2f", value) }
 private func movementColor(_ value: Double) -> Color { value > 0 ? .catalystGreen : value < 0 ? .red : .secondary }
+private func movementWindowTitle(_ movement: StockMovement) -> String {
+    movement.window == "five_day" ? "5-day return" : "Since announcement"
+}
+private func movementWindowRange(_ movement: StockMovement) -> String {
+    guard let start = movement.priceStartAt, let end = movement.priceEndAt else {
+        return marketSessionDate(movement.sessionDate)
+    }
+    return "\(marketTimestamp(start)) to \(marketTimestamp(end))"
+}
+private func marketTimestamp(_ value: String) -> String {
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let plain = ISO8601DateFormatter()
+    guard let date = fractional.date(from: value) ?? plain.date(from: value) else { return value }
+    let display = DateFormatter()
+    display.locale = Locale(identifier: "en_US_POSIX")
+    display.timeZone = TimeZone(identifier: "America/New_York")
+    display.dateFormat = "MMM d, h:mm a z"
+    return display.string(from: date)
+}
 private func marketSessionDate(_ value: String) -> String {
     let formatter = DateFormatter()
     formatter.calendar = Calendar(identifier: .gregorian)

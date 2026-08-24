@@ -194,6 +194,12 @@ export interface StockMovement {
   ticker: string;
   sessionDate: string;
   status: "live" | "closed";
+  announcementAt: string;
+  priceStartAt: string;
+  priceEndAt: string;
+  cutoffAt: string;
+  window: "since_announcement" | "five_day";
+  refreshIntervalSeconds: number;
   previousClose: number;
   open: number;
   high: number;
@@ -204,5 +210,5 @@ export interface StockMovement {
   fetchedAt: string;
   feed: "iex" | "sip";
   provider: "alpaca";
-  basis: "previous_close";
+  basis: "pre_announcement_price";
 }

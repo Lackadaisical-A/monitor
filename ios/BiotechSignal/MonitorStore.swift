@@ -151,7 +151,7 @@ final class MonitorStore: ObservableObject {
             let (feed, statusResponse, watchlistResult, preferenceResult) = try await (
                 feedResponse, monitorStatus, watchlistResponse, preferencesResponse
             )
-            entries = feed.entries
+            applyEntries(feed.entries)
             status = statusResponse
             watchlist = watchlistResult.companies
             access = feed.access ?? statusResponse.access ?? access
@@ -181,6 +181,11 @@ final class MonitorStore: ObservableObject {
             connection = .failed(error.localizedDescription)
             lastError = error.localizedDescription
         }
+    }
+
+    func refreshMarketMovements() async {
+        guard settings.isComplete, !scanInProgress else { return }
+        await refreshFeed()
     }
 
     func setFeedMode(_ mode: String) async {
@@ -374,12 +379,19 @@ final class MonitorStore: ObservableObject {
     private func refreshFeed() async {
         do {
             let response = try await APIClient(settings: settings).fetchFeed(scope: preferences.feedMode)
-            entries = response.entries
+            applyEntries(response.entries)
             access = response.access ?? access
             lastError = nil
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    private func applyEntries(_ nextEntries: [FeedEntry]) {
+        entries = nextEntries
+        guard let selectedId = selectedSignal?.id,
+              let updated = nextEntries.first(where: { $0.id == selectedId }) else { return }
+        selectedSignal = updated
     }
 
     private func applyPreferences(_ response: PreferencesResponse) {

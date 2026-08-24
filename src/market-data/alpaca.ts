@@ -5,11 +5,12 @@ import type { StockMovement } from "../types.js";
 import { mapWithConcurrency } from "../utils.js";
 
 const DATA_URL = "https://data.alpaca.markets";
-const SYMBOL_BATCH_SIZE = 50;
 const HISTORICAL_CONCURRENCY = 3;
-const LIVE_CACHE_MS = 45_000;
+const RETURN_WINDOW_MS = 5 * 24 * 60 * 60_000;
+const BASELINE_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
+const LIVE_CACHE_MS = 5 * 60_000;
 const CLOSED_CACHE_MS = 24 * 60 * 60_000;
-const EMPTY_CACHE_MS = 45_000;
+const EMPTY_CACHE_MS = 5 * 60_000;
 
 const AlpacaBarSchema = z.object({
   t: z.string(),
@@ -19,12 +20,6 @@ const AlpacaBarSchema = z.object({
   c: z.number(),
 });
 
-const SnapshotSchema = z.object({
-  dailyBar: AlpacaBarSchema.nullish(),
-  prevDailyBar: AlpacaBarSchema.nullish(),
-}).passthrough();
-
-const SnapshotsResponseSchema = z.record(z.string(), SnapshotSchema.nullable());
 const HistoricalBarsResponseSchema = z.object({
   bars: z.record(z.string(), z.array(AlpacaBarSchema)),
   next_page_token: z.string().nullable().optional(),
@@ -47,7 +42,8 @@ export interface MarketDataProvider {
 interface MovementKey {
   cacheKey: string;
   ticker: string;
-  anchorDate: string;
+  publishedAt: string;
+  cutoffAt: string;
 }
 
 interface CacheEntry {
@@ -84,14 +80,22 @@ export class AlpacaMarketDataService implements MarketDataProvider {
 
     const normalizedRequests = requests.flatMap((request) => {
       const ticker = request.ticker.trim().toUpperCase();
-      const anchorDate = eventSessionAnchorDate(request.publishedAt);
-      if (!/^[A-Z][A-Z0-9.-]{0,11}$/.test(ticker) || !anchorDate) return [];
-      return [{ ...request, ticker, anchorDate, cacheKey: `${ticker}:${anchorDate}` }];
+      const published = new Date(request.publishedAt);
+      if (!/^[A-Z][A-Z0-9.-]{0,11}$/.test(ticker) || Number.isNaN(published.getTime())) return [];
+      const publishedAt = published.toISOString();
+      return [{
+        ...request,
+        ticker,
+        publishedAt,
+        cutoffAt: new Date(published.getTime() + RETURN_WINDOW_MS).toISOString(),
+        cacheKey: `${ticker}:${publishedAt}`,
+      }];
     });
     const uniqueKeys = [...new Map(normalizedRequests.map((request) => [request.cacheKey, {
       cacheKey: request.cacheKey,
       ticker: request.ticker,
-      anchorDate: request.anchorDate,
+      publishedAt: request.publishedAt,
+      cutoffAt: request.cutoffAt,
     }])).values()];
     const now = this.now();
     const missing = uniqueKeys.filter((key) => {
@@ -136,66 +140,67 @@ export class AlpacaMarketDataService implements MarketDataProvider {
   }
 
   private async loadMissing(keys: readonly MovementKey[], now: Date): Promise<Map<string, StockMovement | null>> {
-    const movements = new Map<string, StockMovement | null>(keys.map((key) => [key.cacheKey, null]));
-    const today = newYorkParts(now).date;
-    const snapshotSymbols = [...new Set(keys.filter((key) => key.anchorDate <= today).map((key) => key.ticker))];
-    const snapshots = await this.fetchSnapshots(snapshotSymbols);
-
-    for (const key of keys) {
-      const snapshot = snapshots[key.ticker];
-      if (!snapshot?.dailyBar || !snapshot.prevDailyBar) continue;
-      const dailyDate = newYorkParts(new Date(snapshot.dailyBar.t)).date;
-      const previousDate = newYorkParts(new Date(snapshot.prevDailyBar.t)).date;
-      if (previousDate < key.anchorDate && dailyDate >= key.anchorDate) {
-        movements.set(key.cacheKey, movementFromBars(key.ticker, snapshot.prevDailyBar, snapshot.dailyBar, now, this.feed));
+    const movements = new Map<string, StockMovement | null>();
+    const loaded = await mapWithConcurrency(keys, HISTORICAL_CONCURRENCY, async (key) => {
+      const previous = this.cache.get(key.cacheKey)?.value ?? null;
+      return this.loadMovement(key, now, previous);
+    });
+    loaded.forEach((result, index) => {
+      const key = keys[index]!;
+      if (result.status === "fulfilled") {
+        movements.set(key.cacheKey, result.value);
+      } else {
+        this.onError(result.reason);
+        movements.set(key.cacheKey, this.cache.get(key.cacheKey)?.value ?? null);
       }
-    }
-
-    const unresolved = keys.filter((key) => !movements.get(key.cacheKey) && key.anchorDate <= today);
-    const groups = [...groupBy(unresolved, (key) => key.anchorDate).entries()]
-      .flatMap(([anchorDate, group]) => chunk(group, SYMBOL_BATCH_SIZE).map((batch) => ({ anchorDate, keys: batch })));
-    const historical = await mapWithConcurrency(groups, HISTORICAL_CONCURRENCY, async (group) => ({
-      group,
-      bars: await this.fetchHistoricalBars(group.keys.map((key) => key.ticker), group.anchorDate, today),
-    }));
-    for (const load of historical) {
-      if (load.status === "rejected") {
-        this.onError(load.reason);
-        continue;
-      }
-      for (const key of load.value.group.keys) {
-        const movement = movementForAnchor(key.ticker, load.value.bars[key.ticker] ?? [], key.anchorDate, now, this.feed);
-        if (movement) movements.set(key.cacheKey, movement);
-      }
-    }
+    });
     return movements;
   }
 
-  private async fetchSnapshots(symbols: readonly string[]): Promise<Record<string, z.infer<typeof SnapshotSchema> | null>> {
-    const snapshots: Record<string, z.infer<typeof SnapshotSchema> | null> = {};
-    const results = await mapWithConcurrency(chunk([...symbols], SYMBOL_BATCH_SIZE), 3, async (batch) => {
-      const url = new URL("/v2/stocks/snapshots", DATA_URL);
-      url.searchParams.set("symbols", batch.join(","));
-      url.searchParams.set("feed", this.feed);
-      const response = await fetchWithTimeout(url, { headers: this.headers() }, this.timeoutMs);
-      return SnapshotsResponseSchema.parse(await response.json());
-    });
-    for (const result of results) {
-      if (result.status === "fulfilled") Object.assign(snapshots, result.value);
-      else this.onError(result.reason);
-    }
-    return snapshots;
+  private async loadMovement(
+    key: MovementKey,
+    now: Date,
+    previous: StockMovement | null,
+  ): Promise<StockMovement | null> {
+    const publishedMs = Date.parse(key.publishedAt);
+    if (publishedMs > now.getTime()) return null;
+    const cutoffMs = Date.parse(key.cutoffAt);
+    const endMs = Math.min(now.getTime(), cutoffMs);
+    const queryStart = previous
+      ? laterTimestamp(key.publishedAt, previous.priceEndAt)
+      : key.publishedAt;
+    const [baseline, bars] = await Promise.all([
+      previous ? Promise.resolve(null) : this.fetchBaselineBar(key.ticker, key.publishedAt),
+      this.fetchHistoricalBars(key.ticker, queryStart, new Date(endMs).toISOString()),
+    ]);
+    return movementFromBars(key, bars, baseline, previous, now, this.feed);
   }
 
-  private async fetchHistoricalBars(symbols: readonly string[], anchorDate: string, today: string): Promise<Record<string, AlpacaBar[]>> {
-    const bars: Record<string, AlpacaBar[]> = {};
+  private async fetchBaselineBar(ticker: string, publishedAt: string): Promise<AlpacaBar | null> {
+    const publishedMs = Date.parse(publishedAt);
+    const url = new URL("/v2/stocks/bars", DATA_URL);
+    url.searchParams.set("symbols", ticker);
+    url.searchParams.set("timeframe", "1Min");
+    url.searchParams.set("start", new Date(publishedMs - BASELINE_LOOKBACK_MS).toISOString());
+    url.searchParams.set("end", new Date(Math.floor(publishedMs / 60_000) * 60_000 - 1).toISOString());
+    url.searchParams.set("limit", "1");
+    url.searchParams.set("adjustment", "all");
+    url.searchParams.set("feed", this.feed);
+    url.searchParams.set("sort", "desc");
+    const response = await fetchWithTimeout(url, { headers: this.headers() }, this.timeoutMs);
+    const payload = HistoricalBarsResponseSchema.parse(await response.json());
+    return payload.bars[ticker]?.[0] ?? null;
+  }
+
+  private async fetchHistoricalBars(ticker: string, startAt: string, endAt: string): Promise<AlpacaBar[]> {
+    const bars: AlpacaBar[] = [];
     let pageToken: string | null = null;
     for (let page = 0; page < 5; page += 1) {
       const url = new URL("/v2/stocks/bars", DATA_URL);
-      url.searchParams.set("symbols", [...new Set(symbols)].join(","));
-      url.searchParams.set("timeframe", "1Day");
-      url.searchParams.set("start", addDays(anchorDate, -10));
-      url.searchParams.set("end", minDate(addDays(anchorDate, 8), addDays(today, 1)));
+      url.searchParams.set("symbols", ticker);
+      url.searchParams.set("timeframe", "1Min");
+      url.searchParams.set("start", startAt);
+      url.searchParams.set("end", endAt);
       url.searchParams.set("limit", "10000");
       url.searchParams.set("adjustment", "all");
       url.searchParams.set("feed", this.feed);
@@ -203,14 +208,13 @@ export class AlpacaMarketDataService implements MarketDataProvider {
       if (pageToken) url.searchParams.set("page_token", pageToken);
       const response = await fetchWithTimeout(url, { headers: this.headers() }, this.timeoutMs);
       const payload = HistoricalBarsResponseSchema.parse(await response.json());
-      for (const [ticker, tickerBars] of Object.entries(payload.bars)) {
-        bars[ticker] = [...(bars[ticker] ?? []), ...tickerBars];
-      }
+      bars.push(...(payload.bars[ticker] ?? []));
       pageToken = payload.next_page_token ?? null;
       if (!pageToken) break;
       if (page === 4) throw new Error("Alpaca historical bars exceeded the pagination limit");
     }
-    return bars;
+    return [...new Map(bars.map((bar) => [bar.t, bar])).values()]
+      .sort((left, right) => Date.parse(left.t) - Date.parse(right.t));
   }
 
   private headers(): Record<string, string> {
@@ -223,53 +227,63 @@ export class AlpacaMarketDataService implements MarketDataProvider {
   }
 }
 
-export function eventSessionAnchorDate(publishedAt: string): string | null {
-  const published = new Date(publishedAt);
-  if (Number.isNaN(published.getTime())) return null;
-  const parts = newYorkParts(published);
-  return parts.hour >= 16 ? addDays(parts.date, 1) : parts.date;
-}
-
-function movementForAnchor(
-  ticker: string,
-  bars: readonly AlpacaBar[],
-  anchorDate: string,
-  now: Date,
-  feed: "iex" | "sip",
-): StockMovement | null {
-  const sorted = [...bars].sort((left, right) => Date.parse(left.t) - Date.parse(right.t));
-  const targetIndex = sorted.findIndex((bar) => newYorkParts(new Date(bar.t)).date >= anchorDate);
-  if (targetIndex <= 0) return null;
-  return movementFromBars(ticker, sorted[targetIndex - 1]!, sorted[targetIndex]!, now, feed);
-}
-
 function movementFromBars(
-  ticker: string,
-  previous: AlpacaBar,
-  target: AlpacaBar,
+  key: MovementKey,
+  bars: readonly AlpacaBar[],
+  baseline: AlpacaBar | null,
+  previous: StockMovement | null,
   now: Date,
   feed: "iex" | "sip",
 ): StockMovement | null {
-  if (previous.c <= 0 || target.c <= 0) return null;
-  const sessionDate = newYorkParts(new Date(target.t)).date;
-  const nowParts = newYorkParts(now);
-  const change = target.c - previous.c;
+  const publishedMs = Date.parse(key.publishedAt);
+  const endMs = Math.min(now.getTime(), Date.parse(key.cutoffAt));
+  const sorted = [...bars]
+    .filter((bar) => {
+      const timestamp = Date.parse(bar.t);
+      return timestamp >= publishedMs && timestamp + 60_000 <= endMs;
+    })
+    .sort((left, right) => Date.parse(left.t) - Date.parse(right.t));
+  const first = sorted[0];
+  const last = sorted.at(-1);
+  if (!previous && (!baseline || baseline.c <= 0)) return null;
+  const startPrice = previous?.previousClose ?? baseline!.c;
+  const endPrice = last?.c ?? previous?.close ?? startPrice;
+  if (!endPrice || startPrice <= 0 || endPrice <= 0) return null;
+  const rangeHighs = sorted.map((bar) => bar.h);
+  const rangeLows = sorted.map((bar) => bar.l);
+  const change = endPrice - startPrice;
+  const closed = now.getTime() >= Date.parse(key.cutoffAt);
+  const priceStartAt = previous?.priceStartAt ?? barEndAt(baseline!);
   return {
-    ticker,
-    sessionDate,
-    status: sessionDate === nowParts.date && nowParts.hour < 16 ? "live" : "closed",
-    previousClose: decimal(previous.c),
-    open: decimal(target.o),
-    high: decimal(target.h),
-    low: decimal(target.l),
-    close: decimal(target.c),
+    ticker: key.ticker,
+    sessionDate: previous?.sessionDate ?? newYorkParts(new Date(key.publishedAt)).date,
+    status: closed ? "closed" : "live",
+    announcementAt: key.publishedAt,
+    priceStartAt,
+    priceEndAt: last ? barEndAt(last) : previous?.priceEndAt ?? priceStartAt,
+    cutoffAt: key.cutoffAt,
+    window: closed ? "five_day" : "since_announcement",
+    refreshIntervalSeconds: LIVE_CACHE_MS / 1000,
+    previousClose: decimal(startPrice),
+    open: decimal(startPrice),
+    high: decimal(Math.max(previous?.high ?? startPrice, startPrice, ...rangeHighs)),
+    low: decimal(Math.min(previous?.low ?? startPrice, startPrice, ...rangeLows)),
+    close: decimal(endPrice),
     change: decimal(change),
-    changePct: decimal((change / previous.c) * 100),
+    changePct: decimal((change / startPrice) * 100),
     fetchedAt: now.toISOString(),
     feed,
     provider: "alpaca",
-    basis: "previous_close",
+    basis: "pre_announcement_price",
   };
+}
+
+function barEndAt(bar: AlpacaBar): string {
+  return new Date(Date.parse(bar.t) + 60_000).toISOString();
+}
+
+function laterTimestamp(left: string, right: string): string {
+  return Date.parse(left) >= Date.parse(right) ? left : right;
 }
 
 function newYorkParts(date: Date): { date: string; hour: number } {
@@ -287,16 +301,6 @@ function newYorkParts(date: Date): { date: string; hour: number } {
   };
 }
 
-function addDays(date: string, days: number): string {
-  const value = new Date(`${date}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().slice(0, 10);
-}
-
-function minDate(left: string, right: string): string {
-  return left < right ? left : right;
-}
-
 function decimal(value: number): number {
   return Math.round(value * 10_000) / 10_000;
 }
@@ -304,16 +308,4 @@ function decimal(value: number): number {
 function cacheDuration(value: StockMovement | null): number {
   if (!value) return EMPTY_CACHE_MS;
   return value.status === "live" ? LIVE_CACHE_MS : CLOSED_CACHE_MS;
-}
-
-function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
-  for (const item of items) groups.set(key(item), [...(groups.get(key(item)) ?? []), item]);
-  return groups;
-}
-
-function chunk<T>(items: readonly T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
-  return chunks;
 }

@@ -168,7 +168,7 @@ elements.developerForm.addEventListener("submit", async (event) => {
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && state.lastUpdatedAt
-    && Date.now() - Date.parse(state.lastUpdatedAt) > 60_000) {
+    && Date.now() - Date.parse(state.lastUpdatedAt) > 300_000) {
     refresh({ forceWatchlist: false });
   }
 });
@@ -180,7 +180,7 @@ async function initialize() {
   await registerInstallation();
   await loadPreferences();
   await refresh({ forceWatchlist: true });
-  setInterval(() => refresh({ forceWatchlist: false }), 60_000);
+  setInterval(() => refresh({ forceWatchlist: false }), 300_000);
 }
 
 async function loadPreferences() {
@@ -516,7 +516,7 @@ function signalDetail(entry) {
       <div><span>Materiality</span><strong>${assessment.materiality}/100</strong></div>
       <div><span>Confidence</span><strong>${Math.round(assessment.confidence * 100)}%</strong></div>
       <div><span>Scenario range</span><strong>${escapeHtml(range)}</strong></div>
-      ${movement ? `<div><span>News-day move</span><strong class="movement-value ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)}</strong></div>` : ""}
+      ${movement ? `<div><span>${escapeHtml(movementWindowTitle(movement))}</span><strong class="movement-value ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)}</strong></div>` : ""}
     </div>
     ${marketMovementPanel(movement)}
     <section class="detail-section"><h3>Assessment</h3><p>${escapeHtml(assessment.rationale)}</p></section>
@@ -702,7 +702,8 @@ function detailList(title, values) {
 
 function movementInline(movement) {
   if (!movement) return "";
-  return `<i></i><span class="day-move ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)} news day</span>`;
+  const label = movement.window === "five_day" ? "5-day" : "since news";
+  return `<i></i><span class="day-move ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)} ${label}</span>`;
 }
 
 function displayTicker(entry) {
@@ -713,21 +714,45 @@ function displayTicker(entry) {
 
 function marketMovementPanel(movement) {
   if (!movement) return "";
-  const closeLabel = movement.status === "live" ? "Last" : "Close";
+  const final = movement.window === "five_day";
+  const closeLabel = final ? "5-day" : "Latest";
+  const startAt = movement.priceStartAt || movement.announcementAt;
+  const endAt = movement.priceEndAt || movement.fetchedAt;
   return `<section class="market-movement-panel">
     <header>
-      <span><small>News session</small><strong>${escapeHtml(marketSessionDate(movement.sessionDate))}</strong></span>
-      <span class="market-movement-change ${movementClass(movement.changePct)}"><small>${escapeHtml(movement.status)}</small><strong>${marketSigned(movement.changePct)}</strong></span>
+      <span><small>${escapeHtml(movementWindowTitle(movement))}</small><strong>${escapeHtml(marketWindowRange(startAt, endAt))}</strong></span>
+      <span class="market-movement-change ${movementClass(movement.changePct)}"><small>${final ? "final" : "updating"}</small><strong>${marketSigned(movement.changePct)}</strong></span>
     </header>
     <div class="market-prices">
-      ${marketPrice("Prev close", movement.previousClose)}
-      ${marketPrice("Open", movement.open)}
+      ${marketPrice("Before news", movement.previousClose)}
       ${marketPrice("High", movement.high)}
       ${marketPrice("Low", movement.low)}
       ${marketPrice(closeLabel, movement.close)}
     </div>
-    <footer>Alpaca · ${escapeHtml(String(movement.feed).toUpperCase())} · Change versus previous close</footer>
+    <footer>Alpaca · ${escapeHtml(String(movement.feed).toUpperCase())} · Last available trade before announcement</footer>
   </section>`;
+}
+
+function movementWindowTitle(movement) {
+  return movement.window === "five_day" ? "5-day return" : "Since announcement";
+}
+
+function marketWindowRange(startAt, endAt) {
+  if (!startAt || !endAt) return "Price window";
+  return `${marketTimestamp(startAt)} to ${marketTimestamp(endAt)}`;
+}
+
+function marketTimestamp(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "Unknown");
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+  }).format(date);
 }
 
 function marketPrice(label, value) {

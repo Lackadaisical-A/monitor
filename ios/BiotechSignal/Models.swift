@@ -155,6 +155,12 @@ struct StockMovement: Decodable {
     let ticker: String
     let sessionDate: String
     let status: String
+    let announcementAt: String?
+    let priceStartAt: String?
+    let priceEndAt: String?
+    let cutoffAt: String?
+    let window: String?
+    let refreshIntervalSeconds: Int?
     let previousClose: Double
     let open: Double
     let high: Double

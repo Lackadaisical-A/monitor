@@ -142,7 +142,7 @@ describe("HTTP app", () => {
     await app.close();
   });
 
-  it("adds configured event-session movement to feed entries without exposing credentials", async () => {
+  it("adds configured announcement-window movement to feed entries without exposing credentials", async () => {
     db = new SignalDatabase(":memory:");
     db.insertItem({ ...item("market-move", Date.now() - 60 * 60_000), tickerHint: "MRNA" });
     db.saveAnalysis(analysis("market-move"));
@@ -156,8 +156,14 @@ describe("HTTP app", () => {
         ticker: "MRNA",
         sessionDate: "2026-08-24",
         status: "closed",
+        announcementAt: "2026-08-24T12:00:00Z",
+        priceStartAt: "2026-08-24T12:01:00Z",
+        priceEndAt: "2026-08-28T19:59:00Z",
+        cutoffAt: "2026-08-29T12:00:00Z",
+        window: "five_day",
+        refreshIntervalSeconds: 300,
         previousClose: 30,
-        open: 28,
+        open: 30,
         high: 29,
         low: 22,
         close: 23.1,
@@ -166,7 +172,7 @@ describe("HTTP app", () => {
         fetchedAt: new Date().toISOString(),
         feed: "iex",
         provider: "alpaca",
-        basis: "previous_close",
+        basis: "pre_announcement_price",
       }]]),
     };
     const app = await createApp(appConfig, db, pipeline, verifier(), marketData);
@@ -179,7 +185,7 @@ describe("HTTP app", () => {
       ticker: "MRNA",
       sessionDate: "2026-08-24",
       changePct: -23,
-      basis: "previous_close",
+      basis: "pre_announcement_price",
     });
     expect(JSON.stringify(feed.json())).not.toMatch(/secret|api.?key/i);
     await app.close();

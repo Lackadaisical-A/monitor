@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { canonicalUrl, findWatchCompany, isoDate, jaccardSimilarity, normalizedHeadline, stripHtml } from "../src/utils.js";
+import {
+  canonicalUrl,
+  findWatchCompany,
+  isCatalystCandidate,
+  isoDate,
+  jaccardSimilarity,
+  normalizedHeadline,
+  resolveWatchCompany,
+  stripHtml,
+} from "../src/utils.js";
 
 describe("normalization utilities", () => {
   it("removes fragments and known tracking parameters while preserving useful query parameters", () => {
@@ -69,5 +78,60 @@ describe("normalization utilities", () => {
     );
     expect(related).toBeGreaterThan(0.4);
     expect(unrelated).toBeLessThan(related);
+  });
+
+  it("does not assign an unrelated headline from an incidental summary mention", () => {
+    const watchlist = [{
+      ticker: "MRNA",
+      company: "Moderna",
+      aliases: ["Moderna, Inc."],
+      marketCapBand: "large" as const,
+      xAccounts: [],
+      programs: ["mRNA-4157"],
+    }];
+    expect(resolveWatchCompany({
+      headline: "Lady Gaga and her fiance launch a biotech startup",
+      summary: "A newsletter teaser also links to an older Moderna cancer-vaccine story.",
+    }, watchlist)).toBeNull();
+    expect(resolveWatchCompany({
+      headline: "Moderna reports new mRNA-4157 cancer vaccine results",
+      summary: "The primary endpoint was met.",
+    }, watchlist)?.ticker).toBe("MRNA");
+  });
+
+  it("recognizes first-name issuer headlines and a broad set of actionable catalyst terms", () => {
+    const watchlist = [{
+      ticker: "AVXL",
+      company: "Anavex Life Sciences",
+      aliases: ["ANAVEX LIFE SCIENCES CORP."],
+      marketCapBand: "small" as const,
+      xAccounts: [],
+      programs: ["ANAVEX2-73"],
+    }];
+    expect(resolveWatchCompany({
+      headline: "Anavex announces a completed IND submission",
+    }, watchlist)?.ticker).toBe("AVXL");
+    expect(isCatalystCandidate("Anavex completed an IND submission and requested an FDA meeting", watchlist)).toBe(true);
+    expect(isCatalystCandidate("Anavex entered a licensing and financing agreement", watchlist)).toBe(true);
+  });
+
+  it("distinguishes the CRL ticker from a Complete Response Letter catalyst", () => {
+    const watchlist = [{
+      ticker: "CRL",
+      company: "Charles River Laboratories",
+      aliases: ["Charles River"],
+      marketCapBand: "large" as const,
+      xAccounts: [],
+      programs: [],
+    }];
+
+    expect(isCatalystCandidate(
+      "Here's how much $100 invested in Charles River Laboratories 15 years ago would be worth today",
+      watchlist,
+    )).toBe(false);
+    expect(isCatalystCandidate(
+      "Charles River Laboratories received a CRL from FDA for its biologics application",
+      watchlist,
+    )).toBe(true);
   });
 });

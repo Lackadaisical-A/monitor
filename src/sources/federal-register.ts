@@ -1,5 +1,5 @@
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { canonicalUrl, findWatchCompany, itemId, stripHtml } from "../utils.js";
+import { canonicalUrl, itemId, resolveWatchCompany, stripHtml } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 const ENDPOINT = "https://www.federalregister.gov/api/v1/documents.json";
@@ -57,7 +57,7 @@ export class FdaAdvisorySource implements SourceAdapter {
       const publicationDate = document.publication_date;
       if (!documentNumber || !title || !sourceUrl || !publicationDate) return [];
       const summary = stripHtml([document.abstract, document.excerpts].filter(Boolean).join("\n")).slice(0, 25_000);
-      const company = findWatchCompany(`${title}\n${summary}`, this.watchlist);
+      const company = resolveWatchCompany({ headline: title, summary }, this.watchlist);
       const publishedAt = new Date(`${publicationDate}T12:00:00.000Z`).toISOString();
       const headline = `FDA advisory notice: ${title}`;
       const urlValue = canonicalUrl(sourceUrl);
@@ -73,6 +73,8 @@ export class FdaAdvisorySource implements SourceAdapter {
         discoveredAt,
         companyHint: company?.company ?? null,
         tickerHint: company?.ticker ?? null,
+        provenance: "direct_primary",
+        independenceKey: `regulator:${documentNumber}`,
         raw: document,
       }];
     });

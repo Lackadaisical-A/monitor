@@ -12,6 +12,7 @@ struct InstallationPreferences: Codable, Equatable {
     var watchedTickers: [String]
     var feedMode: String
     var pushMode: String
+    var minimumAlertTier: String
     var eventTypes: [String]
     let updatedAt: String?
 
@@ -20,6 +21,7 @@ struct InstallationPreferences: Codable, Equatable {
         watchedTickers: [],
         feedMode: "all",
         pushMode: "all",
+        minimumAlertTier: "urgent",
         eventTypes: CatalystEvent.allCases.map(\.rawValue),
         updatedAt: nil
     )
@@ -41,6 +43,7 @@ struct PreferencesUpdateRequest: Encodable {
     let watchedTickers: [String]
     let feedMode: String
     let pushMode: String
+    let minimumAlertTier: String
     let eventTypes: [String]
 }
 
@@ -57,6 +60,10 @@ struct WatchCompany: Decodable, Identifiable {
     let company: String
     let aliases: [String]
     let marketCapBand: String
+    let marketCapUsd: Double?
+    let averageDailyDollarVolume: Double?
+    let annualizedVolatilityPct: Double?
+    let metadataUpdatedAt: String?
     let programs: [String]
     let followed: Bool
     let coverage: CompanyCoverage
@@ -204,6 +211,9 @@ struct AnalysisRecord: Decodable {
     let alertTier: String
     let policyReasons: [String]
     let createdAt: String
+    let eventKey: String?
+    let eventAnchorAt: String?
+    let analysisVersion: Int?
 }
 
 struct ImpactAssessment: Decodable {
@@ -232,6 +242,17 @@ struct ImpactAssessment: Decodable {
     let uncertainty: [String]
     let disconfirmingEvidence: [String]
     let requiresHumanReview: Bool
+    let marketMateriality: Int?
+    let scientificSignificance: Int?
+    let regulatorySignificance: Int?
+    let evidenceConfidence: Double?
+    let actionStatus: String?
+    let assetImportance: String?
+    let valuationImpact: String?
+    let eventSignature: String?
+    let noveltySummary: String?
+
+    var displayMateriality: Int { marketMateriality ?? materiality }
 }
 
 struct DeviceRegistration: Encodable {
@@ -257,7 +278,9 @@ struct ScanResponse: Decodable {
     let analyzedCount: Int
     let skippedCount: Int
     let errorCount: Int
+    let highCount: Int?
     let urgentCount: Int
+    let outcomeAuditedCount: Int?
     let alreadyRunning: Bool
 }
 
@@ -267,6 +290,11 @@ struct MonitorStats: Decodable {
     let pending_count: Int
     let alertCount: Int
     let deviceCount: Int
+    let high_count: Int?
+    let retry_count: Int?
+    let error_count: Int?
+    let outcome_count: Int?
+    let final_outcome_count: Int?
 }
 
 struct MonitorConfiguration: Decodable {

@@ -388,7 +388,7 @@ h3 {
 
 .monitor-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(110px, 1fr)) minmax(150px, 1.2fr);
+  grid-template-columns: repeat(5, minmax(100px, 1fr)) minmax(140px, 1.15fr);
   margin-bottom: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -424,8 +424,12 @@ h3 {
   font-size: 9px;
 }
 
-.monitor-stat.urgent strong {
+.monitor-stat.high strong {
   color: var(--amber);
+}
+
+.monitor-stat.urgent strong {
+  color: var(--green);
 }
 
 .monitor-cadence {

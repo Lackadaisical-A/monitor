@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import type {
   AccessLevel,
+  AlertPriority,
   AlertTier,
   AnalysisRecord,
   CatalystEventType,
@@ -13,13 +14,14 @@ import type {
   InstallationAccess,
   InstallationPreferences,
   NormalizedItem,
+  OutcomeAudit,
   PushMode,
   SourceDescriptor,
   SourceTier,
   SourceType,
   StoreTransactionEntitlement,
 } from "./types.js";
-import type { AlertInput, SignalStore } from "./store.js";
+import type { AlertInput, ItemFailureResult, SignalStore } from "./store.js";
 import { normalizedHeadline } from "./utils.js";
 
 interface ItemRow {
@@ -38,7 +40,12 @@ interface ItemRow {
   company_hint: string | null;
   ticker_hint: string | null;
   raw_json: string;
+  provenance: NormalizedItem["provenance"] | null;
+  independence_key: string | null;
   status: string;
+  attempt_count: number;
+  last_error: string | null;
+  next_attempt_at: string | null;
 }
 
 interface AnalysisRow {
@@ -50,6 +57,9 @@ interface AnalysisRow {
   alert_tier: AlertTier;
   policy_reasons_json: string;
   created_at: string;
+  event_key: string | null;
+  event_anchor_at: string | null;
+  analysis_version: number | null;
 }
 
 interface InstallationRow {
@@ -70,6 +80,7 @@ interface PreferenceRow {
   installation_id: string;
   feed_mode: FeedMode;
   push_mode: PushMode;
+  minimum_alert_tier: AlertPriority;
   event_types_json: string;
   updated_at: string;
 }
@@ -107,11 +118,11 @@ export class SignalDatabase implements SignalStore {
       INSERT OR IGNORE INTO items (
         id, external_id, source_id, source_name, source_type, source_tier,
         headline, summary, url, author, published_at, discovered_at,
-        company_hint, ticker_hint, raw_json, status
+        company_hint, ticker_hint, provenance, independence_key, raw_json, status
       ) VALUES (
         @id, @externalId, @sourceId, @sourceName, @sourceType, @sourceTier,
         @headline, @summary, @url, @author, @publishedAt, @discoveredAt,
-        @companyHint, @tickerHint, @rawJson, 'pending'
+        @companyHint, @tickerHint, @provenance, @independenceKey, @rawJson, 'pending'
       )
     `).run({
       id: item.id,
@@ -128,21 +139,38 @@ export class SignalDatabase implements SignalStore {
       discoveredAt: item.discoveredAt,
       companyHint: item.companyHint,
       tickerHint: item.tickerHint,
+      provenance: item.provenance ?? null,
+      independenceKey: item.independenceKey ?? null,
       rawJson: JSON.stringify(item.raw),
     });
     if (result.changes > 0) return true;
     this.sqlite.prepare(`
       UPDATE items
-      SET source_name = ?, source_type = ?, source_tier = ?
-      WHERE id = ? AND (source_name <> ? OR source_type <> ? OR source_tier <> ?)
+      SET source_name = ?, source_type = ?, source_tier = ?,
+        provenance = COALESCE(?, provenance), independence_key = COALESCE(?, independence_key)
+      WHERE id = ? AND (
+        source_name <> ? OR source_type <> ? OR source_tier <> ?
+        OR (? IS NOT NULL AND provenance IS NULL)
+        OR (? IS NOT NULL AND independence_key IS NULL)
+        OR (? IS NOT NULL AND provenance IS NOT ?)
+        OR (? IS NOT NULL AND independence_key IS NOT ?)
+      )
     `).run(
       item.source.name,
       item.source.type,
       item.source.tier,
+      item.provenance ?? null,
+      item.independenceKey ?? null,
       item.id,
       item.source.name,
       item.source.type,
       item.source.tier,
+      item.provenance ?? null,
+      item.independenceKey ?? null,
+      item.provenance ?? null,
+      item.provenance ?? null,
+      item.independenceKey ?? null,
+      item.independenceKey ?? null,
     );
     return false;
   }
@@ -169,13 +197,45 @@ export class SignalDatabase implements SignalStore {
     return sync(sources);
   }
 
+  saveCompanyPrograms(ticker: string, programs: readonly string[]): number {
+    const normalizedTicker = ticker.trim().toUpperCase();
+    if (!normalizedTicker) return 0;
+    const now = new Date().toISOString();
+    const insert = this.sqlite.prepare(`
+      INSERT INTO company_programs (ticker, program, normalized_program, first_seen_at, last_seen_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(ticker, normalized_program) DO UPDATE SET
+        program = CASE WHEN length(excluded.program) > length(company_programs.program)
+          THEN excluded.program ELSE company_programs.program END,
+        last_seen_at = excluded.last_seen_at
+    `);
+    const uniquePrograms = new Map<string, string>();
+    for (const raw of programs) {
+      const program = raw.trim();
+      const normalized = normalizedProgram(program);
+      if (program && normalized.length >= 3 && !uniquePrograms.has(normalized)) uniquePrograms.set(normalized, program);
+    }
+    const values = [...uniquePrograms].slice(0, 250);
+    return this.sqlite.transaction((entries: Array<[string, string]>) => entries.reduce(
+      (count, [normalized, program]) => count + insert.run(normalizedTicker, program, normalized, now, now).changes,
+      0,
+    ))(values);
+  }
+
+  listCompanyPrograms(): Array<{ ticker: string; program: string }> {
+    return this.sqlite.prepare(`
+      SELECT ticker, program FROM company_programs ORDER BY ticker, program
+    `).all() as Array<{ ticker: string; program: string }>;
+  }
+
   saveAnalysis(record: AnalysisRecord): void {
     const transaction = this.sqlite.transaction(() => {
       this.sqlite.prepare(`
         INSERT INTO analyses (
           item_id, model, method, assessment_json, policy_score,
-          alert_tier, policy_reasons_json, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          alert_tier, policy_reasons_json, created_at, event_key,
+          event_anchor_at, analysis_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(item_id) DO UPDATE SET
           model = excluded.model,
           method = excluded.method,
@@ -183,7 +243,10 @@ export class SignalDatabase implements SignalStore {
           policy_score = excluded.policy_score,
           alert_tier = excluded.alert_tier,
           policy_reasons_json = excluded.policy_reasons_json,
-          created_at = excluded.created_at
+          created_at = excluded.created_at,
+          event_key = excluded.event_key,
+          event_anchor_at = excluded.event_anchor_at,
+          analysis_version = excluded.analysis_version
       `).run(
         record.itemId,
         record.model,
@@ -193,8 +256,21 @@ export class SignalDatabase implements SignalStore {
         record.alertTier,
         JSON.stringify(record.policyReasons),
         record.createdAt,
+        record.eventKey ?? null,
+        record.eventAnchorAt ?? null,
+        record.analysisVersion ?? 1,
       );
-      this.sqlite.prepare("UPDATE items SET status = 'analyzed' WHERE id = ?").run(record.itemId);
+      if (record.eventKey) {
+        this.sqlite.prepare(`
+          UPDATE alerts SET event_key = ?
+          WHERE item_id = ? AND event_key <> ?
+        `).run(record.eventKey, record.itemId, record.eventKey);
+      }
+      this.sqlite.prepare(`
+        UPDATE items SET status = 'analyzed', attempt_count = 0,
+          last_error = NULL, next_attempt_at = NULL
+        WHERE id = ?
+      `).run(record.itemId);
     });
     transaction();
   }
@@ -203,20 +279,51 @@ export class SignalDatabase implements SignalStore {
     this.sqlite.prepare("UPDATE items SET status = ? WHERE id = ?").run(status, itemId);
   }
 
+  recordItemFailure(itemId: string, error: string, maxAttempts = 4): ItemFailureResult {
+    const row = this.sqlite.prepare("SELECT attempt_count FROM items WHERE id = ?").get(itemId) as { attempt_count: number } | undefined;
+    const attemptCount = (row?.attempt_count ?? 0) + 1;
+    const retryScheduled = attemptCount < maxAttempts;
+    const delayMinutes = Math.min(15, 2 ** Math.max(0, attemptCount - 1));
+    const nextAttemptAt = retryScheduled
+      ? new Date(Date.now() + delayMinutes * 60_000).toISOString()
+      : null;
+    this.sqlite.prepare(`
+      UPDATE items SET status = 'error', attempt_count = ?, last_error = ?, next_attempt_at = ?
+      WHERE id = ?
+    `).run(attemptCount, error.slice(0, 4_000), nextAttemptAt, itemId);
+    return { attemptCount, retryScheduled, nextAttemptAt };
+  }
+
   getItem(itemId: string): NormalizedItem | null {
     const row = this.sqlite.prepare("SELECT * FROM items WHERE id = ?").get(itemId) as ItemRow | undefined;
     return row ? rowToItem(row) : null;
   }
 
   getPendingItems(limit = 100): NormalizedItem[] {
-    const rows = this.sqlite.prepare("SELECT * FROM items WHERE status = 'pending' ORDER BY published_at DESC LIMIT ?").all(limit) as ItemRow[];
+    const rows = this.sqlite.prepare(`
+      SELECT * FROM items
+      WHERE status = 'pending'
+        OR (status = 'error' AND attempt_count < 4 AND next_attempt_at <= ?)
+      ORDER BY
+        CASE source_type
+          WHEN 'regulator' THEN 0
+          WHEN 'company_ir' THEN 0
+          WHEN 'sec' THEN 0
+          WHEN 'outlet' THEN 1
+          WHEN 'clinical_trials' THEN 2
+          ELSE 3
+        END,
+        published_at DESC,
+        discovered_at ASC
+      LIMIT ?
+    `).all(new Date().toISOString(), limit) as ItemRow[];
     return rows.map(rowToItem);
   }
 
   findCorroboratingItems(item: NormalizedItem, sinceIso: string): NormalizedItem[] {
     const rows = this.sqlite.prepare(`
       SELECT * FROM items
-      WHERE id <> ? AND published_at >= ?
+      WHERE id <> ? AND published_at >= ? AND published_at <= datetime(?, '+72 hours')
         AND (
           (? IS NOT NULL AND ticker_hint = ?)
           OR (? IS NOT NULL AND company_hint = ?)
@@ -225,12 +332,182 @@ export class SignalDatabase implements SignalStore {
     `).all(
       item.id,
       sinceIso,
+      item.publishedAt,
       item.tickerHint,
       item.tickerHint,
       item.companyHint,
       item.companyHint,
     ) as ItemRow[];
     return rows.map(rowToItem);
+  }
+
+  findPriorItems(item: NormalizedItem, sinceIso: string, limit = 12): NormalizedItem[] {
+    const rows = this.sqlite.prepare(`
+      SELECT * FROM items
+      WHERE id <> ? AND published_at >= ? AND published_at < datetime(?, '-30 minutes')
+        AND status = 'analyzed'
+        AND (
+          (? IS NOT NULL AND ticker_hint = ?)
+          OR (? IS NOT NULL AND company_hint = ?)
+        )
+      ORDER BY published_at DESC LIMIT ?
+    `).all(
+      item.id,
+      sinceIso,
+      item.publishedAt,
+      item.tickerHint,
+      item.tickerHint,
+      item.companyHint,
+      item.companyHint,
+      limit,
+    ) as ItemRow[];
+    return rows.map(rowToItem);
+  }
+
+  requeueOutdatedAnalyses(analysisVersion: number, sinceIso: string, limit = 250): number {
+    const rows = this.sqlite.prepare(`
+      SELECT i.id FROM items i
+      INNER JOIN analyses a ON a.item_id = i.id
+      WHERE i.published_at >= ? AND COALESCE(a.analysis_version, 1) < ?
+        AND i.source_type <> 'clinical_trials'
+        AND (
+          a.alert_tier <> 'none'
+          OR json_extract(a.assessment_json, '$.isBiotechCatalyst') = 1
+        )
+      ORDER BY i.published_at DESC LIMIT ?
+    `).all(sinceIso, analysisVersion, limit) as Array<{ id: string }>;
+    if (!rows.length) return 0;
+    const update = this.sqlite.prepare(`
+      UPDATE items SET status = 'pending', attempt_count = 0,
+        last_error = NULL, next_attempt_at = NULL WHERE id = ?
+    `);
+    return this.sqlite.transaction((ids: Array<{ id: string }>) => ids.reduce(
+      (count, row) => count + update.run(row.id).changes,
+      0,
+    ))(rows);
+  }
+
+  listOutcomeAuditCandidates(limit = 30, auditedBefore = new Date(Date.now() - 15 * 60_000).toISOString()): FeedEntry[] {
+    const eligibleAt = new Date(Date.now() - 5 * 60_000).toISOString();
+    const rows = this.sqlite.prepare(`
+      SELECT i.*, a.item_id, a.model, a.method, a.assessment_json, a.policy_score,
+        a.alert_tier, a.policy_reasons_json, a.created_at, a.event_key,
+        a.event_anchor_at, a.analysis_version
+      FROM analyses a
+      INNER JOIN items i ON i.id = a.item_id
+      LEFT JOIN outcome_audits o ON o.event_key = a.event_key
+      WHERE a.event_key IS NOT NULL
+        AND a.alert_tier IN ('watch', 'high', 'urgent')
+        AND json_extract(a.assessment_json, '$.isBiotechCatalyst') = 1
+        AND COALESCE(a.event_anchor_at, i.published_at) <= ?
+        AND (o.event_key IS NULL OR (o.status <> 'closed' AND o.audited_at <= ?))
+      ORDER BY
+        CASE a.alert_tier WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,
+        COALESCE(a.event_anchor_at, i.published_at) DESC
+      LIMIT ?
+    `).all(eligibleAt, auditedBefore, Math.max(limit, limit * 6)) as Array<ItemRow & AnalysisRow>;
+    const events = new Map<string, FeedEntry>();
+    for (const row of rows) {
+      const analysis = rowToAnalysis(row);
+      if (!analysis.eventKey) continue;
+      const candidate: FeedEntry = { item: rowToItem(row), analysis, corroborationCount: 0, alertedAt: null };
+      const existing = events.get(analysis.eventKey);
+      if (!existing || isBetterEventRepresentative(candidate, existing)) events.set(analysis.eventKey, candidate);
+    }
+    return [...events.values()].slice(0, limit);
+  }
+
+  saveOutcomeAudit(audit: OutcomeAudit): void {
+    this.sqlite.prepare(`
+      INSERT INTO outcome_audits (
+        event_key, item_id, ticker, event_type, alert_tier, predicted_direction,
+        probability_positive_move, expected_move_low_pct, expected_move_base_pct,
+        expected_move_high_pct, actual_return_pct, direction_correct,
+        expected_range_hit, movement_window, status, price_start_at, price_end_at, audited_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(event_key) DO UPDATE SET
+        item_id = excluded.item_id,
+        ticker = excluded.ticker,
+        event_type = excluded.event_type,
+        alert_tier = excluded.alert_tier,
+        predicted_direction = excluded.predicted_direction,
+        probability_positive_move = excluded.probability_positive_move,
+        expected_move_low_pct = excluded.expected_move_low_pct,
+        expected_move_base_pct = excluded.expected_move_base_pct,
+        expected_move_high_pct = excluded.expected_move_high_pct,
+        actual_return_pct = excluded.actual_return_pct,
+        direction_correct = excluded.direction_correct,
+        expected_range_hit = excluded.expected_range_hit,
+        movement_window = excluded.movement_window,
+        status = excluded.status,
+        price_start_at = excluded.price_start_at,
+        price_end_at = excluded.price_end_at,
+        audited_at = excluded.audited_at
+    `).run(
+      audit.eventKey,
+      audit.itemId,
+      audit.ticker,
+      audit.eventType,
+      audit.alertTier,
+      audit.predictedDirection,
+      audit.probabilityPositiveMove,
+      audit.expectedMoveLowPct,
+      audit.expectedMoveBasePct,
+      audit.expectedMoveHighPct,
+      audit.actualReturnPct,
+      audit.directionCorrect === null ? null : audit.directionCorrect ? 1 : 0,
+      audit.expectedRangeHit ? 1 : 0,
+      audit.movementWindow,
+      audit.status,
+      audit.priceStartAt,
+      audit.priceEndAt,
+      audit.auditedAt,
+    );
+  }
+
+  listOutcomeAudits(limit = 250): OutcomeAudit[] {
+    const rows = this.sqlite.prepare(`
+      SELECT * FROM outcome_audits ORDER BY audited_at DESC LIMIT ?
+    `).all(limit) as Array<{
+      event_key: string;
+      item_id: string;
+      ticker: string;
+      event_type: CatalystEventType;
+      alert_tier: AlertTier;
+      predicted_direction: ImpactAssessment["stockDirection"];
+      probability_positive_move: number;
+      expected_move_low_pct: number;
+      expected_move_base_pct: number;
+      expected_move_high_pct: number;
+      actual_return_pct: number;
+      direction_correct: number | null;
+      expected_range_hit: number;
+      movement_window: OutcomeAudit["movementWindow"];
+      status: OutcomeAudit["status"];
+      price_start_at: string;
+      price_end_at: string;
+      audited_at: string;
+    }>;
+    return rows.map((row) => ({
+      eventKey: row.event_key,
+      itemId: row.item_id,
+      ticker: row.ticker,
+      eventType: row.event_type,
+      alertTier: row.alert_tier,
+      predictedDirection: row.predicted_direction,
+      probabilityPositiveMove: row.probability_positive_move,
+      expectedMoveLowPct: row.expected_move_low_pct,
+      expectedMoveBasePct: row.expected_move_base_pct,
+      expectedMoveHighPct: row.expected_move_high_pct,
+      actualReturnPct: row.actual_return_pct,
+      directionCorrect: row.direction_correct === null ? null : Boolean(row.direction_correct),
+      expectedRangeHit: Boolean(row.expected_range_hit),
+      movementWindow: row.movement_window,
+      status: row.status,
+      priceStartAt: row.price_start_at,
+      priceEndAt: row.price_end_at,
+      auditedAt: row.audited_at,
+    }));
   }
 
   listFeed(limit = 100, publishedBefore: string | null = null, tickers: readonly string[] | null = null): FeedEntry[] {
@@ -253,11 +530,16 @@ export class SignalDatabase implements SignalStore {
       SELECT
         i.*,
         a.item_id, a.model, a.method, a.assessment_json, a.policy_score,
-        a.alert_tier, a.policy_reasons_json, a.created_at,
-        (SELECT COUNT(*) FROM items c
-          WHERE c.id <> i.id AND c.published_at >= datetime(i.published_at, '-24 hours')
-            AND ((i.ticker_hint IS NOT NULL AND c.ticker_hint = i.ticker_hint)
-              OR (i.company_hint IS NOT NULL AND c.company_hint = i.company_hint))) AS corroboration_count,
+        a.alert_tier, a.policy_reasons_json, a.created_at, a.event_key,
+        a.event_anchor_at, a.analysis_version,
+        CASE WHEN a.event_key IS NOT NULL THEN
+          (SELECT COUNT(*) FROM analyses ca WHERE ca.event_key = a.event_key AND ca.item_id <> i.id)
+        ELSE
+          (SELECT COUNT(*) FROM items c
+            WHERE c.id <> i.id AND c.published_at >= datetime(i.published_at, '-24 hours')
+              AND ((i.ticker_hint IS NOT NULL AND c.ticker_hint = i.ticker_hint)
+                OR (i.company_hint IS NOT NULL AND c.company_hint = i.company_hint)))
+        END AS corroboration_count,
         (SELECT MAX(sent_at) FROM alerts al WHERE al.item_id = i.id AND al.status IN ('sent', 'dry_run')) AS alerted_at
       FROM items i
       LEFT JOIN analyses a ON a.item_id = i.id
@@ -277,21 +559,23 @@ export class SignalDatabase implements SignalStore {
       publishedBefore,
       ...(normalizedTickers ?? []),
       ...(normalizedTickers ?? []),
-      Math.min(limit * 5, 1_250),
+      Math.min(limit * 8, 2_000),
     ) as Array<ItemRow & Partial<AnalysisRow> & { corroboration_count: number; alerted_at: string | null }>;
 
-    const seenHeadlines = new Set<string>();
-    return rows.map((row) => ({
+    const entries = rows.map((row) => ({
       item: rowToItem(row),
       analysis: row.assessment_json ? rowToAnalysis(row as ItemRow & AnalysisRow) : null,
       corroborationCount: row.corroboration_count,
       alertedAt: row.alerted_at,
-    })).filter((entry) => {
-      const key = normalizedHeadline(entry.item.headline);
-      if (!key || seenHeadlines.has(key)) return false;
-      seenHeadlines.add(key);
-      return true;
-    }).slice(0, limit);
+    }));
+    const grouped = new Map<string, FeedEntry>();
+    for (const entry of entries) {
+      const key = entry.analysis?.eventKey || normalizedHeadline(entry.item.headline);
+      if (!key) continue;
+      const existing = grouped.get(key);
+      if (!existing || isBetterEventRepresentative(entry, existing)) grouped.set(key, entry);
+    }
+    return [...grouped.values()].sort(compareFeedEntries).slice(0, limit);
   }
 
   getAnalysis(itemId: string): AnalysisRecord | null {
@@ -426,6 +710,8 @@ export class SignalDatabase implements SignalStore {
       watchedTickers,
       feedMode: row?.feed_mode ?? "all",
       pushMode: row?.push_mode ?? "all",
+      minimumAlertTier: row?.minimum_alert_tier
+        ?? (this.getInstallationAccess(installationId)?.level === "developer" ? "high" : "urgent"),
       eventTypes: parseEventTypes(row?.event_types_json),
       updatedAt: row?.updated_at ?? null,
     };
@@ -436,22 +722,26 @@ export class SignalDatabase implements SignalStore {
     watchedTickers: string[];
     feedMode: FeedMode;
     pushMode: PushMode;
+    minimumAlertTier?: AlertPriority;
     eventTypes: CatalystEventType[];
   }): InstallationPreferences {
     const watchedTickers = [...new Set(input.watchedTickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))];
     const eventTypes = [...new Set(input.eventTypes)].filter((eventType) => EVENT_TYPE_SET.has(eventType));
     const now = new Date().toISOString();
+    const minimumAlertTier = input.minimumAlertTier
+      ?? this.getInstallationPreferences(input.installationId).minimumAlertTier;
     this.sqlite.transaction(() => {
       this.sqlite.prepare(`
         INSERT INTO installation_preferences (
-          installation_id, feed_mode, push_mode, event_types_json, updated_at
-        ) VALUES (?, ?, ?, ?, ?)
+          installation_id, feed_mode, push_mode, minimum_alert_tier, event_types_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(installation_id) DO UPDATE SET
           feed_mode = excluded.feed_mode,
           push_mode = excluded.push_mode,
+          minimum_alert_tier = excluded.minimum_alert_tier,
           event_types_json = excluded.event_types_json,
           updated_at = excluded.updated_at
-      `).run(input.installationId, input.feedMode, input.pushMode, JSON.stringify(eventTypes), now);
+      `).run(input.installationId, input.feedMode, input.pushMode, minimumAlertTier, JSON.stringify(eventTypes), now);
       this.sqlite.prepare("DELETE FROM installation_watchlist WHERE installation_id = ?").run(input.installationId);
       const insertTicker = this.sqlite.prepare(`
         INSERT INTO installation_watchlist (installation_id, ticker, position, created_at)
@@ -509,10 +799,13 @@ export class SignalDatabase implements SignalStore {
     }));
   }
 
-  listAlertDevices(ticker?: string, eventType?: CatalystEventType): Array<DeviceRegistration & { active: boolean }> {
+  listAlertDevices(ticker?: string, eventType?: CatalystEventType, tier: AlertTier = "urgent"): Array<DeviceRegistration & { active: boolean }> {
     const rows = this.sqlite.prepare(`
       SELECT d.*, COALESCE(p.push_mode, 'all') AS push_mode,
         COALESCE(p.event_types_json, ?) AS event_types_json,
+        COALESCE(p.minimum_alert_tier,
+          CASE WHEN i.access_level = 'developer' THEN 'high' ELSE 'urgent' END
+        ) AS minimum_alert_tier,
         CASE WHEN EXISTS (
           SELECT 1 FROM installation_watchlist w
           WHERE w.installation_id = d.installation_id AND w.ticker = ?
@@ -532,10 +825,12 @@ export class SignalDatabase implements SignalStore {
       active: number;
       push_mode: PushMode;
       event_types_json: string;
+      minimum_alert_tier: AlertPriority;
       watches_ticker: number;
     }>;
     return rows.filter((row) => {
       if (row.push_mode === "watchlist" && !row.watches_ticker) return false;
+      if (tier === "high" && row.minimum_alert_tier !== "high") return false;
       return !eventType || parseEventTypes(row.event_types_json).includes(eventType);
     }).map((row) => ({
       installationId: row.installation_id,
@@ -551,26 +846,68 @@ export class SignalDatabase implements SignalStore {
     this.sqlite.prepare("UPDATE devices SET active = 0, updated_at = ? WHERE device_token = ?").run(new Date().toISOString(), deviceToken.toLowerCase());
   }
 
-  hasRecentAlert(ticker: string, eventType: string, sinceIso: string): boolean {
+  hasRecentAlert(eventKey: string, tier: AlertTier, sinceIso: string): boolean {
+    const tiers = tier === "urgent" ? ["urgent"] : ["high", "urgent"];
+    const placeholders = tiers.map(() => "?").join(", ");
     const row = this.sqlite.prepare(`
       SELECT 1 FROM alerts
-      WHERE ticker = ? AND event_type = ? AND sent_at >= ? AND status IN ('sent', 'dry_run')
+      WHERE event_key = ? AND tier IN (${placeholders}) AND sent_at >= ?
+        AND status IN ('sent', 'dry_run')
       LIMIT 1
-    `).get(ticker, eventType, sinceIso);
+    `).get(eventKey, ...tiers, sinceIso);
     return Boolean(row);
   }
 
+  tryClaimAlertEvent(input: AlertInput, sinceIso: string): boolean {
+    const tiers = input.tier === "urgent" ? ["urgent"] : ["high", "urgent"];
+    const placeholders = tiers.map(() => "?").join(", ");
+    return this.sqlite.transaction(() => {
+      const existing = this.sqlite.prepare(`
+        SELECT 1 FROM alerts
+        WHERE event_key = ? AND tier IN (${placeholders}) AND sent_at >= ?
+          AND (
+            status IN ('sent', 'dry_run')
+            OR (status = 'claimed' AND sent_at >= ?)
+          )
+        LIMIT 1
+      `).get(
+        input.eventKey,
+        ...tiers,
+        sinceIso,
+        new Date(Date.now() - 5 * 60_000).toISOString(),
+      );
+      if (existing) return false;
+      this.insertAlert(input);
+      return true;
+    })();
+  }
+
   saveAlert(input: AlertInput): void {
+    this.insertAlert(input);
+  }
+
+  private insertAlert(input: AlertInput): void {
     this.sqlite.prepare(`
       INSERT INTO alerts (
-        id, item_id, ticker, event_type, tier, status, device_token, response_json, sent_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, item_id, ticker, event_type, tier, event_key, status, device_token, response_json, sent_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        item_id = excluded.item_id,
+        ticker = excluded.ticker,
+        event_type = excluded.event_type,
+        tier = excluded.tier,
+        event_key = excluded.event_key,
+        status = excluded.status,
+        device_token = excluded.device_token,
+        response_json = excluded.response_json,
+        sent_at = excluded.sent_at
     `).run(
       input.id,
       input.itemId,
       input.ticker,
       input.eventType,
       input.tier,
+      input.eventKey,
       input.status,
       input.deviceToken ?? null,
       JSON.stringify(input.response ?? null),
@@ -583,14 +920,28 @@ export class SignalDatabase implements SignalStore {
       SELECT
         COUNT(*) AS item_count,
         SUM(CASE WHEN status = 'analyzed' THEN 1 ELSE 0 END) AS analyzed_count,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
+        SUM(CASE WHEN status = 'error' AND next_attempt_at IS NOT NULL THEN 1 ELSE 0 END) AS retry_count,
+        SUM(CASE WHEN status = 'error' AND next_attempt_at IS NULL THEN 1 ELSE 0 END) AS error_count
       FROM items
-    `).get() as { item_count: number; analyzed_count: number; pending_count: number };
+    `).get() as { item_count: number; analyzed_count: number; pending_count: number; retry_count: number; error_count: number };
     const alertCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM alerts WHERE status IN ('sent', 'dry_run')").get() as { count: number }).count;
     const deviceCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM devices WHERE active = 1").get() as { count: number }).count;
+    const highCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM analyses WHERE alert_tier = 'high'").get() as { count: number }).count;
     const urgentCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM analyses WHERE alert_tier = 'urgent'").get() as { count: number }).count;
     const personalizedCount = (this.sqlite.prepare("SELECT COUNT(DISTINCT installation_id) AS count FROM installation_watchlist").get() as { count: number }).count;
-    return { ...counts, alertCount, deviceCount, urgent_count: urgentCount, personalized_count: personalizedCount };
+    const outcomeCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM outcome_audits").get() as { count: number }).count;
+    const finalOutcomeCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM outcome_audits WHERE status = 'closed'").get() as { count: number }).count;
+    return {
+      ...counts,
+      alertCount,
+      deviceCount,
+      high_count: highCount,
+      urgent_count: urgentCount,
+      personalized_count: personalizedCount,
+      outcome_count: outcomeCount,
+      final_outcome_count: finalOutcomeCount,
+    };
   }
 
   private migrate(): void {
@@ -610,8 +961,13 @@ export class SignalDatabase implements SignalStore {
         discovered_at TEXT NOT NULL,
         company_hint TEXT,
         ticker_hint TEXT,
+        provenance TEXT,
+        independence_key TEXT,
         raw_json TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending'
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        next_attempt_at TEXT
       );
       CREATE UNIQUE INDEX IF NOT EXISTS items_source_external_idx ON items(source_id, external_id);
       CREATE INDEX IF NOT EXISTS items_source_id_idx ON items(source_id);
@@ -626,7 +982,10 @@ export class SignalDatabase implements SignalStore {
         policy_score INTEGER NOT NULL,
         alert_tier TEXT NOT NULL,
         policy_reasons_json TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        event_key TEXT,
+        event_anchor_at TEXT,
+        analysis_version INTEGER NOT NULL DEFAULT 1
       );
 
       CREATE TABLE IF NOT EXISTS source_state (
@@ -634,6 +993,15 @@ export class SignalDatabase implements SignalStore {
         cursor TEXT,
         last_fetched_at TEXT,
         last_error TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS company_programs (
+        ticker TEXT NOT NULL,
+        program TEXT NOT NULL,
+        normalized_program TEXT NOT NULL,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        PRIMARY KEY (ticker, normalized_program)
       );
 
       CREATE TABLE IF NOT EXISTS devices (
@@ -666,6 +1034,7 @@ export class SignalDatabase implements SignalStore {
         installation_id TEXT PRIMARY KEY REFERENCES installations(installation_id) ON DELETE CASCADE,
         feed_mode TEXT NOT NULL DEFAULT 'all',
         push_mode TEXT NOT NULL DEFAULT 'all',
+        minimum_alert_tier TEXT NOT NULL DEFAULT 'urgent',
         event_types_json TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -686,13 +1055,71 @@ export class SignalDatabase implements SignalStore {
         ticker TEXT NOT NULL,
         event_type TEXT NOT NULL,
         tier TEXT NOT NULL,
+        event_key TEXT,
         status TEXT NOT NULL,
         device_token TEXT,
         response_json TEXT NOT NULL,
         sent_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS alerts_cooldown_idx ON alerts(ticker, event_type, sent_at DESC);
+
+      CREATE TABLE IF NOT EXISTS outcome_audits (
+        event_key TEXT PRIMARY KEY,
+        item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+        ticker TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        alert_tier TEXT NOT NULL,
+        predicted_direction TEXT NOT NULL,
+        probability_positive_move REAL NOT NULL,
+        expected_move_low_pct REAL NOT NULL,
+        expected_move_base_pct REAL NOT NULL,
+        expected_move_high_pct REAL NOT NULL,
+        actual_return_pct REAL NOT NULL,
+        direction_correct INTEGER,
+        expected_range_hit INTEGER NOT NULL,
+        movement_window TEXT NOT NULL,
+        status TEXT NOT NULL,
+        price_start_at TEXT NOT NULL,
+        price_end_at TEXT NOT NULL,
+        audited_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS outcome_audits_status_idx ON outcome_audits(status, audited_at);
     `);
+    this.ensureColumn("items", "provenance", "TEXT");
+    this.ensureColumn("items", "independence_key", "TEXT");
+    const addedAttemptCount = this.ensureColumn("items", "attempt_count", "INTEGER NOT NULL DEFAULT 0");
+    this.ensureColumn("items", "last_error", "TEXT");
+    this.ensureColumn("items", "next_attempt_at", "TEXT");
+    this.ensureColumn("analyses", "event_key", "TEXT");
+    this.ensureColumn("analyses", "event_anchor_at", "TEXT");
+    this.ensureColumn("analyses", "analysis_version", "INTEGER NOT NULL DEFAULT 1");
+    const addedMinimumAlertTier = this.ensureColumn("installation_preferences", "minimum_alert_tier", "TEXT NOT NULL DEFAULT 'urgent'");
+    this.ensureColumn("alerts", "event_key", "TEXT");
+    this.sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS analyses_event_idx ON analyses(event_key, alert_tier);
+      CREATE INDEX IF NOT EXISTS alerts_event_idx ON alerts(event_key, sent_at DESC);
+      UPDATE alerts SET event_key = ticker || ':' || event_type || ':' || item_id WHERE event_key IS NULL;
+    `);
+    if (addedAttemptCount) {
+      this.sqlite.prepare(`
+        UPDATE items SET next_attempt_at = ? WHERE status = 'error' AND attempt_count = 0
+      `).run(new Date().toISOString());
+    }
+    if (addedMinimumAlertTier) {
+      this.sqlite.exec(`
+        UPDATE installation_preferences SET minimum_alert_tier = 'high'
+        WHERE installation_id IN (SELECT installation_id FROM installations WHERE access_level = 'developer')
+      `);
+    }
+  }
+
+  private ensureColumn(table: string, column: string, definition: string): boolean {
+    const columns = this.sqlite.pragma(`table_info(${table})`) as Array<{ name: string }>;
+    if (!columns.some((entry) => entry.name === column)) {
+      this.sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      return true;
+    }
+    return false;
   }
 }
 
@@ -714,6 +1141,8 @@ function rowToItem(row: ItemRow): NormalizedItem {
     discoveredAt: row.discovered_at,
     companyHint: row.company_hint,
     tickerHint: row.ticker_hint,
+    ...(row.provenance ? { provenance: row.provenance } : {}),
+    ...(row.independence_key ? { independenceKey: row.independence_key } : {}),
     raw: JSON.parse(row.raw_json) as unknown,
   };
 }
@@ -728,7 +1157,31 @@ function rowToAnalysis(row: AnalysisRow): AnalysisRecord {
     alertTier: row.alert_tier,
     policyReasons: JSON.parse(row.policy_reasons_json) as string[],
     createdAt: row.created_at,
+    ...(row.event_key ? { eventKey: row.event_key } : {}),
+    ...(row.event_anchor_at ? { eventAnchorAt: row.event_anchor_at } : {}),
+    ...(row.analysis_version ? { analysisVersion: row.analysis_version } : {}),
   };
+}
+
+function isBetterEventRepresentative(candidate: FeedEntry, existing: FeedEntry): boolean {
+  const tierRank: Record<AlertTier, number> = { none: 0, watch: 1, high: 2, urgent: 3 };
+  const candidateTier = candidate.analysis?.alertTier ?? "none";
+  const existingTier = existing.analysis?.alertTier ?? "none";
+  if (tierRank[candidateTier] !== tierRank[existingTier]) return tierRank[candidateTier] > tierRank[existingTier];
+  const sourceRank = (entry: FeedEntry) => entry.item.provenance === "direct_primary" ? 3
+    : entry.item.provenance === "syndicated_primary" ? 2
+      : entry.item.source.tier === "primary" ? 2 : 1;
+  if (sourceRank(candidate) !== sourceRank(existing)) return sourceRank(candidate) > sourceRank(existing);
+  return Date.parse(candidate.item.publishedAt) < Date.parse(existing.item.publishedAt);
+}
+
+function compareFeedEntries(left: FeedEntry, right: FeedEntry): number {
+  const leftUrgent = left.analysis?.alertTier === "urgent" && Date.now() - Date.parse(left.item.publishedAt) <= 7 * 24 * 60 * 60_000;
+  const rightUrgent = right.analysis?.alertTier === "urgent" && Date.now() - Date.parse(right.item.publishedAt) <= 7 * 24 * 60 * 60_000;
+  if (leftUrgent !== rightUrgent) return leftUrgent ? -1 : 1;
+  const leftAt = left.analysis?.eventAnchorAt ?? left.item.publishedAt;
+  const rightAt = right.analysis?.eventAnchorAt ?? right.item.publishedAt;
+  return Date.parse(rightAt) - Date.parse(leftAt);
 }
 
 function parseEventTypes(value: string | undefined): CatalystEventType[] {
@@ -743,4 +1196,8 @@ function parseEventTypes(value: string | undefined): CatalystEventType[] {
   } catch {
     return [...ALL_EVENT_TYPES];
   }
+}
+
+function normalizedProgram(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 160);
 }

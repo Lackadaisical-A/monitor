@@ -224,7 +224,7 @@ private struct SignalCard: View {
                 .font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading)
                 .foregroundStyle(.primary).lineLimit(3)
             HStack(spacing: 16) {
-                Metric(label: "Materiality", value: assessment.map { "\($0.materiality)" } ?? "—")
+                Metric(label: "Materiality", value: assessment.map { "\($0.displayMateriality)" } ?? "—")
                 Metric(label: "Confidence", value: assessment.map { "\(Int($0.confidence * 100))%" } ?? "—")
                 Metric(label: "Direction", value: assessment?.stockDirection.capitalized ?? "Pending")
             }
@@ -257,7 +257,7 @@ private struct SignalDetailView: View {
                     HStack { TierPill(tier: analysis.alertTier); Text(analysis.assessment.stockDirection.capitalized).foregroundStyle(directionColor(analysis.assessment.stockDirection)); Spacer() }
                     Text(entry.item.headline).font(.title2.bold())
                     HStack(spacing: 10) {
-                        DetailScore(label: "Materiality", value: "\(analysis.assessment.materiality)/100")
+                        DetailScore(label: "Market materiality", value: "\(analysis.assessment.displayMateriality)/100")
                         DetailScore(label: "Confidence", value: "\(Int(analysis.assessment.confidence * 100))%")
                         DetailScore(label: "Base case", value: signed(analysis.assessment.expectedMoveBasePct))
                     }

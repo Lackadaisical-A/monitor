@@ -48,6 +48,16 @@ const OVERRIDES = {
   },
   VRTX: { company: "Vertex Pharmaceuticals", marketCapBand: "large", programs: ["CASGEVY", "Alyftrek", "Journavx"] },
   BNTX: { company: "BioNTech", aliases: ["BioNTech SE", "$BNTX"], programs: ["BNT122", "autogene cevumeran"] },
+  RGNX: {
+    company: "REGENXBIO",
+    marketCapBand: "small",
+    programs: ["RGX-121", "clemidsogene lanparvovec", "CAMPSIITE", "RGX-202", "RGX-314", "RGX-381"],
+  },
+  AVXL: {
+    company: "Anavex Life Sciences",
+    marketCapBand: "small",
+    programs: ["ANAVEX2-73", "blarcamesine", "ANAVEX3-71", "ANAVEX1-41"],
+  },
 };
 
 const [holdingsCsv, secJson] = await Promise.all([

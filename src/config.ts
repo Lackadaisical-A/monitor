@@ -25,6 +25,7 @@ const EnvSchema = z.object({
   ALPACA_API_KEY_ID: z.string().default(""),
   ALPACA_API_SECRET_KEY: z.string().default(""),
   ALPACA_DATA_FEED: z.enum(["iex", "sip"]).default("iex"),
+  ALPACA_NEWS_ENABLED: booleanEnv(true),
   SOURCES_FILE: z.string().default("./config/sources.json"),
   WATCHLIST_FILE: z.string().default("./config/watchlist.json"),
   X_BEARER_TOKEN: z.string().default(""),
@@ -38,9 +39,20 @@ const EnvSchema = z.object({
   FDA_ADCOM_ENABLED: booleanEnv(true),
   SEC_USER_AGENT: z.string().default("BiotechSignal/0.1 contact@example.com"),
   ALERT_DRY_RUN: booleanEnv(true),
+  ALERT_HIGH_MIN_MATERIALITY: z.coerce.number().int().min(0).max(100).default(70),
+  ALERT_HIGH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.8),
   ALERT_MIN_MATERIALITY: z.coerce.number().int().min(0).max(100).default(88),
   ALERT_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.86),
   ALERT_COOLDOWN_MINUTES: z.coerce.number().int().min(1).default(240),
+  ALERT_MAX_AGE_MINUTES: z.coerce.number().int().min(1).max(1_440).default(30),
+  ANALYSIS_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
+  ANALYSIS_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  ANALYSIS_HISTORY_DAYS: z.coerce.number().int().min(1).max(730).default(180),
+  DISCOVERY_SLO_SECONDS: z.coerce.number().int().min(15).default(120),
+  ANALYSIS_SLO_SECONDS: z.coerce.number().int().min(5).default(45),
+  PUSH_SLO_SECONDS: z.coerce.number().int().min(15).default(180),
+  OUTCOME_AUDIT_INTERVAL_MINUTES: z.coerce.number().int().min(5).max(1_440).default(15),
+  OUTCOME_AUDIT_BATCH_SIZE: z.coerce.number().int().min(1).max(250).default(30),
   APNS_TEAM_ID: z.string().default(""),
   APNS_KEY_ID: z.string().default(""),
   APNS_BUNDLE_ID: z.string().default("com.yingcui.CatalystWatch"),
@@ -56,6 +68,10 @@ const WatchCompanySchema = z.object({
   aliases: z.array(z.string()).default([]),
   cik: z.string().regex(/^\d{1,10}$/).optional(),
   marketCapBand: z.enum(["micro", "small", "mid", "large", "mega", "unknown"]).default("unknown"),
+  marketCapUsd: z.number().positive().optional(),
+  averageDailyDollarVolume: z.number().nonnegative().optional(),
+  annualizedVolatilityPct: z.number().nonnegative().optional(),
+  metadataUpdatedAt: z.string().datetime().optional(),
   xAccounts: z.array(z.string()).default([]),
   programs: z.array(z.string()).default([]),
 });
@@ -132,6 +148,7 @@ export interface AppConfig {
     keyId: string;
     secretKey: string;
     feed: "iex" | "sip";
+    newsEnabled: boolean;
   };
   watchlist: WatchCompany[];
   rssSources: RssSourceConfig[];
@@ -144,9 +161,26 @@ export interface AppConfig {
   secUserAgent: string;
   alertPolicy: {
     dryRun: boolean;
+    highMinMateriality: number;
+    highMinConfidence: number;
     minMateriality: number;
     minConfidence: number;
     cooldownMinutes: number;
+    maxAgeMinutes: number;
+  };
+  analysis: {
+    concurrency: number;
+    batchSize: number;
+    historyDays: number;
+  };
+  slo: {
+    discoverySeconds: number;
+    analysisSeconds: number;
+    pushSeconds: number;
+  };
+  outcomes: {
+    intervalMinutes: number;
+    batchSize: number;
   };
   apns: {
     teamId: string;
@@ -189,6 +223,7 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
       keyId: env.ALPACA_API_KEY_ID.trim(),
       secretKey: env.ALPACA_API_SECRET_KEY.trim(),
       feed: env.ALPACA_DATA_FEED,
+      newsEnabled: env.ALPACA_NEWS_ENABLED,
     },
     watchlist,
     rssSources,
@@ -206,9 +241,26 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
     secUserAgent: env.SEC_USER_AGENT,
     alertPolicy: {
       dryRun: env.ALERT_DRY_RUN,
+      highMinMateriality: env.ALERT_HIGH_MIN_MATERIALITY,
+      highMinConfidence: env.ALERT_HIGH_MIN_CONFIDENCE,
       minMateriality: env.ALERT_MIN_MATERIALITY,
       minConfidence: env.ALERT_MIN_CONFIDENCE,
       cooldownMinutes: env.ALERT_COOLDOWN_MINUTES,
+      maxAgeMinutes: env.ALERT_MAX_AGE_MINUTES,
+    },
+    analysis: {
+      concurrency: env.ANALYSIS_CONCURRENCY,
+      batchSize: env.ANALYSIS_BATCH_SIZE,
+      historyDays: env.ANALYSIS_HISTORY_DAYS,
+    },
+    slo: {
+      discoverySeconds: env.DISCOVERY_SLO_SECONDS,
+      analysisSeconds: env.ANALYSIS_SLO_SECONDS,
+      pushSeconds: env.PUSH_SLO_SECONDS,
+    },
+    outcomes: {
+      intervalMinutes: env.OUTCOME_AUDIT_INTERVAL_MINUTES,
+      batchSize: env.OUTCOME_AUDIT_BATCH_SIZE,
     },
     apns: {
       teamId: env.APNS_TEAM_ID,

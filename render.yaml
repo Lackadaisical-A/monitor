@@ -20,13 +20,15 @@ services:
       - key: OPENAI_MODEL
         value: gpt-5.6-luna
       - key: ALPACA_MARKET_DATA_SCOPE
-        value: disabled
+        value: developer
       - key: ALPACA_API_KEY_ID
         sync: false
       - key: ALPACA_API_SECRET_KEY
         sync: false
       - key: ALPACA_DATA_FEED
         value: iex
+      - key: ALPACA_NEWS_ENABLED
+        value: true
       - key: SCAN_INTERVAL_SECONDS
         value: 60
       - key: FDA_ADCOM_ENABLED
@@ -43,6 +45,28 @@ services:
         value: /app/config/apple
       - key: ALERT_DRY_RUN
         value: false
+      - key: ALERT_HIGH_MIN_MATERIALITY
+        value: 70
+      - key: ALERT_HIGH_MIN_CONFIDENCE
+        value: 0.8
+      - key: ALERT_MAX_AGE_MINUTES
+        value: 30
+      - key: ANALYSIS_CONCURRENCY
+        value: 4
+      - key: ANALYSIS_BATCH_SIZE
+        value: 100
+      - key: ANALYSIS_HISTORY_DAYS
+        value: 180
+      - key: DISCOVERY_SLO_SECONDS
+        value: 120
+      - key: ANALYSIS_SLO_SECONDS
+        value: 45
+      - key: PUSH_SLO_SECONDS
+        value: 180
+      - key: OUTCOME_AUDIT_INTERVAL_MINUTES
+        value: 15
+      - key: OUTCOME_AUDIT_BATCH_SIZE
+        value: 30
       - key: APNS_TEAM_ID
         value: C2Y2PKW3VD
       - key: APNS_KEY_ID

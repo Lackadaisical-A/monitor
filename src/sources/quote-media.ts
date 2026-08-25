@@ -1,6 +1,6 @@
 import type { QuoteMediaSourceConfig } from "../config.js";
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { canonicalUrl, findWatchCompany, isoDate, itemId, mapWithConcurrency, stripHtml } from "../utils.js";
+import { canonicalUrl, isoDate, itemId, mapWithConcurrency, resolveWatchCompany, stripHtml } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 const HEADLINES_URL = "https://www.accesswire.com/qm/data/getHeadlines.json";
@@ -97,10 +97,11 @@ export class QuoteMediaPressReleaseSource implements SourceAdapter {
       const story = storyResults[index]?.status === "fulfilled" ? storyResults[index].value : "";
       const headline = stripHtml(entry.headline!);
       const summary = stripHtml(story || entry.qmsummary || "").slice(0, 25_000);
-      const company = findWatchCompany(headline, this.watchlist)
-        ?? findWatchCompany(summary, this.watchlist)
-        ?? this.watchlist.find((candidate) => candidate.ticker === entry.matchedTicker)
-        ?? null;
+      const company = resolveWatchCompany({
+        headline,
+        summary,
+        tickerHint: entry.matchedTicker ?? null,
+      }, this.watchlist);
       const resolvedCompany = company ?? configuredCompany;
       const externalId = String(entry.newsid);
       const url = canonicalUrl(entry.permalink || entry.storyurl || `${STORY_URL}?storyId=${externalId}&newslang=en`);
@@ -116,6 +117,10 @@ export class QuoteMediaPressReleaseSource implements SourceAdapter {
         discoveredAt,
         companyHint: resolvedCompany?.company ?? null,
         tickerHint: resolvedCompany?.ticker ?? null,
+        provenance: "syndicated_primary",
+        independenceKey: resolvedCompany
+          ? `issuer:${resolvedCompany.ticker.toLowerCase()}`
+          : `wire-release:${externalId}`,
         raw: { ...entry, fullStoryFetched: Boolean(story) },
       };
     }).filter((item) => (

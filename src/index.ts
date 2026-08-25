@@ -7,9 +7,10 @@ const bootstrapLogger = {
   error: (bindings: Record<string, unknown>, message?: string) => console.error(message ?? "error", bindings),
 };
 
-const { config, db, pipeline } = bootstrap(bootstrapLogger);
+const { config, db, marketData, pipeline } = bootstrap(bootstrapLogger);
 await pipeline.reconcileStoredPolicies();
-const app = await createApp(config, db, pipeline);
+await pipeline.requeueOutdatedAnalyses();
+const app = await createApp(config, db, pipeline, undefined, marketData);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "shutting down");

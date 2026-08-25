@@ -142,6 +142,18 @@ private struct AlertPreferencesView: View {
 
     var body: some View {
         Form {
+            Section("Priority") {
+                Picker("Notify me for", selection: Binding(
+                    get: { store.preferences.minimumAlertTier },
+                    set: { tier in Task { await store.setMinimumAlertTier(tier) } }
+                )) {
+                    Text("High + Urgent").tag("high")
+                    Text("Urgent only").tag("urgent")
+                }
+                .pickerStyle(.segmented)
+                .disabled(store.preferenceUpdateInProgress)
+            }
+
             Section("Companies") {
                 Picker("Send alerts for", selection: Binding(
                     get: { store.preferences.pushMode },

@@ -21,6 +21,14 @@ export interface SourceDescriptor {
   tier: SourceTier;
 }
 
+export type SourceProvenance =
+  | "direct_primary"
+  | "syndicated_primary"
+  | "independent_reporting"
+  | "registry"
+  | "social"
+  | "unknown";
+
 export interface NormalizedItem {
   id: string;
   externalId: string;
@@ -33,6 +41,8 @@ export interface NormalizedItem {
   discoveredAt: string;
   companyHint: string | null;
   tickerHint: string | null;
+  provenance?: SourceProvenance | undefined;
+  independenceKey?: string | undefined;
   raw: unknown;
 }
 
@@ -42,6 +52,10 @@ export interface WatchCompany {
   aliases: string[];
   cik?: string | undefined;
   marketCapBand: "micro" | "small" | "mid" | "large" | "mega" | "unknown";
+  marketCapUsd?: number | undefined;
+  averageDailyDollarVolume?: number | undefined;
+  annualizedVolatilityPct?: number | undefined;
+  metadataUpdatedAt?: string | undefined;
   xAccounts: string[];
   programs: string[];
 }
@@ -95,8 +109,55 @@ export const ImpactAssessmentSchema = z.object({
   requiresHumanReview: z.boolean().describe(
     "True only when conflicting evidence, uncertain source authenticity, endpoint ambiguity, or a material safety ambiguity could reverse the classification. Missing detailed statistics alone is not sufficient when an authentic primary release clearly reports a prespecified endpoint result.",
   ),
+  marketMateriality: z.number().int().min(0).max(100).optional().describe(
+    "Expected public-company valuation relevance, independent of whether the event contains clinical efficacy data.",
+  ),
+  scientificSignificance: z.number().int().min(0).max(100).optional().describe(
+    "Strength and importance of new scientific or clinical evidence; procedural and financial events can score low here while remaining market-material.",
+  ),
+  regulatorySignificance: z.number().int().min(0).max(100).optional().describe(
+    "Importance of a completed regulator-facing action or agency outcome, distinct from scientific evidence strength.",
+  ),
+  evidenceConfidence: z.number().min(0).max(1).optional().describe(
+    "Confidence that the supplied evidence is authentic, attributable, and correctly interpreted.",
+  ),
+  actionStatus: z.enum([
+    "agency_confirmed",
+    "completed",
+    "in_progress",
+    "planned",
+    "retrospective",
+    "unknown",
+  ]).optional(),
+  assetImportance: z.enum(["lead", "core", "non_core", "not_applicable", "unknown"]).optional(),
+  valuationImpact: z.enum(["transformative", "material", "moderate", "limited", "unknown"]).optional(),
+  eventSignature: z.string().max(160).optional().describe(
+    "Short stable identifier for the underlying event, excluding publisher, timestamp, and article framing.",
+  ),
+  noveltySummary: z.string().max(600).optional().describe(
+    "What is newly completed or agency-confirmed versus prior disclosures supplied in context.",
+  ),
 });
 export type ImpactAssessment = z.infer<typeof ImpactAssessmentSchema>;
+
+export const ImpactAssessmentOutputSchema = ImpactAssessmentSchema.extend({
+  marketMateriality: z.number().int().min(0).max(100),
+  scientificSignificance: z.number().int().min(0).max(100),
+  regulatorySignificance: z.number().int().min(0).max(100),
+  evidenceConfidence: z.number().min(0).max(1),
+  actionStatus: z.enum([
+    "agency_confirmed",
+    "completed",
+    "in_progress",
+    "planned",
+    "retrospective",
+    "unknown",
+  ]),
+  assetImportance: z.enum(["lead", "core", "non_core", "not_applicable", "unknown"]),
+  valuationImpact: z.enum(["transformative", "material", "moderate", "limited", "unknown"]),
+  eventSignature: z.string().max(160),
+  noveltySummary: z.string().max(600),
+});
 
 export type AnalysisMethod = "openai" | "heuristic_demo";
 export type AlertTier = "none" | "watch" | "high" | "urgent";
@@ -110,12 +171,16 @@ export interface AnalysisRecord {
   alertTier: AlertTier;
   policyReasons: string[];
   createdAt: string;
+  eventKey?: string | undefined;
+  eventAnchorAt?: string | undefined;
+  analysisVersion?: number | undefined;
 }
 
 export interface EvidenceContext {
   item: NormalizedItem;
   corroboratingItems: NormalizedItem[];
   company: WatchCompany | null;
+  priorItems?: NormalizedItem[] | undefined;
 }
 
 export interface SourceFetchResult {
@@ -154,11 +219,15 @@ export type FeedMode = z.infer<typeof FeedModeSchema>;
 export const PushModeSchema = z.enum(["all", "watchlist"]);
 export type PushMode = z.infer<typeof PushModeSchema>;
 
+export const AlertPrioritySchema = z.enum(["high", "urgent"]);
+export type AlertPriority = z.infer<typeof AlertPrioritySchema>;
+
 export interface InstallationPreferences {
   installationId: string;
   watchedTickers: string[];
   feedMode: FeedMode;
   pushMode: PushMode;
+  minimumAlertTier: AlertPriority;
   eventTypes: CatalystEventType[];
   updatedAt: string | null;
 }
@@ -211,4 +280,25 @@ export interface StockMovement {
   feed: "iex" | "sip";
   provider: "alpaca";
   basis: "pre_announcement_price";
+}
+
+export interface OutcomeAudit {
+  eventKey: string;
+  itemId: string;
+  ticker: string;
+  eventType: CatalystEventType;
+  alertTier: AlertTier;
+  predictedDirection: ImpactAssessment["stockDirection"];
+  probabilityPositiveMove: number;
+  expectedMoveLowPct: number;
+  expectedMoveBasePct: number;
+  expectedMoveHighPct: number;
+  actualReturnPct: number;
+  directionCorrect: boolean | null;
+  expectedRangeHit: boolean;
+  movementWindow: StockMovement["window"];
+  status: StockMovement["status"];
+  priceStartAt: string;
+  priceEndAt: string;
+  auditedAt: string;
 }

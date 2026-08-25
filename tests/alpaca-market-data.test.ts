@@ -171,6 +171,7 @@ describe("AlpacaMarketDataService", () => {
       keyId: "test-key",
       secretKey: "test-secret",
       feed: "iex",
+      newsEnabled: true,
     });
 
     expect(await service.getMovements([{ id: "item", ticker: "EXBI", publishedAt: new Date().toISOString() }]))
@@ -185,6 +186,7 @@ function configuredService(now: () => Date) {
     keyId: "test-key",
     secretKey: "test-secret",
     feed: "iex",
+    newsEnabled: true,
   }, { now });
 }
 

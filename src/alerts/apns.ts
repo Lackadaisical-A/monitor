@@ -30,7 +30,8 @@ export class ApnsClient {
   ): Promise<ApnsResult> {
     if (!this.configured) throw new Error("APNs is not configured");
     const critical = this.config.allowCritical && device.criticalAuthorized && analysis.alertTier === "urgent";
-    const timeSensitive = !critical && device.timeSensitiveAuthorized && analysis.alertTier === "urgent";
+    const timeSensitive = !critical && device.timeSensitiveAuthorized
+      && (analysis.alertTier === "high" || analysis.alertTier === "urgent");
     const payload = buildApnsPayload(item, analysis, critical, timeSensitive);
     const token = await this.getProviderToken();
     const origin = device.environment === "production" ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com";
@@ -39,7 +40,7 @@ export class ApnsClient {
       return await sendHttp2(session, device.deviceToken, payload, {
         authorization: `bearer ${token}`,
         topic: this.config.bundleId,
-        collapseId: item.id,
+        collapseId: analysis.eventKey ?? item.id,
       });
     } finally {
       session.close();
@@ -74,8 +75,8 @@ export function buildApnsPayload(
   return {
     aps: {
       alert: {
-        title: `${assessment.ticker || item.tickerHint || "Biotech"} · catalyst signal`,
-        subtitle: `${assessment.materiality}/100 materiality · ${(assessment.confidence * 100).toFixed(0)}% analysis confidence`,
+        title: `${assessment.ticker || item.tickerHint || "Biotech"} · ${analysis.alertTier} catalyst`,
+        subtitle: `${assessment.marketMateriality ?? assessment.materiality}/100 market materiality · ${(assessment.confidence * 100).toFixed(0)}% confidence`,
         body: `${item.headline}\nScenario range: ${range}. Verify the primary source before acting.`,
       },
       sound: critical ? { critical: 1, name: "default", volume: 1 } : "default",

@@ -1,5 +1,6 @@
 import type {
   AlertTier,
+  AlertPriority,
   AnalysisRecord,
   CatalystEventType,
   DeviceRegistration,
@@ -8,6 +9,7 @@ import type {
   InstallationAccess,
   InstallationPreferences,
   NormalizedItem,
+  OutcomeAudit,
   PushMode,
   SourceDescriptor,
   StoreTransactionEntitlement,
@@ -29,13 +31,20 @@ export interface SourceStateUpdate {
   fetchedAt: string;
 }
 
+export interface ItemFailureResult {
+  attemptCount: number;
+  retryScheduled: boolean;
+  nextAttemptAt: string | null;
+}
+
 export interface AlertInput {
   id: string;
   itemId: string;
   ticker: string;
   eventType: string;
   tier: AlertTier;
-  status: "sent" | "dry_run" | "failed" | "suppressed";
+  eventKey: string;
+  status: "claimed" | "sent" | "dry_run" | "failed" | "suppressed";
   deviceToken?: string | null;
   response?: unknown;
 }
@@ -45,11 +54,19 @@ export interface SignalStore {
   insertItem(item: NormalizedItem): Awaitable<boolean>;
   insertItems?(items: NormalizedItem[]): Awaitable<number>;
   syncSourceDescriptors?(sources: readonly SourceDescriptor[]): Awaitable<number>;
+  saveCompanyPrograms?(ticker: string, programs: readonly string[]): Awaitable<number>;
+  listCompanyPrograms?(): Awaitable<Array<{ ticker: string; program: string }>>;
   saveAnalysis(record: AnalysisRecord): Awaitable<void>;
   markItem(itemId: string, status: "skipped" | "error"): Awaitable<void>;
+  recordItemFailure?(itemId: string, error: string, maxAttempts?: number): Awaitable<ItemFailureResult>;
   getItem(itemId: string): Awaitable<NormalizedItem | null>;
   getPendingItems(limit?: number): Awaitable<NormalizedItem[]>;
   findCorroboratingItems(item: NormalizedItem, sinceIso: string): Awaitable<NormalizedItem[]>;
+  findPriorItems(item: NormalizedItem, sinceIso: string, limit?: number): Awaitable<NormalizedItem[]>;
+  requeueOutdatedAnalyses?(analysisVersion: number, sinceIso: string, limit?: number): Awaitable<number>;
+  listOutcomeAuditCandidates?(limit?: number, auditedBefore?: string): Awaitable<FeedEntry[]>;
+  saveOutcomeAudit?(audit: OutcomeAudit): Awaitable<void>;
+  listOutcomeAudits?(limit?: number): Awaitable<OutcomeAudit[]>;
   listFeed(limit?: number, publishedBefore?: string | null, tickers?: readonly string[] | null): Awaitable<FeedEntry[]>;
   getAnalysis(itemId: string): Awaitable<AnalysisRecord | null>;
   getSourceCursor(sourceId: string): Awaitable<string | null>;
@@ -68,13 +85,15 @@ export interface SignalStore {
     watchedTickers: string[];
     feedMode: FeedMode;
     pushMode: PushMode;
+    minimumAlertTier?: AlertPriority;
     eventTypes: CatalystEventType[];
   }): Awaitable<InstallationPreferences>;
   upsertDevice(device: DeviceRegistration): Awaitable<void>;
   listDevices(): Awaitable<Array<DeviceRegistration & { active: boolean }>>;
-  listAlertDevices(ticker?: string, eventType?: CatalystEventType): Awaitable<Array<DeviceRegistration & { active: boolean }>>;
+  listAlertDevices(ticker?: string, eventType?: CatalystEventType, tier?: AlertTier): Awaitable<Array<DeviceRegistration & { active: boolean }>>;
   deactivateDevice(deviceToken: string): Awaitable<void>;
-  hasRecentAlert(ticker: string, eventType: string, sinceIso: string): Awaitable<boolean>;
+  hasRecentAlert(eventKey: string, tier: AlertTier, sinceIso: string): Awaitable<boolean>;
+  tryClaimAlertEvent?(input: AlertInput, sinceIso: string): Awaitable<boolean>;
   saveAlert(input: AlertInput): Awaitable<void>;
   stats(): Awaitable<Record<string, number>>;
   tryAcquireScanLease?(leaseId: string, expiresAt: string): Awaitable<boolean>;

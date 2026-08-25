@@ -14,18 +14,19 @@ It does **not** claim that any announcement will definitely move a stock. Market
 - RSS/Atom adapter with FDA regulatory feeds, GlobeNewswire biotech/pharma wires, Fierce Biotech, STAT Biotech, and BioSpace defaults.
 - Official Federal Register monitoring for newly published FDA advisory committee notices.
 - Press-release monitoring across the full configured watchlist, plus full-text primary-tier Moderna investor-relations ingestion.
+- Alpaca/Benzinga market-news ingestion across the watchlist when Alpaca credentials are configured.
 - Primary-tier support for company IR feeds you add to `config/sources.json`.
 - X API v2 recent search using a bearer token and `since_id` cursor.
 - Reddit OAuth Data API adapter, disabled without approved credentials.
 - ClinicalTrials.gov API v2 monitoring for sponsors on your watchlist.
 - SEC submissions and 8-K/6-K primary-document ingestion for watchlist CIKs.
-- SQLite deduplication, source cursors, device registration, cooldowns, and an alert audit log.
+- SQLite deduplication, source cursors, bounded analysis retries, event-level cooldowns, and alert/outcome audit logs.
 - OpenAI Responses API structured output with `gpt-5.6-luna` as the configurable default.
 - Offline demo heuristic with a hard block against high/urgent alerts.
 - Time Sensitive APNs notifications, plus guarded Critical Alert payload support.
 - Token-protected responsive dashboard and iOS 17+ SwiftUI app source.
 - Per-installation iPhone authentication, StoreKit 2 subscriptions, and server-side App Store JWS verification.
-- Per-installation company watchlists, All/Following feed modes, and company/event-specific Pro alert routing on web and iPhone.
+- Per-installation company watchlists, All/Following feed modes, and company/event/priority-specific Pro alert routing on web and iPhone.
 
 ## Free, Pro, and developer access
 
@@ -37,7 +38,9 @@ The proposed App Store products are `com.yingcui.CatalystWatch.pro.monthly` at $
 
 ## Alert gate
 
-An urgent positive notification must satisfy every applicable check:
+The service has separate `high` and `urgent` notification gates. A high alert requires a market-material, confidently mapped catalyst backed by an issuer/authority source or genuinely independent corroboration. Multiple copies of one issuer release count as one origin.
+
+An urgent positive notification must additionally satisfy every applicable check:
 
 - The item is a genuinely new top-line clinical result or regulatory decision—not enrollment, conference scheduling, a registry-only edit, or repeated data.
 - A public ticker is mapped.
@@ -48,9 +51,10 @@ An urgent positive notification must satisfy every applicable check:
 - The scenario is positive, has a conditional positive-move estimate of at least 75%, and has a positive base-case range.
 - The analysis does not request human review.
 - The real structured AI analyzer ran; offline/demo output is never allowed to escalate.
-- A per-ticker/event cooldown has expired.
+- No alert for the same clustered event and priority has already been claimed or delivered.
+- The event is still inside the configured freshness window.
 
-Social-only evidence can never issue an urgent alert. High-impact negative news remains visible as `high`, but this MVP only pushes the conservative positive `urgent` tier requested here.
+Social-only evidence can never issue a high or urgent alert. Confirmed severe negative actions such as a clinical hold, CRL, filing rejection, or failed primary endpoint have a separate conservative escalation path. Developer installations receive `high` and `urgent` notifications by default; Pro users can choose `High + Urgent` or `Urgent only` in alert routing.
 
 ## Quick start
 
@@ -91,7 +95,9 @@ Each company can include:
 }
 ```
 
-Accurate aliases and program names reduce misses and false matches. `cik` enables SEC polling. Market-cap bands are supplied to the analyst as context, but the current MVP does not ingest real-time quotes or options data.
+Accurate aliases and program names reduce misses and false matches. `cik` enables SEC polling. Market-cap bands are supplied to the analyst as context; Alpaca one-minute bars are used only for post-announcement outcome measurement, not as evidence for classification. Options and consensus-expectation data are not ingested.
+
+ClinicalTrials.gov intervention names are learned for matched sponsors, persisted in SQLite, and reused as program aliases after restarts. Review the generated aliases periodically because registry sponsor and intervention naming is not perfectly standardized.
 
 ## Add company IR and outlet feeds
 
@@ -124,6 +130,10 @@ Set `OPENAI_API_KEY`. Keep it on the server; never put it in the iOS app. `OPENA
 ### Announcement-window market movement
 
 Set `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY` only on the server. `ALPACA_DATA_FEED` defaults to `iex`. `ALPACA_MARKET_DATA_SCOPE=developer` exposes movement only to the dashboard and developer entitlement; use `all` only when the account's market-data agreement permits display to end users. Movement is measured from the last available one-minute close before publication through the latest available bar. The window updates every five minutes while the app is open and freezes at five elapsed days. This preserves announcement gaps for premarket, after-hours, weekend, and holiday releases.
+
+`ALPACA_NEWS_ENABLED=true` also polls Alpaca News for tagged watchlist coverage. The current Alpaca feed is supplied by Benzinga; it complements issuer, SEC, FDA, registry, and trade-publication sources rather than replacing them. Access latency depends on the Alpaca account's data plan.
+
+The server periodically persists realized announcement-window returns for analyzed events. Developer/dashboard users can inspect aggregate direction accuracy and expected-range coverage at `GET /api/outcomes`.
 
 ### X
 
@@ -219,6 +229,7 @@ npm start          Run compiled server
 - `GET /api/preferences` / `PUT /api/preferences` — read or update the authenticated installation's company, feed, and alert filters.
 - `GET /api/feed?scope=all|watchlist` — evidence and analysis feed, with personalization and the Free delay enforced server-side.
 - `GET /api/watchlist` — return the complete monitored company universe, follow state, and source-coverage diagnostics.
+- `GET /api/outcomes` — developer/dashboard outcome calibration summary and records.
 - `GET /api/signals/:id` — one evidence record and analysis.
 - `POST /api/scan` — manually trigger a scan; dashboard, Pro, or developer access required.
 - `POST /api/devices` — register/update an APNs token for an authenticated installation.

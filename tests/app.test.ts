@@ -51,10 +51,12 @@ describe("HTTP app", () => {
       headers: clientHeaders(),
       payload: { credential: "developer-token-that-is-long-and-private" },
     });
+    const preferences = await app.inject({ method: "GET", url: "/api/preferences", headers: clientHeaders() });
     const scan = await app.inject({ method: "POST", url: "/api/scan", headers: clientHeaders() });
 
     expect(activation.statusCode).toBe(200);
     expect(activation.json().access).toMatchObject({ level: "developer", pro: true, source: "developer" });
+    expect(preferences.json().preferences.minimumAlertTier).toBe("high");
     expect(scan.statusCode).toBe(200);
     expect(runCount).toBe(1);
     await app.close();
@@ -283,7 +285,7 @@ function config(): AppConfig {
     },
     openaiApiKey: "",
     openaiModel: "test-model",
-    alpaca: { scope: "disabled", keyId: "", secretKey: "", feed: "iex" },
+    alpaca: { scope: "disabled", keyId: "", secretKey: "", feed: "iex", newsEnabled: true },
     watchlist: [
       {
         ticker: "MRNA", company: "Moderna", aliases: ["Moderna, Inc."], cik: "0001682852",
@@ -302,7 +304,18 @@ function config(): AppConfig {
     secEnabled: false,
     fdaAdcomEnabled: false,
     secUserAgent: "",
-    alertPolicy: { dryRun: true, minMateriality: 88, minConfidence: 0.86, cooldownMinutes: 240 },
+    alertPolicy: {
+      dryRun: true,
+      highMinMateriality: 70,
+      highMinConfidence: 0.8,
+      minMateriality: 88,
+      minConfidence: 0.86,
+      cooldownMinutes: 240,
+      maxAgeMinutes: 30,
+    },
+    analysis: { concurrency: 4, batchSize: 100, historyDays: 180 },
+    slo: { discoverySeconds: 120, analysisSeconds: 45, pushSeconds: 180 },
+    outcomes: { intervalMinutes: 15, batchSize: 30 },
     apns: {
       teamId: "",
       keyId: "",

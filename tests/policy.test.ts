@@ -152,12 +152,67 @@ describe("deterministic alert policy", () => {
       id: "item-2",
       externalId: "external-2",
       source: { id: "second-news", name: "Second News", type: "outlet", tier: "secondary" },
+      url: "https://second-news.test/clinical-hold",
     }];
 
     const decision = decideAlert(clinicalHold, context, "openai", { minMateriality: 88, minConfidence: 0.86 });
 
     expect(decision.tier).toBe("high");
     expect(decision.reasons).toContain("passed severe negative high-priority gate");
+  });
+
+  it("classifies a concrete small-cap regulatory business update as high without pretending it is topline data", () => {
+    const update: ImpactAssessment = {
+      ...strongPositive,
+      companyName: "Anavex Life Sciences",
+      ticker: "AVXL",
+      eventType: "regulatory_update",
+      trialPhase: "phase_3",
+      trialName: "ANAVEX2-73-RS-005",
+      indication: "Rett syndrome and Alzheimer disease",
+      resultDirection: "positive",
+      stockDirection: "bullish",
+      materiality: 58,
+      marketMateriality: 58,
+      scientificSignificance: 25,
+      regulatorySignificance: 76,
+      evidenceConfidence: 0.94,
+      confidence: 0.9,
+      probabilityPositiveMove: 0.68,
+      expectedMoveLowPct: -4,
+      expectedMoveBasePct: 8,
+      expectedMoveHighPct: 20,
+      primaryEndpointMet: "not_reported",
+      statisticalStrength: "not_reported",
+      safetyAssessment: "not_reported",
+      noveltyVsPriorDisclosure: "incremental",
+      actionStatus: "completed",
+      assetImportance: "lead",
+      valuationImpact: "material",
+      eventSignature: "avxl-regulatory-business-update-q3-2026",
+      noveltySummary: "Clinical data were submitted to a new FDA IND and a formal FDA meeting request was completed.",
+      evidence: ["The company submitted all Alzheimer clinical-study data to its newly opened FDA IND."],
+      disconfirmingEvidence: ["Two quarterly reports remain outstanding."],
+      requiresHumanReview: true,
+    };
+    const context = makeContext("primary", {
+      headline: "Anavex Life Sciences reports third quarter results and business update",
+      summary: "The company submitted all Alzheimer trial data to a new FDA IND and submitted a formal FDA meeting request for its Rett Phase 3 study.",
+      tickerHint: "AVXL",
+      companyHint: "Anavex Life Sciences",
+    }, "AVXL", "Anavex Life Sciences");
+
+    const decision = decideAlert(update, context, "openai", {
+      minMateriality: 88,
+      minConfidence: 0.86,
+      highMinMateriality: 70,
+      highMinConfidence: 0.8,
+    });
+
+    expect(decision.tier).toBe("high");
+    expect(decision.effectiveMarketMateriality).toBe(76);
+    expect(decision.reasons.join(" ")).toContain("multiple completed lead-asset small-cap regulatory actions");
+    expect(decision.reasons).toContain("market-material event passed the high-priority gate but not the urgent gate");
   });
 
   it("does not treat a positive hold-lift announcement as a severe negative", () => {

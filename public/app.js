@@ -370,6 +370,7 @@ function renderStatus() {
   text("#watchlist-count", configuration.watchlistCount);
   text("#source-count", configuration.sourceCount);
   text("#analyzed-count", stats.analyzed_count || 0);
+  text("#high-count", stats.high_count || 0);
   text("#urgent-count", stats.urgent_count || 0);
   text("#analysis-mode", configuration.analysisMode);
   text("#model-name", configuration.model);
@@ -378,7 +379,8 @@ function renderStatus() {
       ? `${configuration.scanIntervalSeconds} sec`
       : `${Math.round(configuration.scanIntervalSeconds / 60)} min`);
   }
-  text("#thresholds", `${configuration.urgentThresholds.materiality} / ${Math.round(configuration.urgentThresholds.confidence * 100)}%`);
+  const highThresholds = configuration.highThresholds || { materiality: 70, confidence: 0.8 };
+  text("#thresholds", `${highThresholds.materiality}/${Math.round(highThresholds.confidence * 100)} · ${configuration.urgentThresholds.materiality}/${Math.round(configuration.urgentThresholds.confidence * 100)}`);
 }
 
 function renderAccess() {
@@ -467,7 +469,7 @@ function renderSignals() {
           </span>
         </span>
         <span class="signal-score">
-          <strong>${assessment?.materiality ?? "--"}</strong>
+          <strong>${assessment?.marketMateriality ?? assessment?.materiality ?? "--"}</strong>
           <small>${confidence}% conf.</small>
           <span class="mini-bar"><span style="width:${confidence}%"></span></span>
         </span>
@@ -513,7 +515,7 @@ function signalDetail(entry) {
     <h2>${escapeHtml(item.headline)}</h2>
     <div class="detail-source">${escapeHtml(item.source.name)} · ${formatDate(item.publishedAt)} · ${escapeHtml(analysis.model)}</div>
     <div class="score-strip">
-      <div><span>Materiality</span><strong>${assessment.materiality}/100</strong></div>
+      <div><span>Market materiality</span><strong>${assessment.marketMateriality ?? assessment.materiality}/100</strong></div>
       <div><span>Confidence</span><strong>${Math.round(assessment.confidence * 100)}%</strong></div>
       <div><span>Scenario range</span><strong>${escapeHtml(range)}</strong></div>
       ${movement ? `<div><span>${escapeHtml(movementWindowTitle(movement))}</span><strong class="movement-value ${movementClass(movement.changePct)}">${marketSigned(movement.changePct)}</strong></div>` : ""}

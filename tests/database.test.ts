@@ -116,6 +116,18 @@ describe("SignalDatabase", () => {
 
     expect(db.listDevices()).toHaveLength(3);
     expect(db.listAlertDevices().map((device) => device.installationId).sort()).toEqual([developerId, proId].sort());
+    expect(db.listAlertDevices("MRNA", "regulatory_update", "high").map((device) => device.installationId))
+      .toEqual([developerId]);
+    db.updateInstallationPreferences({
+      installationId: proId,
+      watchedTickers: [],
+      feedMode: "all",
+      pushMode: "all",
+      minimumAlertTier: "high",
+      eventTypes: ["regulatory_update"],
+    });
+    expect(db.listAlertDevices("MRNA", "regulatory_update", "high").map((device) => device.installationId).sort())
+      .toEqual([developerId, proId].sort());
   });
 
   it("moves an APNs token to the current installation", () => {
@@ -142,6 +154,16 @@ describe("SignalDatabase", () => {
     });
 
     expect(db.listDevices()).toMatchObject([{ installationId: currentId, deviceToken }]);
+  });
+
+  it("persists learned program aliases without case-variant duplicates", () => {
+    db = new SignalDatabase(":memory:");
+    db.saveCompanyPrograms("avxl", ["ANAVEX2-73", "blarcamesine", "Blarcamesine"]);
+
+    expect(db.listCompanyPrograms()).toEqual([
+      { ticker: "AVXL", program: "ANAVEX2-73" },
+      { ticker: "AVXL", program: "blarcamesine" },
+    ]);
   });
 
   it("stores an installation watchlist and filters its feed", () => {
@@ -217,6 +239,37 @@ describe("SignalDatabase", () => {
       .toEqual([allId, modernaId].sort());
     expect(db.listAlertDevices("VRTX", "regulatory_decision").map((device) => device.installationId)).toEqual([allId]);
     expect(db.listAlertDevices("MRNA", "trial_topline").map((device) => device.installationId)).toEqual([allId]);
+  });
+
+  it("rekeys an existing alert when event identity is reconciled", () => {
+    db = new SignalDatabase(":memory:");
+    const item = signalItem("rekeyed", "RGNX");
+    db.insertItem(item);
+    db.saveAlert({
+      id: "alert-rekeyed",
+      itemId: item.id,
+      ticker: "RGNX",
+      eventType: "regulatory_decision",
+      tier: "urgent",
+      eventKey: "RGNX:old",
+      status: "sent",
+    });
+    db.saveAnalysis({
+      itemId: item.id,
+      model: "test-model",
+      method: "openai",
+      assessment: assessment(),
+      policyScore: 90,
+      alertTier: "urgent",
+      policyReasons: ["test"],
+      createdAt: new Date().toISOString(),
+      eventKey: "RGNX:canonical",
+      eventAnchorAt: item.publishedAt,
+      analysisVersion: 2,
+    });
+
+    expect(db.hasRecentAlert("RGNX:canonical", "urgent", new Date(0).toISOString())).toBe(true);
+    expect(db.hasRecentAlert("RGNX:old", "urgent", new Date(0).toISOString())).toBe(false);
   });
 
   it("downgrades an expired subscription without deleting its purchase record", () => {

@@ -7,11 +7,13 @@ import Fastify, { LogController, type FastifyInstance, type FastifyRequest } fro
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
 import { AlpacaMarketDataService, type MarketDataProvider } from "./market-data/alpaca.js";
+import { summarizeOutcomes } from "./outcomes.js";
 import type { MonitorPipeline } from "./pipeline.js";
 import type { SignalStore } from "./store.js";
 import { AppStoreSubscriptionVerifier, type SubscriptionVerifier } from "./subscriptions.js";
 import {
   CatalystEventTypeSchema,
+  AlertPrioritySchema,
   FeedModeSchema,
   PushModeSchema,
   type CompanyCoverage,
@@ -50,6 +52,7 @@ const PreferencesUpdateSchema = z.object({
   watchedTickers: z.array(z.string().trim().min(1).max(12)).max(500),
   feedMode: FeedModeSchema,
   pushMode: PushModeSchema,
+  minimumAlertTier: AlertPrioritySchema.optional(),
   eventTypes: z.array(CatalystEventTypeSchema).min(1),
 });
 
@@ -106,6 +109,7 @@ export async function createApp(
   }, async (request) => {
     const access = await requireClientAccess(request, db);
     const body = PreferencesUpdateSchema.parse(request.body);
+    const currentPreferences = await db.getInstallationPreferences(access.installationId);
     const knownTickers = new Set(config.watchlist.map((company) => company.ticker));
     const watchedTickers = [...new Set(body.watchedTickers.map((ticker) => ticker.toUpperCase()))];
     const unknownTickers = watchedTickers.filter((ticker) => !knownTickers.has(ticker));
@@ -121,6 +125,7 @@ export async function createApp(
       watchedTickers,
       feedMode: body.feedMode,
       pushMode: body.pushMode,
+      minimumAlertTier: body.minimumAlertTier ?? currentPreferences.minimumAlertTier,
       eventTypes: body.eventTypes,
     });
     return preferencesResponse(config, access, preferences);
@@ -166,6 +171,7 @@ export async function createApp(
       configuration: {
         sourceCount: config.rssSources.length
           + config.quoteMediaSources.length
+          + Number(config.alpaca.newsEnabled && Boolean(config.alpaca.keyId && config.alpaca.secretKey))
           + Number(Boolean(config.x.bearerToken))
           + Number(Boolean(config.reddit.clientId && config.reddit.clientSecret))
           + Number(config.clinicalTrialsEnabled && config.watchlist.length > 0)
@@ -189,7 +195,16 @@ export async function createApp(
           materiality: config.alertPolicy.minMateriality,
           confidence: config.alertPolicy.minConfidence,
         },
+        highThresholds: {
+          materiality: config.alertPolicy.highMinMateriality,
+          confidence: config.alertPolicy.highMinConfidence,
+        },
+        alertMaxAgeMinutes: config.alertPolicy.maxAgeMinutes,
+        analysisConcurrency: config.analysis.concurrency,
+        outcomeAudit: config.outcomes,
+        slo: config.slo,
       },
+      telemetry: typeof pipeline.telemetry === "function" ? pipeline.telemetry() : null,
     };
   });
 
@@ -246,18 +261,36 @@ export async function createApp(
       preferences,
       limit: access ? watchlistLimit(config, access) : config.watchlist.length,
       companies: config.watchlist.map((watchCompany) => {
-        const { ticker, company, aliases, marketCapBand, programs } = watchCompany;
+        const {
+          ticker, company, aliases, marketCapBand, marketCapUsd, averageDailyDollarVolume,
+          annualizedVolatilityPct, metadataUpdatedAt, programs,
+        } = watchCompany;
         return {
         ticker,
         company,
         aliases,
         marketCapBand,
+        marketCapUsd,
+        averageDailyDollarVolume,
+        annualizedVolatilityPct,
+        metadataUpdatedAt,
         programs,
           followed: followed.has(ticker),
           coverage: companyCoverage(config, watchCompany),
         };
       }),
     };
+  });
+
+  app.get("/api/outcomes", async (request) => {
+    const dashboard = isDashboardAuthorized(request, config);
+    const access = dashboard ? null : await requireClientAccess(request, db);
+    if (!dashboard && access?.level !== "developer") throw httpError(403, "Developer access is required");
+    const query = z.object({
+      limit: z.coerce.number().int().min(1).max(1_000).default(250),
+    }).parse(request.query);
+    const audits = db.listOutcomeAudits ? await db.listOutcomeAudits(query.limit) : [];
+    return { summary: summarizeOutcomes(audits), audits };
   });
 
   app.post("/api/scan", async (request, reply) => {
@@ -305,7 +338,11 @@ async function attachMarketMovements(
     const candidates = publicEntries.flatMap((entry) => {
       const assessment = entry.analysis?.assessment;
       const ticker = assessment?.isBiotechCatalyst ? assessment.ticker.trim() : "";
-      return ticker ? [{ id: entry.item.id, ticker, publishedAt: entry.item.publishedAt }] : [];
+      return ticker ? [{
+        id: entry.item.id,
+        ticker,
+        publishedAt: entry.analysis?.eventAnchorAt ?? entry.item.publishedAt,
+      }] : [];
     });
     if (!candidates.length) return publicEntries.map((entry) => ({ ...entry, marketMovement: null }));
     const movements = await marketData.getMovements(candidates);

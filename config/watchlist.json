@@ -1992,15 +1992,22 @@
   },
   {
     "ticker": "RGNX",
-    "company": "Regenxbio",
+    "company": "REGENXBIO",
     "aliases": [
       "$RGNX",
       "REGENXBIO Inc."
     ],
     "cik": "0001590877",
-    "marketCapBand": "unknown",
+    "marketCapBand": "small",
     "xAccounts": [],
-    "programs": []
+    "programs": [
+      "RGX-121",
+      "clemidsogene lanparvovec",
+      "CAMPSIITE",
+      "RGX-202",
+      "RGX-314",
+      "RGX-381"
+    ]
   },
   {
     "ticker": "SANA",
@@ -2374,16 +2381,21 @@
   },
   {
     "ticker": "AVXL",
-    "company": "Anavex Life Sciences Corp",
+    "company": "Anavex Life Sciences",
     "aliases": [
       "$AVXL",
       "ANAVEX LIFE SCIENCES CORP.",
       "Anavex Life"
     ],
     "cik": "0001314052",
-    "marketCapBand": "unknown",
+    "marketCapBand": "small",
     "xAccounts": [],
-    "programs": []
+    "programs": [
+      "ANAVEX2-73",
+      "blarcamesine",
+      "ANAVEX3-71",
+      "ANAVEX1-41"
+    ]
   },
   {
     "ticker": "BIOA",

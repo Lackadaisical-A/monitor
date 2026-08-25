@@ -1,7 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import type { RssSourceConfig } from "../config.js";
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { canonicalUrl, findWatchCompany, isoDate, itemId, stripHtml } from "../utils.js";
+import { canonicalUrl, isoDate, itemId, resolveWatchCompany, stripHtml } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 const parser = new XMLParser({
@@ -50,7 +50,13 @@ export class RssSource implements SourceAdapter {
       const summary = stripHtml(
         asText(entry["content:encoded"]) || asText(entry.content) || asText(entry.description) || asText(entry.summary),
       ).slice(0, 12_000);
-      const company = findWatchCompany(`${headline} ${summary}`, this.watchlist);
+      const company = resolveWatchCompany({ headline, summary }, this.watchlist);
+      const wireRelease = /(?:globe ?newswire|accesswire|pr ?newswire|business ?wire|newsfile)/i.test(
+        `${this.descriptor.name} ${nullableText(entry.author) ?? ""} ${url}`,
+      );
+      const provenance = this.descriptor.type === "regulator" || this.descriptor.type === "company_ir"
+        ? "direct_primary"
+        : wireRelease ? "syndicated_primary" : "independent_reporting";
       return [{
         id: itemId(this.descriptor.id, externalId, url, headline),
         externalId,
@@ -63,6 +69,14 @@ export class RssSource implements SourceAdapter {
         discoveredAt,
         companyHint: company?.company ?? null,
         tickerHint: company?.ticker ?? null,
+        provenance,
+        independenceKey: provenance === "direct_primary" && this.descriptor.type === "company_ir" && company
+          ? `issuer:${company.ticker.toLowerCase()}`
+          : provenance === "syndicated_primary" && company
+            ? `issuer:${company.ticker.toLowerCase()}`
+            : provenance === "direct_primary"
+              ? `authority:${this.descriptor.id}`
+              : publisherKey(url, this.descriptor.id),
         raw: entry,
       }];
     });
@@ -141,4 +155,12 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+}
+
+function publisherKey(url: string, fallback: string): string {
+  try {
+    return `publisher:${new URL(url).hostname.replace(/^www\./, "")}`;
+  } catch {
+    return `publisher:${fallback}`;
+  }
 }

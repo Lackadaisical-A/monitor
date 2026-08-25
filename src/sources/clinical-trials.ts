@@ -1,5 +1,5 @@
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { findWatchCompany, isoDate, itemId, mapWithConcurrency } from "../utils.js";
+import { isoDate, itemId, mapWithConcurrency, resolveWatchCompany } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 interface ClinicalStudy {
@@ -24,6 +24,13 @@ interface ClinicalStudy {
     descriptionModule?: { briefSummary?: string; detailedDescription?: string };
     conditionsModule?: { conditions?: string[] };
     outcomesModule?: { primaryOutcomes?: Array<{ measure?: string; description?: string }> };
+    armsInterventionsModule?: {
+      interventions?: Array<{
+        type?: string;
+        name?: string;
+        otherNames?: string[];
+      }>;
+    };
   };
   hasResults?: boolean;
   resultsSection?: unknown;
@@ -84,6 +91,9 @@ export class ClinicalTrialsSource implements SourceAdapter {
       const isFreshResults = Boolean(resultsDate && resultsDate >= since);
       const headline = `ClinicalTrials.gov ${isFreshResults ? "results posted" : "record updated"}: ${title}`;
       const outcomes = protocol?.outcomesModule?.primaryOutcomes?.map((outcome) => `${outcome.measure ?? ""}: ${outcome.description ?? ""}`).join("\n") ?? "";
+      const interventions = protocol?.armsInterventionsModule?.interventions ?? [];
+      const interventionNames = interventions.flatMap((intervention) => [intervention.name, ...(intervention.otherNames ?? [])])
+        .filter((value): value is string => Boolean(value));
       const summary = [
         `Sponsor: ${sponsor}`,
         `NCT ID: ${nctId}`,
@@ -92,12 +102,14 @@ export class ClinicalTrialsSource implements SourceAdapter {
         `Has posted results: ${study.hasResults ? "yes" : "no"}`,
         `Conditions: ${protocol?.conditionsModule?.conditions?.join(", ") ?? "not reported"}`,
         `Enrollment: ${protocol?.designModule?.enrollmentInfo?.count ?? "not reported"}`,
+        `Interventions: ${interventionNames.join(", ") || "not reported"}`,
         `Brief summary: ${protocol?.descriptionModule?.briefSummary ?? ""}`,
         outcomes ? `Registered primary outcomes: ${outcomes}` : "",
         // ClinicalTrials.gov results are structured and may be large. The raw record remains stored for audit.
         study.resultsSection ? `Posted results payload: ${JSON.stringify(study.resultsSection).slice(0, 10_000)}` : "",
       ].filter(Boolean).join("\n").slice(0, 16_000);
-      const company = findWatchCompany(`${sponsor} ${title} ${summary}`, this.watchlist);
+      const company = resolveWatchCompany({ headline: title, summary, companyHint: sponsor }, this.watchlist);
+      if (company) learnCompanyPrograms(company, interventions);
       const url = `https://clinicaltrials.gov/study/${nctId}`;
       const version = status?.lastUpdatePostDateStruct?.date ?? resultsDate ?? discoveredAt.slice(0, 10);
       const item = {
@@ -112,6 +124,8 @@ export class ClinicalTrialsSource implements SourceAdapter {
         discoveredAt,
         companyHint: company?.company ?? (sponsor || null),
         tickerHint: company?.ticker ?? null,
+        provenance: "registry",
+        independenceKey: `registry:${nctId}`,
         raw: study,
       } satisfies NormalizedItem;
       itemsById.set(item.id, item);
@@ -155,6 +169,26 @@ export class ClinicalTrialsSource implements SourceAdapter {
       page += 1;
     } while (nextPageToken && page < MAX_PAGES_PER_BATCH);
     return { studies, totalCount, truncated: Boolean(nextPageToken) };
+  }
+}
+
+function learnCompanyPrograms(
+  company: WatchCompany,
+  interventions: NonNullable<NonNullable<ClinicalStudy["protocolSection"]>["armsInterventionsModule"]>["interventions"] = [],
+): void {
+  const eligibleTypes = new Set(["DRUG", "BIOLOGICAL", "GENETIC"]);
+  const existing = new Set(company.programs.map((program) => program.toLowerCase()));
+  for (const intervention of interventions ?? []) {
+    if (intervention.type && !eligibleTypes.has(intervention.type.toUpperCase())) continue;
+    for (const raw of [intervention.name, ...(intervention.otherNames ?? [])]) {
+      const program = raw?.trim() ?? "";
+      if (!program || program.length < 3 || program.length > 80) continue;
+      if (/^(?:placebo|standard of care|best supportive care|no intervention)$/i.test(program)) continue;
+      if (existing.has(program.toLowerCase())) continue;
+      company.programs.push(program);
+      existing.add(program.toLowerCase());
+      if (company.programs.length >= 250) return;
+    }
   }
 }
 

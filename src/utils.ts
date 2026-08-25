@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { WatchCompany } from "./types.js";
+import type { SourceType, WatchCompany } from "./types.js";
 
 const TRACKING_PARAMS = new Set([
   "utm_source",
@@ -68,25 +68,94 @@ export function itemId(sourceId: string, externalId: string, url: string, headli
 }
 
 export function findWatchCompany(text: string, watchlist: WatchCompany[]): WatchCompany | null {
-  const haystack = ` ${text.toLowerCase()} `;
-  for (const company of watchlist) {
-    const candidates = [company.company, ...company.aliases, ...company.programs];
-    if (candidates.some((candidate) => {
-      const needle = candidate.trim().toLowerCase();
-      if (!needle) return false;
-      if (needle.length <= 5 && /^[a-z]+$/i.test(needle)) {
-        return new RegExp(`(?:^|[^a-z0-9])${escapeRegex(needle)}(?:$|[^a-z0-9])`, "i").test(text);
-      }
-      return haystack.includes(needle);
-    }) || tickerMatches(text, company.ticker)) return company;
-  }
-  return null;
+  return resolveWatchCompany({ headline: text, summary: "" }, watchlist);
 }
 
-export function isCatalystCandidate(text: string, watchlist: WatchCompany[]): boolean {
-  const company = findWatchCompany(text, watchlist);
-  const catalyst = /\b(phase\s*(?:1|2|3|i|ii|iii)|clinical trial|topline|top-line|primary endpoint|secondary endpoint|overall survival|progression.free survival|statistically significant|p\s*[<=>]|fda|approval|complete response letter|crl|fast track|breakthrough therapy|adverse event|safety signal|interim analysis|data readout|results?)\b/i.test(text);
-  return catalyst && (company !== null || watchlist.length === 0);
+export function resolveWatchCompany(
+  input: { headline: string; summary?: string; tickerHint?: string | null; companyHint?: string | null },
+  watchlist: WatchCompany[],
+): WatchCompany | null {
+  const hintedTicker = input.tickerHint?.trim().toUpperCase();
+  if (hintedTicker) {
+    const hinted = watchlist.find((company) => company.ticker === hintedTicker);
+    if (hinted) return hinted;
+  }
+  const headline = input.headline ?? "";
+  const summary = input.summary ?? "";
+  const companyHint = input.companyHint ?? "";
+  const scored = watchlist.map((company) => ({ company, score: companyMatchScore(company, headline, summary, companyHint) }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score);
+  if (!scored.length) return null;
+  if (scored[0]!.score < 60) return null;
+  if (scored.length > 1 && scored[0]!.score === scored[1]!.score) return null;
+  return scored[0]!.company;
+}
+
+export function isCatalystCandidate(
+  text: string,
+  watchlist: WatchCompany[],
+  options: {
+    tickerHint?: string | null;
+    sourceType?: SourceType;
+    headline?: string;
+    summary?: string;
+  } = {},
+): boolean {
+  const company = resolveWatchCompany({
+    headline: options.headline ?? text,
+    summary: options.summary ?? "",
+    ...(options.tickerHint !== undefined ? { tickerHint: options.tickerHint } : {}),
+  }, watchlist);
+  if (!company && watchlist.length > 0) return false;
+  if (options.tickerHint && ["company_ir", "sec", "regulator"].includes(options.sourceType ?? "")) return true;
+  return /\b(?:phase\s*(?:1|2|3|i|ii|iii)|clinical(?:\s+trial|\s+study|\s+hold)?|top[- ]?line|primary endpoint|secondary endpoint|overall survival|progression.free survival|statistically significant|p\s*[<=>]|fda|ema|chmp|mhlw|ind|nda|bla|maa|snda|sbla|pdufa|adcom|approval|authori[sz]ation|complete response letter|(?:received|issued|gets?|hit with) (?:an? )?crl|refuse(?:d)?[- ]to[- ]file|fast track|breakthrough therapy|orphan drug|rmat|priority review|adverse event|safety signal|interim analysis|data readout|results?|enrollment|first (?:patient|participant)|dosed|discontinued|paused|terminated|licen[cs](?:e|ing)|partnership|collaboration|acquisition|merger|offering|financing|private placement|debt facility|cash runway|restructuring|bankruptcy|delisting|nasdaq compliance|financial results|earnings)\b/i.test(text);
+}
+
+function companyMatchScore(company: WatchCompany, headline: string, summary: string, companyHint: string): number {
+  let score = 0;
+  if (tickerMatches(headline, company.ticker)) score = Math.max(score, 120);
+  if (tickerMatches(companyHint, company.ticker)) score = Math.max(score, 110);
+  const companyNames = uniqueStrings([
+    company.company,
+    ...company.aliases,
+    simplifiedCompanyName(company.company),
+    distinctiveCompanyToken(company.company),
+  ]);
+  const programNames = uniqueStrings(company.programs);
+  for (const name of companyNames) {
+    if (textContainsEntity(headline, name)) score = Math.max(score, 100 + Math.min(20, name.length));
+    if (textContainsEntity(companyHint, name)) score = Math.max(score, 90 + Math.min(20, name.length));
+    if (textContainsEntity(summary, name)) score = Math.max(score, 35 + Math.min(15, name.length));
+  }
+  for (const program of programNames) {
+    if (textContainsEntity(headline, program)) score = Math.max(score, 85 + Math.min(15, program.length));
+    if (textContainsEntity(summary, program)) score = Math.max(score, 25 + Math.min(10, program.length));
+  }
+  return score;
+}
+
+function textContainsEntity(text: string, candidate: string): boolean {
+  const needle = candidate.trim();
+  if (!needle || needle === "$" || needle.length < 3) return false;
+  if (/^[a-z0-9-]{2,12}$/i.test(needle)) {
+    return new RegExp(`(?:^|[^a-z0-9])${escapeRegex(needle)}(?:$|[^a-z0-9])`, "i").test(text);
+  }
+  return ` ${text.toLowerCase()} `.includes(needle.toLowerCase());
+}
+
+function simplifiedCompanyName(value: string): string {
+  return value.replace(/\s+(?:holdings?|therapeutics?|pharmaceuticals?|sciences?|biopharma|biosciences?)?\s*(?:inc\.?|corp\.?|corporation|ltd\.?|limited|plc|se|sa|ag|nv)$/i, "").trim();
+}
+
+function distinctiveCompanyToken(value: string): string {
+  const first = value.trim().split(/\s+/)[0] ?? "";
+  const generic = new Set(["american", "global", "international", "national", "united"]);
+  return first.length >= 6 && !generic.has(first.toLowerCase()) ? first : "";
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
 export function jaccardSimilarity(a: string, b: string): number {

@@ -108,6 +108,8 @@ export class SecFilingsSource implements SourceAdapter {
         discoveredAt,
         companyHint: company.company,
         tickerHint: company.ticker,
+        provenance: "direct_primary",
+        independenceKey: `sec:${filing.accession}`,
         raw: {
           accession: filing.accession,
           cik: filing.cik,

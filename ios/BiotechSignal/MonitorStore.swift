@@ -226,6 +226,15 @@ final class MonitorStore: ObservableObject {
         _ = await persistPreferences(next)
     }
 
+    func setMinimumAlertTier(_ tier: String) async {
+        guard access.pro else { showingPaywall = true; return }
+        let normalized = tier == "high" ? "high" : "urgent"
+        guard normalized != preferences.minimumAlertTier else { return }
+        var next = preferences
+        next.minimumAlertTier = normalized
+        _ = await persistPreferences(next)
+    }
+
     func toggleEvent(_ event: CatalystEvent) async {
         guard access.pro else { showingPaywall = true; return }
         var selected = Set(preferences.eventTypes)
@@ -364,6 +373,7 @@ final class MonitorStore: ObservableObject {
                     watchedTickers: next.watchedTickers,
                     feedMode: next.feedMode,
                     pushMode: next.pushMode,
+                    minimumAlertTier: next.minimumAlertTier,
                     eventTypes: next.eventTypes
                 )
             )

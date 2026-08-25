@@ -33,4 +33,37 @@ describe("RssSource", () => {
     expect(second.items).toEqual([]);
     expect(second.diagnostics).toMatchObject({ entryCount: 1, newEntryCount: 0 });
   });
+
+  it("does not tag a newsletter item from a company mentioned only in teaser copy", async () => {
+    const xml = `<?xml version="1.0"?>
+      <rss><channel><item>
+        <title>Lady Gaga and her fiance launch a biotech startup</title>
+        <link>https://example.test/unrelated-startup</link>
+        <guid>newsletter-1</guid>
+        <pubDate>Tue, 25 Aug 2026 14:57:00 GMT</pubDate>
+        <description>An inside look back at how Moderna and Merck's cancer vaccine gamble paid off.</description>
+      </item></channel></rss>`;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(xml, { status: 200 })));
+    const source = new RssSource({
+      id: "newsletter",
+      name: "Newsletter",
+      type: "rss",
+      sourceType: "outlet",
+      tier: "secondary",
+      url: "https://example.test/feed.xml",
+      tickers: [],
+      enabled: true,
+    }, [{
+      ticker: "MRNA",
+      company: "Moderna",
+      aliases: ["Moderna, Inc."],
+      marketCapBand: "large",
+      xAccounts: [],
+      programs: ["mRNA-4157"],
+    }], 5_000);
+
+    const result = await source.fetch(null);
+
+    expect(result.items[0]).toMatchObject({ tickerHint: null, companyHint: null });
+  });
 });

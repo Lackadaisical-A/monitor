@@ -68,6 +68,8 @@ export class XRecentSearchSource implements SourceAdapter {
         discoveredAt,
         companyHint: company?.company ?? null,
         tickerHint: company?.ticker ?? null,
+        provenance: "social",
+        independenceKey: `social:x:${post.author_id ?? "unknown"}`,
         raw: post,
       };
     });

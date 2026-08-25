@@ -1,5 +1,5 @@
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
-import { findWatchCompany, isoDate, itemId } from "../utils.js";
+import { isoDate, itemId, resolveWatchCompany } from "../utils.js";
 import { fetchWithTimeout } from "./http.js";
 
 interface RedditPost {
@@ -48,7 +48,7 @@ export class RedditSource implements SourceAdapter {
     const discoveredAt = new Date().toISOString();
     const items: NormalizedItem[] = posts.map((post) => {
       const summary = (post.selftext ?? "").slice(0, 8_000);
-      const company = findWatchCompany(`${post.title} ${summary}`, this.watchlist);
+      const company = resolveWatchCompany({ headline: post.title, summary }, this.watchlist);
       const canonical = `https://www.reddit.com${post.permalink}`;
       return {
         id: itemId(this.descriptor.id, post.name || post.id, canonical, post.title),
@@ -62,6 +62,8 @@ export class RedditSource implements SourceAdapter {
         discoveredAt,
         companyHint: company?.company ?? null,
         tickerHint: company?.ticker ?? null,
+        provenance: "social",
+        independenceKey: `social:reddit:${post.subreddit ?? "unknown"}`,
         raw: post,
       };
     });

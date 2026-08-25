@@ -429,6 +429,7 @@ async function inspectRelease(version, info, build, group, subscriptions) {
   const ageRating = (await api(`/v1/appInfos/${info.id}/ageRatingDeclaration`)).data;
   const infoLocalizations = await all(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`);
   const commerce = await inspectAppCommerce();
+  const testFlight = await inspectTestFlight(build);
   const subscriptionReports = [];
   for (const subscription of subscriptions) {
     const current = (await api(`/v1/subscriptions/${subscription.id}`)).data;
@@ -473,12 +474,47 @@ async function inspectRelease(version, info, build, group, subscriptions) {
     ageRating: { id: ageRating.id, ...ageRating.attributes },
     appInfoLocalizations: infoLocalizations.map((localization) => ({ id: localization.id, ...localization.attributes })),
     appCommerce: commerce,
+    testFlight,
     appVersion: { id: version.id, ...version.attributes },
     build: build ? { id: build.id, ...build.attributes } : null,
     assignedBuild: assignedBuild ? { id: assignedBuild.id, ...assignedBuild.attributes } : null,
     subscriptionGroup: { id: group.id, ...group.attributes },
     subscriptions: subscriptionReports,
     activeSubmissions,
+  };
+}
+
+async function inspectTestFlight(build) {
+  if (!build) return { buildId: null, buildBetaDetail: null, betaReviewSubmission: null, groups: [] };
+
+  const [detail, betaReviewSubmission, groups] = await Promise.all([
+    optional(`/v1/builds/${build.id}/buildBetaDetail`),
+    optional(`/v1/builds/${build.id}/betaAppReviewSubmission`),
+    all(`/v1/apps/${config.appId}/betaGroups?limit=200`),
+  ]);
+  const groupReports = [];
+  for (const group of groups) {
+    const [builds, testers] = await Promise.all([
+      all(`/v1/betaGroups/${group.id}/builds?limit=200`),
+      all(`/v1/betaGroups/${group.id}/betaTesters?limit=200`),
+    ]);
+    groupReports.push({
+      id: group.id,
+      name: group.attributes?.name,
+      isInternalGroup: group.attributes?.isInternalGroup,
+      hasAccessToAllBuilds: group.attributes?.hasAccessToAllBuilds,
+      publicLinkEnabled: group.attributes?.publicLinkEnabled,
+      testerCount: testers.length,
+      includesBuild: builds.some((candidate) => candidate.id === build.id),
+    });
+  }
+  return {
+    buildId: build.id,
+    buildBetaDetail: detail?.data ? { id: detail.data.id, ...detail.data.attributes } : null,
+    betaReviewSubmission: betaReviewSubmission?.data
+      ? { id: betaReviewSubmission.data.id, ...betaReviewSubmission.data.attributes }
+      : null,
+    groups: groupReports,
   };
 }
 

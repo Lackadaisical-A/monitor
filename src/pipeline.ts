@@ -78,6 +78,7 @@ export class MonitorPipeline {
   private readonly discoveryLatencies: number[] = [];
   private readonly analysisLatencies: number[] = [];
   private readonly pushLatencies: number[] = [];
+  private readonly analysisLatencyEligibleItemIds = new Set<string>();
   private lastOutcomeAudit: OutcomeAuditSummary | null = null;
 
   constructor(
@@ -248,6 +249,7 @@ export class MonitorPipeline {
           if (await this.db.insertItem(item)) {
             insertedCount += 1;
             insertedItemIds.add(item.id);
+            if (latencyEligibleItemIds.has(item.id)) this.analysisLatencyEligibleItemIds.add(item.id);
           }
         }
       }
@@ -318,6 +320,7 @@ export class MonitorPipeline {
       headline: item.headline,
       summary: item.summary,
     })) {
+      this.analysisLatencyEligibleItemIds.delete(item.id);
       await this.db.markItem(item.id, "skipped");
       return { ...emptyProcessingSummary(), skippedCount: 1 };
     }
@@ -343,7 +346,9 @@ export class MonitorPipeline {
       } as const;
       await this.db.saveAnalysis(analysis);
       const analysisLatency = (Date.parse(analysis.createdAt) - Date.parse(item.discoveredAt)) / 1000;
-      if (!isReanalysis && analysisLatency >= 0) observe(this.analysisLatencies, analysisLatency);
+      if (!isReanalysis && this.analysisLatencyEligibleItemIds.delete(item.id) && analysisLatency >= 0) {
+        observe(this.analysisLatencies, analysisLatency);
+      }
       let dispatch: AlertDispatchSummary | null = null;
       if (["high", "urgent"].includes(decision.tier)) {
         dispatch = await this.alerts.dispatch(item, analysis);

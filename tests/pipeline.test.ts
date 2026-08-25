@@ -137,6 +137,29 @@ describe("MonitorPipeline processing", () => {
     expect(analyzedContexts.at(-1)?.priorItems?.map((item) => item.id)).toContain(prior.id);
     expect(db.getAnalysis(current.id)?.analysisVersion).toBe(2);
   });
+
+  it("excludes an initial source backfill from steady-state analysis latency", async () => {
+    db = new SignalDatabase(":memory:");
+    const initial = candidateItem("initial-backfill", "outlet", -10);
+    const current = candidateItem("steady-state-item", "outlet", 0);
+    let fetchCount = 0;
+    const adapter: SourceAdapter = {
+      descriptor: { id: "latency-source", name: "Latency source", type: "outlet", tier: "secondary" },
+      fetch: async () => ({
+        items: fetchCount++ === 0 ? [initial] : [current],
+        cursor: new Date().toISOString(),
+      }),
+    };
+    const analyzer: CatalystAnalyzer = {
+      analyze: async () => ({ assessment: routineAssessment(), method: "openai", model: "test" }),
+    };
+    const pipeline = processingPipeline(db, adapter, analyzer, 1);
+
+    await pipeline.run();
+    expect(pipeline.telemetry().analysisLatencySeconds.count).toBe(0);
+    await pipeline.run();
+    expect(pipeline.telemetry().analysisLatencySeconds.count).toBe(1);
+  });
 });
 
 function processingPipeline(

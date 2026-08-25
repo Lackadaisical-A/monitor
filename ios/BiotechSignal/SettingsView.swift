@@ -68,6 +68,7 @@ struct SettingsView: View {
                 }
             }
 
+            #if DEBUG
             Section {
                 TextField("https://monitor.example.com", text: $baseURL)
                     .textInputAutocapitalization(.never)
@@ -90,6 +91,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Installation credentials remain in this iPhone's Keychain.")
             }
+            #endif
 
             Section("Safety") {
                 Label("No signal is guaranteed", systemImage: "exclamationmark.shield")

@@ -1,9 +1,9 @@
-const CACHE_NAME = "catalyst-watch-shell-v9";
+const CACHE_NAME = "catalyst-watch-shell-v10";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/styles.css",
-  "/app.js",
+  "/styles.css?v=10",
+  "/app.js?v=10",
   "/favicon.svg",
   "/site.webmanifest",
 ];
@@ -33,19 +33,14 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const refresh = fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         if (response.ok) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
         return response;
-      });
-      if (cached) {
-        refresh.catch(() => {});
-        return cached;
-      }
-      return refresh;
-    }),
+      })
+      .catch(() => caches.match(request)),
   );
 });

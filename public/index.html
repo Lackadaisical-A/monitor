@@ -27,6 +27,7 @@
 
         <nav class="desktop-tabs" aria-label="Workspace views">
           <button class="view-tab active" data-view="signals" type="button">Signals</button>
+          <button class="view-tab" data-view="timeline" type="button">Timeline</button>
           <button class="view-tab" data-view="watchlist" type="button">Watchlist</button>
           <button class="view-tab" data-view="sources" type="button">Sources</button>
         </nav>
@@ -140,6 +141,42 @@
           </div>
         </section>
 
+        <section id="view-timeline" class="view" data-view-panel="timeline" hidden>
+          <div class="workspace-heading">
+            <div>
+              <div class="kicker">Forward calendar + realized impact</div>
+              <h1>Catalyst timeline</h1>
+            </div>
+            <div class="timeline-updated"><span>Updated</span><strong id="timeline-updated">--</strong></div>
+          </div>
+
+          <div class="timeline-summary" aria-label="Timeline coverage">
+            <div><span>Upcoming</span><strong id="timeline-upcoming-count">--</strong><small>guided milestones</small></div>
+            <div><span>Completed</span><strong id="timeline-completed-count">--</strong><small>recorded catalysts</small></div>
+            <div><span>Benchmarked</span><strong id="timeline-benchmarked-count">--</strong><small>XBI-adjusted</small></div>
+            <div><span>Expectation matched</span><strong id="timeline-matched-count">--</strong><small>forecast to result</small></div>
+          </div>
+
+          <div class="timeline-toolbar">
+            <label class="search-field wide" for="timeline-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="timeline-search" type="search" placeholder="Ticker, program, indication, or event" autocomplete="off" />
+            </label>
+            <div id="timeline-status" class="segmented-control" role="group" aria-label="Timeline status">
+              <button class="active" data-timeline-status="all" type="button">All</button>
+              <button data-timeline-status="upcoming" type="button">Upcoming</button>
+              <button data-timeline-status="completed" type="button">Completed</button>
+            </div>
+          </div>
+
+          <div class="timeline-column-key" aria-hidden="true">
+            <span>Event</span><span>Expectation / alert</span><span>Realized</span>
+          </div>
+          <div id="timeline-list" class="timeline-list" aria-live="polite">
+            <div class="loading-state"><span class="spinner"></span><strong>Loading catalyst timeline</strong></div>
+          </div>
+        </section>
+
         <section id="view-watchlist" class="view" data-view-panel="watchlist" hidden>
           <div class="workspace-heading">
             <div>
@@ -190,6 +227,9 @@
       <nav class="mobile-tabs" aria-label="Workspace views">
         <button class="mobile-tab active" data-view="signals" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M7 15l4-4 3 3 5-7"/></svg><span>Signals</span>
+        </button>
+        <button class="mobile-tab" data-view="timeline" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v4M18 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z"/><path d="M8 13h3M8 17h6"/></svg><span>Timeline</span>
         </button>
         <button class="mobile-tab" data-view="watchlist" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/><path d="M7 4v4M12 10v4M17 16v4"/></svg><span>Watchlist</span>

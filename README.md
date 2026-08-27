@@ -27,6 +27,7 @@ It does **not** claim that any announcement will definitely move a stock. Market
 - Token-protected responsive dashboard and iOS 17+ SwiftUI app source.
 - Per-installation iPhone authentication, StoreKit 2 subscriptions, and server-side App Store JWS verification.
 - Per-installation company watchlists, All/Following feed modes, and company/event/priority-specific Pro alert routing on web and iPhone.
+- A responsive catalyst timeline that combines explicit company guidance, ClinicalTrials.gov schedule dates, completed alerts, frozen expectation snapshots, and realized outcome calibration.
 
 ## Free, Pro, and developer access
 
@@ -133,7 +134,9 @@ Set `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY` only on the server. `ALPACA_
 
 `ALPACA_NEWS_ENABLED=true` also polls Alpaca News for tagged watchlist coverage. The current Alpaca feed is supplied by Benzinga; it complements issuer, SEC, FDA, registry, and trade-publication sources rather than replacing them. Access latency depends on the Alpaca account's data plan.
 
-The server periodically persists realized announcement-window returns for analyzed events. Developer/dashboard users can inspect aggregate direction accuracy and expected-range coverage at `GET /api/outcomes`.
+The server periodically persists realized announcement-window returns for analyzed events. Each audit retains the raw company return and subtracts the matching `XBI` return to estimate sector-adjusted abnormal return. Developer/dashboard users can inspect aggregate direction accuracy and expected-range coverage at `GET /api/outcomes`.
+
+The timeline preserves the original alert-time materiality. It shows a separate post-event materiality after price data arrive; that score adjusts for realized return magnitude and surprise versus the original scenario, and never rewrites the alert record. Future outcome probabilities are frozen model estimates based only on evidence available at that milestone's source timestamp, not market consensus. Registry completion dates are labeled as schedules and do not imply that results will be published on that date.
 
 ### X
 
@@ -228,6 +231,7 @@ npm start          Run compiled server
 - `GET /api/status` — configuration/source status; dashboard bearer or installation credentials required.
 - `GET /api/preferences` / `PUT /api/preferences` — read or update the authenticated installation's company, feed, and alert filters.
 - `GET /api/feed?scope=all|watchlist` — evidence and analysis feed, with personalization and the Free delay enforced server-side.
+- `GET /api/timeline?scope=all|watchlist&status=upcoming|completed` — major upcoming milestones and completed catalysts with expectation and outcome calibration.
 - `GET /api/watchlist` — return the complete monitored company universe, follow state, and source-coverage diagnostics.
 - `GET /api/outcomes` — developer/dashboard outcome calibration summary and records.
 - `GET /api/signals/:id` — one evidence record and analysis.

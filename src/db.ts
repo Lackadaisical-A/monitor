@@ -20,8 +20,10 @@ import type {
   SourceTier,
   SourceType,
   StoreTransactionEntitlement,
+  TimelineEvent,
 } from "./types.js";
 import type { AlertInput, ItemFailureResult, SignalStore } from "./store.js";
+import { clinicalSurpriseScore } from "./timeline.js";
 import { normalizedHeadline } from "./utils.js";
 
 interface ItemRow {
@@ -60,6 +62,73 @@ interface AnalysisRow {
   event_key: string | null;
   event_anchor_at: string | null;
   analysis_version: number | null;
+}
+
+interface OutcomeAuditRow {
+  event_key: string;
+  item_id: string;
+  ticker: string;
+  event_type: CatalystEventType;
+  alert_tier: AlertTier;
+  predicted_direction: ImpactAssessment["stockDirection"];
+  probability_positive_move: number;
+  expected_move_low_pct: number;
+  expected_move_base_pct: number;
+  expected_move_high_pct: number;
+  initial_materiality: number | null;
+  actual_return_pct: number;
+  benchmark_return_pct: number | null;
+  benchmark_basis: OutcomeAudit["benchmarkBasis"];
+  abnormal_return_pct: number | null;
+  market_surprise_score: number;
+  surprise_adjusted_materiality: number;
+  direction_correct: number | null;
+  abnormal_direction_correct: number | null;
+  expected_range_hit: number;
+  movement_window: OutcomeAudit["movementWindow"];
+  status: OutcomeAudit["status"];
+  price_start_at: string;
+  price_end_at: string;
+  audited_at: string;
+  calibration_version: number;
+}
+
+interface TimelineRow {
+  id: string;
+  status: TimelineEvent["status"];
+  basis: TimelineEvent["basis"];
+  ticker: string;
+  company_name: string;
+  program: string;
+  normalized_program: string;
+  indication: string;
+  event_type: CatalystEventType;
+  trial_phase: ImpactAssessment["trialPhase"];
+  title: string;
+  summary: string;
+  event_date: string;
+  initial_event_date: string;
+  date_precision: TimelineEvent["datePrecision"];
+  date_label: string;
+  source_name: string;
+  source_url: string;
+  source_tier: SourceTier;
+  item_id: string | null;
+  event_key: string | null;
+  alert_tier: AlertTier | null;
+  initial_materiality: number | null;
+  anticipated_materiality: number | null;
+  confidence: number | null;
+  expected_direction: ImpactAssessment["resultDirection"] | null;
+  expected_outcome: string | null;
+  expected_success_probability: number | null;
+  expectation_confidence: number | null;
+  expectation_as_of: string | null;
+  result_direction: ImpactAssessment["resultDirection"] | null;
+  expectation_event_id: string | null;
+  resolved_by_event_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface InstallationRow {
@@ -400,7 +469,11 @@ export class SignalDatabase implements SignalStore {
         AND a.alert_tier IN ('watch', 'high', 'urgent')
         AND json_extract(a.assessment_json, '$.isBiotechCatalyst') = 1
         AND COALESCE(a.event_anchor_at, i.published_at) <= ?
-        AND (o.event_key IS NULL OR (o.status <> 'closed' AND o.audited_at <= ?))
+        AND (
+          o.event_key IS NULL
+          OR COALESCE(o.calibration_version, 1) < 2
+          OR (o.status <> 'closed' AND o.audited_at <= ?)
+        )
       ORDER BY
         CASE a.alert_tier WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,
         COALESCE(a.event_anchor_at, i.published_at) DESC
@@ -422,9 +495,12 @@ export class SignalDatabase implements SignalStore {
       INSERT INTO outcome_audits (
         event_key, item_id, ticker, event_type, alert_tier, predicted_direction,
         probability_positive_move, expected_move_low_pct, expected_move_base_pct,
-        expected_move_high_pct, actual_return_pct, direction_correct,
-        expected_range_hit, movement_window, status, price_start_at, price_end_at, audited_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        expected_move_high_pct, initial_materiality, actual_return_pct,
+        benchmark_return_pct, benchmark_basis, abnormal_return_pct,
+        market_surprise_score, surprise_adjusted_materiality, direction_correct,
+        abnormal_direction_correct, expected_range_hit, movement_window, status,
+        price_start_at, price_end_at, audited_at, calibration_version
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(event_key) DO UPDATE SET
         item_id = excluded.item_id,
         ticker = excluded.ticker,
@@ -435,14 +511,22 @@ export class SignalDatabase implements SignalStore {
         expected_move_low_pct = excluded.expected_move_low_pct,
         expected_move_base_pct = excluded.expected_move_base_pct,
         expected_move_high_pct = excluded.expected_move_high_pct,
+        initial_materiality = excluded.initial_materiality,
         actual_return_pct = excluded.actual_return_pct,
+        benchmark_return_pct = excluded.benchmark_return_pct,
+        benchmark_basis = excluded.benchmark_basis,
+        abnormal_return_pct = excluded.abnormal_return_pct,
+        market_surprise_score = excluded.market_surprise_score,
+        surprise_adjusted_materiality = excluded.surprise_adjusted_materiality,
         direction_correct = excluded.direction_correct,
+        abnormal_direction_correct = excluded.abnormal_direction_correct,
         expected_range_hit = excluded.expected_range_hit,
         movement_window = excluded.movement_window,
         status = excluded.status,
         price_start_at = excluded.price_start_at,
         price_end_at = excluded.price_end_at,
-        audited_at = excluded.audited_at
+        audited_at = excluded.audited_at,
+        calibration_version = excluded.calibration_version
     `).run(
       audit.eventKey,
       audit.itemId,
@@ -454,60 +538,215 @@ export class SignalDatabase implements SignalStore {
       audit.expectedMoveLowPct,
       audit.expectedMoveBasePct,
       audit.expectedMoveHighPct,
+      audit.initialMateriality,
       audit.actualReturnPct,
+      audit.benchmarkReturnPct,
+      audit.benchmarkBasis,
+      audit.abnormalReturnPct,
+      audit.marketSurpriseScore,
+      audit.surpriseAdjustedMateriality,
       audit.directionCorrect === null ? null : audit.directionCorrect ? 1 : 0,
+      audit.abnormalDirectionCorrect === null ? null : audit.abnormalDirectionCorrect ? 1 : 0,
       audit.expectedRangeHit ? 1 : 0,
       audit.movementWindow,
       audit.status,
       audit.priceStartAt,
       audit.priceEndAt,
       audit.auditedAt,
+      audit.calibrationVersion,
     );
   }
 
   listOutcomeAudits(limit = 250): OutcomeAudit[] {
     const rows = this.sqlite.prepare(`
       SELECT * FROM outcome_audits ORDER BY audited_at DESC LIMIT ?
-    `).all(limit) as Array<{
-      event_key: string;
-      item_id: string;
-      ticker: string;
-      event_type: CatalystEventType;
-      alert_tier: AlertTier;
-      predicted_direction: ImpactAssessment["stockDirection"];
-      probability_positive_move: number;
-      expected_move_low_pct: number;
-      expected_move_base_pct: number;
-      expected_move_high_pct: number;
-      actual_return_pct: number;
-      direction_correct: number | null;
-      expected_range_hit: number;
-      movement_window: OutcomeAudit["movementWindow"];
-      status: OutcomeAudit["status"];
-      price_start_at: string;
-      price_end_at: string;
-      audited_at: string;
-    }>;
-    return rows.map((row) => ({
-      eventKey: row.event_key,
-      itemId: row.item_id,
-      ticker: row.ticker,
-      eventType: row.event_type,
-      alertTier: row.alert_tier,
-      predictedDirection: row.predicted_direction,
-      probabilityPositiveMove: row.probability_positive_move,
-      expectedMoveLowPct: row.expected_move_low_pct,
-      expectedMoveBasePct: row.expected_move_base_pct,
-      expectedMoveHighPct: row.expected_move_high_pct,
-      actualReturnPct: row.actual_return_pct,
-      directionCorrect: row.direction_correct === null ? null : Boolean(row.direction_correct),
-      expectedRangeHit: Boolean(row.expected_range_hit),
-      movementWindow: row.movement_window,
-      status: row.status,
-      priceStartAt: row.price_start_at,
-      priceEndAt: row.price_end_at,
-      auditedAt: row.audited_at,
-    }));
+    `).all(limit) as OutcomeAuditRow[];
+    return rows.map(rowToOutcomeAudit);
+  }
+
+  upsertTimelineEvents(events: readonly TimelineEvent[]): number {
+    if (!events.length) return 0;
+    const insert = this.sqlite.prepare(`
+      INSERT INTO timeline_events (
+        id, status, basis, ticker, company_name, program, normalized_program,
+        indication, event_type, trial_phase, title, summary, event_date,
+        initial_event_date, date_precision, date_label, source_name, source_url,
+        source_tier, item_id, event_key, alert_tier, initial_materiality,
+        anticipated_materiality, confidence, expected_direction, expected_outcome,
+        expected_success_probability, expectation_confidence, expectation_as_of,
+        result_direction, expectation_event_id, resolved_by_event_id, created_at, updated_at
+      ) VALUES (
+        @id, @status, @basis, @ticker, @companyName, @program, @normalizedProgram,
+        @indication, @eventType, @trialPhase, @title, @summary, @eventDate,
+        @initialEventDate, @datePrecision, @dateLabel, @sourceName, @sourceUrl,
+        @sourceTier, @itemId, @eventKey, @alertTier, @initialMateriality,
+        @anticipatedMateriality, @confidence, @expectedDirection, @expectedOutcome,
+        @expectedSuccessProbability, @expectationConfidence, @expectationAsOf,
+        @resultDirection, @expectationEventId, @resolvedByEventId, @createdAt, @updatedAt
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        basis = excluded.basis,
+        company_name = excluded.company_name,
+        program = excluded.program,
+        normalized_program = excluded.normalized_program,
+        indication = excluded.indication,
+        event_type = excluded.event_type,
+        trial_phase = excluded.trial_phase,
+        title = excluded.title,
+        summary = excluded.summary,
+        event_date = excluded.event_date,
+        date_precision = excluded.date_precision,
+        date_label = excluded.date_label,
+        source_name = excluded.source_name,
+        source_url = excluded.source_url,
+        source_tier = excluded.source_tier,
+        item_id = COALESCE(excluded.item_id, timeline_events.item_id),
+        event_key = COALESCE(excluded.event_key, timeline_events.event_key),
+        alert_tier = COALESCE(timeline_events.alert_tier, excluded.alert_tier),
+        initial_materiality = COALESCE(timeline_events.initial_materiality, excluded.initial_materiality),
+        anticipated_materiality = timeline_events.anticipated_materiality,
+        confidence = COALESCE(timeline_events.confidence, excluded.confidence),
+        expected_direction = timeline_events.expected_direction,
+        expected_outcome = timeline_events.expected_outcome,
+        expected_success_probability = timeline_events.expected_success_probability,
+        expectation_confidence = timeline_events.expectation_confidence,
+        expectation_as_of = timeline_events.expectation_as_of,
+        result_direction = COALESCE(excluded.result_direction, timeline_events.result_direction),
+        updated_at = excluded.updated_at
+    `);
+    return this.sqlite.transaction((values: readonly TimelineEvent[]) => {
+      let changed = 0;
+      const itemIds = [...new Set(values.map((event) => event.itemId).filter((value): value is string => Boolean(value)))];
+      for (const itemId of itemIds) {
+        const upcomingIds = values
+          .filter((event) => event.itemId === itemId && event.status === "upcoming")
+          .map((event) => event.id);
+        const keepClause = upcomingIds.length
+          ? `AND id NOT IN (${upcomingIds.map(() => "?").join(", ")})`
+          : "";
+        changed += this.sqlite.prepare(`
+          DELETE FROM timeline_events
+          WHERE item_id = ? AND status = 'upcoming' AND resolved_by_event_id IS NULL
+          ${keepClause}
+        `).run(itemId, ...upcomingIds).changes;
+      }
+      for (const event of values) {
+        changed += insert.run({ ...event, normalizedProgram: normalizedProgram(event.program) }).changes;
+      }
+      for (const event of values) {
+        if (event.status === "completed") this.linkTimelineExpectation(event.id);
+      }
+      return changed;
+    })(events);
+  }
+
+  listTimelineEvents(
+    limit = 500,
+    status: TimelineEvent["status"] | null = null,
+    publishedBefore: string | null = null,
+    tickers: readonly string[] | null = null,
+  ): TimelineEvent[] {
+    const normalizedTickers = tickers === null
+      ? null
+      : [...new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))];
+    if (normalizedTickers?.length === 0) return [];
+    const clauses = [
+      "resolved_by_event_id IS NULL",
+      `(
+        (
+          status = 'upcoming'
+          AND COALESCE(anticipated_materiality, 0) >= 60
+          AND julianday(event_date) >= julianday('now', '-90 days')
+        )
+        OR (
+          status = 'completed'
+          AND (alert_tier IN ('high', 'urgent') OR COALESCE(initial_materiality, 0) >= 65)
+        )
+      )`,
+    ];
+    const params: Array<string | number> = [];
+    if (status) {
+      clauses.push("status = ?");
+      params.push(status);
+    }
+    if (publishedBefore) {
+      clauses.push(`(
+        (status = 'completed' AND event_date <= ?)
+        OR (status = 'upcoming' AND COALESCE(expectation_as_of, created_at) <= ?)
+      )`);
+      params.push(publishedBefore, publishedBefore);
+    }
+    if (normalizedTickers) {
+      clauses.push(`ticker IN (${normalizedTickers.map(() => "?").join(", ")})`);
+      params.push(...normalizedTickers);
+    }
+    params.push(Math.min(Math.max(limit, 1), 1_000));
+    const queriedRows = this.sqlite.prepare(`
+      SELECT * FROM timeline_events
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY
+        CASE status WHEN 'upcoming' THEN 0 ELSE 1 END,
+        CASE WHEN status = 'upcoming' THEN event_date END ASC,
+        CASE WHEN status = 'completed' THEN event_date END DESC
+      LIMIT ?
+    `).all(...params) as TimelineRow[];
+    const rows = collapseTimelineRows(queriedRows).slice(0, Math.min(Math.max(limit, 1), 1_000));
+    if (!rows.length) return [];
+
+    const outcomeKeys = [...new Set(rows.map((row) => row.event_key).filter((value): value is string => Boolean(value)))];
+    const outcomes = new Map<string, OutcomeAudit>();
+    if (outcomeKeys.length) {
+      const outcomeRows = this.sqlite.prepare(`
+        SELECT * FROM outcome_audits WHERE event_key IN (${outcomeKeys.map(() => "?").join(", ")})
+      `).all(...outcomeKeys) as OutcomeAuditRow[];
+      for (const row of outcomeRows) outcomes.set(row.event_key, rowToOutcomeAudit(row));
+    }
+    const expectationIds = [...new Set(rows.map((row) => row.expectation_event_id).filter((value): value is string => Boolean(value)))];
+    const expectations = new Map<string, TimelineRow>();
+    if (expectationIds.length) {
+      const expectationRows = this.sqlite.prepare(`
+        SELECT * FROM timeline_events WHERE id IN (${expectationIds.map(() => "?").join(", ")})
+      `).all(...expectationIds) as TimelineRow[];
+      for (const row of expectationRows) expectations.set(row.id, row);
+    }
+    return rows.map((row) => rowToTimelineEvent(
+      row,
+      row.event_key ? outcomes.get(row.event_key) ?? null : null,
+      row.expectation_event_id ? expectations.get(row.expectation_event_id) ?? null : null,
+    ));
+  }
+
+  private linkTimelineExpectation(completedId: string): void {
+    const completed = this.sqlite.prepare("SELECT * FROM timeline_events WHERE id = ?")
+      .get(completedId) as TimelineRow | undefined;
+    if (!completed || completed.status !== "completed" || completed.expectation_event_id
+      || !completed.result_direction || completed.result_direction === "unclear") return;
+    const candidates = this.sqlite.prepare(`
+      SELECT * FROM timeline_events
+      WHERE status = 'upcoming' AND resolved_by_event_id IS NULL
+        AND ticker = ? AND julianday(expectation_as_of) <= julianday(?, '-1 day')
+        AND julianday(event_date) >= julianday(?, '-365 days')
+        AND julianday(event_date) <= julianday(?, '+365 days')
+      ORDER BY ABS(julianday(event_date) - julianday(?)) ASC
+      LIMIT 30
+    `).all(
+      completed.ticker,
+      completed.event_date,
+      completed.event_date,
+      completed.event_date,
+      completed.event_date,
+    ) as TimelineRow[];
+    const ranked = candidates.map((candidate) => ({
+      candidate,
+      score: expectationMatchScore(completed, candidate),
+    })).sort((left, right) => right.score - left.score);
+    const best = ranked[0];
+    if (!best || best.score < 7) return;
+    this.sqlite.prepare("UPDATE timeline_events SET expectation_event_id = ? WHERE id = ?")
+      .run(best.candidate.id, completed.id);
+    this.sqlite.prepare("UPDATE timeline_events SET resolved_by_event_id = ?, updated_at = ? WHERE id = ?")
+      .run(completed.id, completed.updated_at, best.candidate.id);
   }
 
   listFeed(limit = 100, publishedBefore: string | null = null, tickers: readonly string[] | null = null): FeedEntry[] {
@@ -932,6 +1171,8 @@ export class SignalDatabase implements SignalStore {
     const personalizedCount = (this.sqlite.prepare("SELECT COUNT(DISTINCT installation_id) AS count FROM installation_watchlist").get() as { count: number }).count;
     const outcomeCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM outcome_audits").get() as { count: number }).count;
     const finalOutcomeCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM outcome_audits WHERE status = 'closed'").get() as { count: number }).count;
+    const timelineCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM timeline_events WHERE resolved_by_event_id IS NULL").get() as { count: number }).count;
+    const upcomingTimelineCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM timeline_events WHERE status = 'upcoming' AND resolved_by_event_id IS NULL").get() as { count: number }).count;
     return {
       ...counts,
       alertCount,
@@ -941,6 +1182,8 @@ export class SignalDatabase implements SignalStore {
       personalized_count: personalizedCount,
       outcome_count: outcomeCount,
       final_outcome_count: finalOutcomeCount,
+      timeline_count: timelineCount,
+      upcoming_timeline_count: upcomingTimelineCount,
     };
   }
 
@@ -1084,6 +1327,47 @@ export class SignalDatabase implements SignalStore {
         audited_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS outcome_audits_status_idx ON outcome_audits(status, audited_at);
+
+      CREATE TABLE IF NOT EXISTS timeline_events (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        basis TEXT NOT NULL,
+        ticker TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        program TEXT NOT NULL DEFAULT '',
+        normalized_program TEXT NOT NULL DEFAULT '',
+        indication TEXT NOT NULL DEFAULT '',
+        event_type TEXT NOT NULL,
+        trial_phase TEXT NOT NULL DEFAULT 'unknown',
+        title TEXT NOT NULL,
+        summary TEXT NOT NULL DEFAULT '',
+        event_date TEXT NOT NULL,
+        initial_event_date TEXT NOT NULL,
+        date_precision TEXT NOT NULL,
+        date_label TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        source_tier TEXT NOT NULL,
+        item_id TEXT REFERENCES items(id) ON DELETE SET NULL,
+        event_key TEXT,
+        alert_tier TEXT,
+        initial_materiality INTEGER,
+        anticipated_materiality INTEGER,
+        confidence REAL,
+        expected_direction TEXT,
+        expected_outcome TEXT,
+        expected_success_probability REAL,
+        expectation_confidence REAL,
+        expectation_as_of TEXT,
+        result_direction TEXT,
+        expectation_event_id TEXT REFERENCES timeline_events(id) ON DELETE SET NULL,
+        resolved_by_event_id TEXT REFERENCES timeline_events(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS timeline_events_date_idx ON timeline_events(status, event_date);
+      CREATE INDEX IF NOT EXISTS timeline_events_ticker_idx ON timeline_events(ticker, event_date);
+      CREATE INDEX IF NOT EXISTS timeline_events_event_idx ON timeline_events(event_key);
     `);
     this.ensureColumn("items", "provenance", "TEXT");
     this.ensureColumn("items", "independence_key", "TEXT");
@@ -1095,10 +1379,31 @@ export class SignalDatabase implements SignalStore {
     this.ensureColumn("analyses", "analysis_version", "INTEGER NOT NULL DEFAULT 1");
     const addedMinimumAlertTier = this.ensureColumn("installation_preferences", "minimum_alert_tier", "TEXT NOT NULL DEFAULT 'urgent'");
     this.ensureColumn("alerts", "event_key", "TEXT");
+    this.ensureColumn("outcome_audits", "initial_materiality", "INTEGER");
+    this.ensureColumn("outcome_audits", "benchmark_return_pct", "REAL");
+    this.ensureColumn("outcome_audits", "benchmark_basis", "TEXT NOT NULL DEFAULT 'unavailable'");
+    this.ensureColumn("outcome_audits", "abnormal_return_pct", "REAL");
+    this.ensureColumn("outcome_audits", "market_surprise_score", "INTEGER NOT NULL DEFAULT 0");
+    this.ensureColumn("outcome_audits", "surprise_adjusted_materiality", "INTEGER NOT NULL DEFAULT 0");
+    this.ensureColumn("outcome_audits", "abnormal_direction_correct", "INTEGER");
+    this.ensureColumn("outcome_audits", "calibration_version", "INTEGER NOT NULL DEFAULT 1");
     this.sqlite.exec(`
       CREATE INDEX IF NOT EXISTS analyses_event_idx ON analyses(event_key, alert_tier);
       CREATE INDEX IF NOT EXISTS alerts_event_idx ON alerts(event_key, sent_at DESC);
       UPDATE alerts SET event_key = ticker || ':' || event_type || ':' || item_id WHERE event_key IS NULL;
+      UPDATE outcome_audits
+      SET initial_materiality = COALESCE(
+        (SELECT COALESCE(
+          json_extract(a.assessment_json, '$.marketMateriality'),
+          json_extract(a.assessment_json, '$.materiality')
+        ) FROM analyses a WHERE a.item_id = outcome_audits.item_id),
+        initial_materiality,
+        0
+      )
+      WHERE initial_materiality IS NULL;
+      UPDATE outcome_audits
+      SET surprise_adjusted_materiality = initial_materiality
+      WHERE calibration_version < 2 AND surprise_adjusted_materiality = 0;
     `);
     if (addedAttemptCount) {
       this.sqlite.prepare(`
@@ -1161,6 +1466,135 @@ function rowToAnalysis(row: AnalysisRow): AnalysisRecord {
     ...(row.event_anchor_at ? { eventAnchorAt: row.event_anchor_at } : {}),
     ...(row.analysis_version ? { analysisVersion: row.analysis_version } : {}),
   };
+}
+
+function rowToOutcomeAudit(row: OutcomeAuditRow): OutcomeAudit {
+  return {
+    eventKey: row.event_key,
+    itemId: row.item_id,
+    ticker: row.ticker,
+    eventType: row.event_type,
+    alertTier: row.alert_tier,
+    predictedDirection: row.predicted_direction,
+    probabilityPositiveMove: row.probability_positive_move,
+    expectedMoveLowPct: row.expected_move_low_pct,
+    expectedMoveBasePct: row.expected_move_base_pct,
+    expectedMoveHighPct: row.expected_move_high_pct,
+    initialMateriality: row.initial_materiality ?? 0,
+    actualReturnPct: row.actual_return_pct,
+    benchmarkReturnPct: row.benchmark_return_pct,
+    benchmarkBasis: row.benchmark_basis,
+    abnormalReturnPct: row.abnormal_return_pct,
+    marketSurpriseScore: row.market_surprise_score,
+    surpriseAdjustedMateriality: row.surprise_adjusted_materiality,
+    directionCorrect: row.direction_correct === null ? null : Boolean(row.direction_correct),
+    abnormalDirectionCorrect: row.abnormal_direction_correct === null ? null : Boolean(row.abnormal_direction_correct),
+    expectedRangeHit: Boolean(row.expected_range_hit),
+    movementWindow: row.movement_window,
+    status: row.status,
+    priceStartAt: row.price_start_at,
+    priceEndAt: row.price_end_at,
+    auditedAt: row.audited_at,
+    calibrationVersion: row.calibration_version,
+  };
+}
+
+function rowToTimelineEvent(
+  row: TimelineRow,
+  outcome: OutcomeAudit | null,
+  expectation: TimelineRow | null,
+): TimelineEvent {
+  const expected = expectation ?? row;
+  return {
+    id: row.id,
+    status: row.status,
+    basis: row.basis,
+    ticker: row.ticker,
+    companyName: row.company_name,
+    program: row.program,
+    indication: row.indication,
+    eventType: row.event_type,
+    trialPhase: row.trial_phase,
+    title: row.title,
+    summary: row.summary,
+    eventDate: row.event_date,
+    initialEventDate: row.initial_event_date,
+    datePrecision: row.date_precision,
+    dateLabel: row.date_label,
+    sourceName: row.source_name,
+    sourceUrl: row.source_url,
+    sourceTier: row.source_tier,
+    itemId: row.item_id,
+    eventKey: row.event_key,
+    alertTier: row.alert_tier,
+    initialMateriality: row.initial_materiality,
+    anticipatedMateriality: expected.anticipated_materiality,
+    confidence: row.confidence,
+    expectedDirection: expected.expected_direction,
+    expectedOutcome: expected.expected_outcome,
+    expectedSuccessProbability: expected.expected_success_probability,
+    expectationConfidence: expected.expectation_confidence,
+    expectationAsOf: expected.expectation_as_of,
+    resultDirection: row.result_direction,
+    expectationEventId: row.expectation_event_id,
+    resolvedByEventId: row.resolved_by_event_id,
+    clinicalSurpriseScore: clinicalSurpriseScore(expected.expected_success_probability, row.result_direction),
+    outcome,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function expectationMatchScore(completed: TimelineRow, expected: TimelineRow): number {
+  const exactType = completed.event_type === expected.event_type;
+  const compatibleType = exactType || (
+    [completed.event_type, expected.event_type].every((eventType) => ["trial_topline", "publication"].includes(eventType))
+    || [completed.event_type, expected.event_type].every((eventType) => ["regulatory_decision", "regulatory_update"].includes(eventType))
+  );
+  if (!compatibleType) return 0;
+  let score = exactType ? 3 : 1;
+  const completedProgram = normalizedProgram(completed.program);
+  const expectedProgram = normalizedProgram(expected.program);
+  if (completedProgram && expectedProgram && completedProgram === expectedProgram) score += 6;
+  score += tokenOverlap(completed.title, expected.title) * 4;
+  score += tokenOverlap(completed.indication, expected.indication) * 2;
+  return score;
+}
+
+function collapseTimelineRows(rows: readonly TimelineRow[]): TimelineRow[] {
+  const selected = new Map<string, TimelineRow>();
+  for (const row of rows) {
+    const key = timelineRowKey(row);
+    const existing = selected.get(key);
+    if (!existing || timelineRepresentativeScore(row) > timelineRepresentativeScore(existing)) {
+      selected.set(key, row);
+    }
+  }
+  return [...selected.values()];
+}
+
+function timelineRowKey(row: TimelineRow): string {
+  if (row.status === "completed") return `completed:${row.id}`;
+  const subject = row.normalized_program || normalizedProgram(row.indication);
+  if (!subject) return `upcoming:${row.id}`;
+  return ["upcoming", row.ticker, row.event_type, subject, row.event_date.slice(0, 10)].join(":");
+}
+
+function timelineRepresentativeScore(row: TimelineRow): number {
+  let score = row.basis === "registry_schedule" ? 8 : 4;
+  if (row.expected_success_probability !== null) score += 10;
+  if (row.source_tier === "primary") score += 3;
+  if (!/\b(?:forward-looking statements?|safe harbor|risks and uncertainties|may differ materially)\b/i.test(row.title)) score += 6;
+  score += Math.max(0, 5 - Math.floor(row.title.length / 55));
+  return score;
+}
+
+function tokenOverlap(left: string, right: string): number {
+  const tokens = (value: string) => new Set(value.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []);
+  const leftTokens = tokens(left);
+  const rightTokens = tokens(right);
+  if (!leftTokens.size || !rightTokens.size) return 0;
+  return [...leftTokens].filter((token) => rightTokens.has(token)).length / Math.min(leftTokens.size, rightTokens.size);
 }
 
 function isBetterEventRepresentative(candidate: FeedEntry, existing: FeedEntry): boolean {

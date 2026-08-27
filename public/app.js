@@ -1,5 +1,5 @@
 const IDENTITY_KEY = "catalyst-watch-installation-v1";
-const CACHE_KEY = "catalyst-watch-web-cache-v5";
+const CACHE_KEY = "catalyst-watch-web-cache-v6";
 const EVENT_TYPES = [
   "trial_topline", "trial_update", "regulatory_decision", "regulatory_update",
   "safety_signal", "publication", "financing", "partnership", "other",
@@ -11,6 +11,8 @@ const state = {
   products: [],
   freeFeedDelayMinutes: 30,
   entries: [],
+  timeline: [],
+  timelineSummary: null,
   status: null,
   watchlist: [],
   preferences: {
@@ -27,6 +29,8 @@ const state = {
   watchlistQuery: "",
   watchlistScope: "all",
   marketCap: "all",
+  timelineStatus: "all",
+  timelineQuery: "",
   lastUpdatedAt: null,
   refreshing: false,
 };
@@ -43,6 +47,9 @@ const elements = {
   signalDialogContent: document.querySelector("#signal-dialog-content"),
   settingsDialog: document.querySelector("#settings-dialog"),
   sourceList: document.querySelector("#source-list"),
+  timelineList: document.querySelector("#timeline-list"),
+  timelineSearch: document.querySelector("#timeline-search"),
+  timelineStatus: document.querySelector("#timeline-status"),
   watchlistGrid: document.querySelector("#watchlist-grid"),
   signalSearch: document.querySelector("#signal-search"),
   mobileSignalSearch: document.querySelector("#mobile-signal-search"),
@@ -139,6 +146,24 @@ elements.sourceList.addEventListener("click", (event) => {
   if (event.target.closest("[data-open-settings]")) openSettings();
 });
 
+elements.timelineSearch.addEventListener("input", () => {
+  state.timelineQuery = elements.timelineSearch.value.trim().toLowerCase();
+  renderTimeline();
+});
+
+elements.timelineStatus.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-timeline-status]");
+  if (!button) return;
+  state.timelineStatus = ["upcoming", "completed"].includes(button.dataset.timelineStatus)
+    ? button.dataset.timelineStatus : "all";
+  renderTimeline();
+});
+
+elements.timelineList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-timeline-id]");
+  if (row) openTimelineEvent(row.dataset.timelineId);
+});
+
 elements.developerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.developerError.textContent = "";
@@ -216,17 +241,23 @@ async function refresh({ forceWatchlist }) {
   elements.refreshButton.classList.add("loading");
   try {
     const scope = state.preferences.feedMode === "watchlist" ? "watchlist" : "all";
-    const requests = [api("/api/status"), api(`/api/feed?limit=150&scope=${scope}`)];
+    const requests = [
+      api("/api/status"),
+      api(`/api/feed?limit=150&scope=${scope}`),
+      api(`/api/timeline?limit=500&scope=${scope}`),
+    ];
     if (forceWatchlist || !state.watchlist.length) requests.push(api("/api/watchlist"));
     const responses = await Promise.all(requests);
     state.status = responses[0];
     state.entries = responses[1].entries;
+    state.timeline = responses[2].events;
+    state.timelineSummary = responses[2].summary;
     state.access = responses[1].access ?? state.status.access ?? state.access;
     state.freeFeedDelayMinutes = state.status.configuration.freeFeedDelayMinutes;
-    if (responses[2]) {
-      state.watchlist = responses[2].companies;
-      state.watchlistLimit = responses[2].limit ?? state.watchlistLimit;
-      if (responses[2].preferences) state.preferences = responses[2].preferences;
+    if (responses[3]) {
+      state.watchlist = responses[3].companies;
+      state.watchlistLimit = responses[3].limit ?? state.watchlistLimit;
+      if (responses[3].preferences) state.preferences = responses[3].preferences;
     }
     state.lastUpdatedAt = new Date().toISOString();
     persistCache();
@@ -360,6 +391,7 @@ function renderAll() {
   renderStatus();
   renderAccess();
   renderSignals();
+  renderTimeline();
   renderWatchlist();
   renderSources();
 }
@@ -530,6 +562,180 @@ function signalDetail(entry) {
   </div>`;
 }
 
+function renderTimeline() {
+  const summary = state.timelineSummary || {
+    upcomingCount: state.timeline.filter((event) => event.status === "upcoming").length,
+    completedCount: state.timeline.filter((event) => event.status === "completed").length,
+    benchmarkedCount: state.timeline.filter((event) => event.outcome?.abnormalReturnPct != null).length,
+    expectationMatchedCount: state.timeline.filter((event) => event.expectationEventId).length,
+  };
+  text("#timeline-upcoming-count", summary.upcomingCount || 0);
+  text("#timeline-completed-count", summary.completedCount || 0);
+  text("#timeline-benchmarked-count", summary.benchmarkedCount || 0);
+  text("#timeline-matched-count", summary.expectationMatchedCount || 0);
+  text("#timeline-updated", state.lastUpdatedAt ? relativeTime(state.lastUpdatedAt) : "--");
+  elements.timelineStatus.querySelectorAll("[data-timeline-status]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.timelineStatus === state.timelineStatus);
+  });
+
+  const filtered = state.timeline.filter((event) => {
+    if (state.timelineStatus !== "all" && event.status !== state.timelineStatus) return false;
+    if (!state.timelineQuery) return true;
+    return [event.ticker, event.companyName, event.program, event.indication, event.title,
+      event.summary, event.eventType, event.sourceName]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(state.timelineQuery);
+  });
+  const upcoming = filtered.filter((event) => event.status === "upcoming")
+    .sort((left, right) => Date.parse(left.eventDate) - Date.parse(right.eventDate));
+  const completed = filtered.filter((event) => event.status === "completed")
+    .sort((left, right) => Date.parse(right.eventDate) - Date.parse(left.eventDate));
+  const sections = [];
+  if (state.timelineStatus !== "completed" && upcoming.length) {
+    sections.push(timelineSection("Upcoming", upcoming, "Company guidance and registered trial dates"));
+  }
+  if (state.timelineStatus !== "upcoming" && completed.length) {
+    sections.push(timelineSection("Completed", completed, "Original alert scores with post-event calibration"));
+  }
+  elements.timelineList.innerHTML = sections.length ? sections.join("") : emptyState(
+    state.timeline.length ? "No matching timeline events" : "No timeline events yet",
+    state.timeline.length ? "Change the search or status filter." : "Milestones appear as monitored sources publish guidance and results.",
+  );
+}
+
+function timelineSection(title, events, subtitle) {
+  return `<section class="timeline-section">
+    <header><span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(subtitle)}</small></span><b>${events.length}</b></header>
+    <div>${events.map(timelineRow).join("")}</div>
+  </section>`;
+}
+
+function timelineRow(event) {
+  const date = timelineDateParts(event);
+  const outcome = event.outcome;
+  const calibrated = outcome?.calibrationVersion >= 2;
+  const guidancePassed = event.status === "upcoming" && Date.parse(event.eventDate) < Date.now();
+  const expectationMetrics = event.status === "upcoming"
+    ? [
+      timelineMetric("Anticipated", scoreValue(event.anticipatedMateriality)),
+      event.expectedSuccessProbability == null ? "" : timelineMetric("Model odds", probability(event.expectedSuccessProbability)),
+    ].join("")
+    : [
+      timelineMetric("Initial", scoreValue(event.initialMateriality)),
+      event.expectationEventId && event.anticipatedMateriality != null
+        ? timelineMetric("Anticipated", scoreValue(event.anticipatedMateriality)) : "",
+    ].join("");
+  const realizedMetrics = event.status === "upcoming"
+    ? timelineMetric("Confidence", probability(event.expectationConfidence), "muted")
+    : [
+      timelineMetric("Post-event", calibrated ? scoreValue(outcome.surpriseAdjustedMateriality) : "Pending"),
+      timelineMetric(
+        calibrated && outcome.abnormalReturnPct != null ? "XBI-adjusted" : "Return",
+        outcome ? marketSigned(calibrated && outcome.abnormalReturnPct != null ? outcome.abnormalReturnPct : outcome.actualReturnPct) : "Pending",
+        outcome ? movementClass(calibrated && outcome.abnormalReturnPct != null ? outcome.abnormalReturnPct : outcome.actualReturnPct) : "muted",
+      ),
+    ].join("");
+  return `<button class="timeline-row ${escapeHtml(event.status)}" data-timeline-id="${escapeHtml(event.id)}" type="button">
+    <time class="timeline-date" datetime="${escapeHtml(event.eventDate)}"><strong>${escapeHtml(date.primary)}</strong><span>${escapeHtml(date.secondary)}</span>${guidancePassed ? "<em>Guidance passed</em>" : ""}</time>
+    <span class="timeline-rail"><i></i></span>
+    <span class="timeline-copy">
+      <span class="timeline-badges"><b>${escapeHtml(event.ticker)}</b><em>${escapeHtml(prettyLabel(event.eventType))}</em>${event.alertTier ? `<em class="${escapeHtml(event.alertTier)}">${escapeHtml(event.alertTier)}</em>` : ""}</span>
+      <strong>${escapeHtml(event.title)}</strong>
+      <small>${escapeHtml([event.program, event.indication, event.sourceName].filter(Boolean).join(" · "))}</small>
+    </span>
+    <span class="timeline-metrics expectation">${expectationMetrics}</span>
+    <span class="timeline-metrics realized">${realizedMetrics}</span>
+  </button>`;
+}
+
+function timelineMetric(label, value, className = "") {
+  return `<span class="timeline-metric ${escapeHtml(className)}"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></span>`;
+}
+
+function openTimelineEvent(eventId) {
+  const event = state.timeline.find((candidate) => candidate.id === eventId);
+  if (!event) return;
+  elements.signalDialogContent.innerHTML = timelineDetail(event);
+  if (!elements.signalDialog.open) elements.signalDialog.showModal();
+}
+
+function timelineDetail(event) {
+  const outcome = event.outcome;
+  const calibrated = outcome?.calibrationVersion >= 2;
+  const dateChanged = event.initialEventDate && event.initialEventDate !== event.eventDate;
+  const range = outcome ? `${signed(outcome.expectedMoveLowPct)} to ${signed(outcome.expectedMoveHighPct)}` : null;
+  const scoreCards = event.status === "upcoming"
+    ? `<div class="score-strip">
+        <div><span>Anticipated materiality</span><strong>${scoreValue(event.anticipatedMateriality)}</strong></div>
+        <div><span>Model outcome odds</span><strong>${probability(event.expectedSuccessProbability)}</strong></div>
+        <div><span>Expectation confidence</span><strong>${probability(event.expectationConfidence)}</strong></div>
+      </div>`
+    : `<div class="score-strip">
+        <div><span>Original materiality</span><strong>${scoreValue(event.initialMateriality)}</strong></div>
+        <div><span>Post-event materiality</span><strong>${calibrated ? scoreValue(outcome.surpriseAdjustedMateriality) : "Pending"}</strong></div>
+        <div><span>Original scenario</span><strong>${escapeHtml(range || "--")}</strong></div>
+        ${outcome ? `<div><span>${outcome.abnormalReturnPct != null ? "XBI-adjusted return" : "Observed return"}</span><strong class="${movementClass(outcome.abnormalReturnPct ?? outcome.actualReturnPct)}">${marketSigned(outcome.abnormalReturnPct ?? outcome.actualReturnPct)}</strong></div>` : ""}
+      </div>`;
+  const expectation = event.expectedOutcome ? `<section class="detail-section"><h3>Expectation snapshot</h3><p>${escapeHtml(event.expectedOutcome)}</p><small class="snapshot-meta">${event.expectationAsOf ? `Frozen ${formatDate(event.expectationAsOf)}` : "Pre-event snapshot"}${event.clinicalSurpriseScore == null ? "" : ` · Clinical surprise ${signedPoints(event.clinicalSurpriseScore)}`}</small></section>` : "";
+  const realized = outcome ? `<section class="outcome-grid">
+      ${timelineOutcomeValue("Company return", marketSigned(outcome.actualReturnPct), movementClass(outcome.actualReturnPct))}
+      ${timelineOutcomeValue("XBI return", outcome.benchmarkReturnPct == null ? "--" : marketSigned(outcome.benchmarkReturnPct), movementClass(outcome.benchmarkReturnPct))}
+      ${timelineOutcomeValue("Abnormal return", outcome.abnormalReturnPct == null ? "--" : marketSigned(outcome.abnormalReturnPct), movementClass(outcome.abnormalReturnPct))}
+      ${timelineOutcomeValue("Market surprise", signedPoints(outcome.marketSurpriseScore), movementClass(outcome.marketSurpriseScore))}
+    </section>` : "";
+  return `<div class="detail-content timeline-detail">
+    <div class="detail-kicker"><span>${escapeHtml(event.status)}</span><time>${escapeHtml(event.dateLabel)}</time></div>
+    <h2>${escapeHtml(event.title)}</h2>
+    <div class="detail-source">${escapeHtml(event.ticker)} · ${escapeHtml(event.sourceName)} · ${escapeHtml(prettyLabel(event.eventType))}</div>
+    ${scoreCards}
+    ${event.summary ? `<section class="detail-section"><h3>${event.status === "upcoming" ? "Guidance" : "Assessment"}</h3><p>${escapeHtml(event.summary)}</p></section>` : ""}
+    ${expectation}
+    ${realized}
+    ${dateChanged ? `<section class="detail-section"><h3>Schedule revision</h3><p>Initial guidance ${escapeHtml(formatDate(event.initialEventDate))}; current guidance ${escapeHtml(formatDate(event.eventDate))}.</p></section>` : ""}
+    ${outcome ? `<div class="calibration-note">Post-event · XBI-adjusted where available · original alert score preserved</div>` : ""}
+    ${sourceLink(event.sourceUrl)}
+  </div>`;
+}
+
+function timelineOutcomeValue(label, value, className) {
+  return `<span><small>${escapeHtml(label)}</small><strong class="${escapeHtml(className)}">${escapeHtml(value)}</strong></span>`;
+}
+
+function timelineDateParts(event) {
+  const date = new Date(event.eventDate);
+  if (Number.isNaN(date.getTime())) return { primary: event.dateLabel || "TBD", secondary: "" };
+  if (["quarter", "half", "year"].includes(event.datePrecision)) {
+    return { primary: event.dateLabel, secondary: event.datePrecision === "year" ? "Guidance" : String(date.getUTCFullYear()) };
+  }
+  if (event.datePrecision === "month") {
+    return {
+      primary: new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" }).format(date),
+      secondary: String(date.getUTCFullYear()),
+    };
+  }
+  return {
+    primary: new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "America/New_York" }).format(date),
+    secondary: String(new Intl.DateTimeFormat(undefined, { year: "numeric", timeZone: "America/New_York" }).format(date)),
+  };
+}
+
+function scoreValue(value) {
+  return value !== null && value !== undefined && Number.isFinite(Number(value))
+    ? `${Math.round(Number(value))}/100` : "--";
+}
+
+function probability(value) {
+  return value !== null && value !== undefined && Number.isFinite(Number(value))
+    ? `${Math.round(Number(value) * 100)}%` : "--";
+}
+
+function signedPoints(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number > 0 ? "+" : ""}${Math.round(number)}` : "--";
+}
+
 function renderWatchlist() {
   const followedTickers = new Set(state.preferences.watchedTickers);
   const filtered = state.watchlist.filter((company) => {
@@ -606,7 +812,7 @@ function setTier(tier) {
 }
 
 function switchView(view, updateHash = true) {
-  const next = ["signals", "watchlist", "sources"].includes(view) ? view : "signals";
+  const next = ["signals", "timeline", "watchlist", "sources"].includes(view) ? view : "signals";
   document.querySelectorAll("[data-view-panel]").forEach((panel) => {
     const active = panel.dataset.viewPanel === next;
     panel.hidden = !active;
@@ -630,7 +836,7 @@ function setConnection(kind, label) {
 }
 
 function initialView() {
-  return ["signals", "watchlist", "sources"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "signals";
+  return ["signals", "timeline", "watchlist", "sources"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "signals";
 }
 
 function loadIdentity() {
@@ -670,6 +876,8 @@ function persistCache() {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       entries: state.entries.slice(0, 80),
+      timeline: state.timeline.slice(0, 500),
+      timelineSummary: state.timelineSummary,
       watchlist: state.watchlist,
       status: state.status,
       access: state.access,
@@ -686,6 +894,8 @@ function restoreCache() {
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
     if (Array.isArray(cached.entries)) state.entries = cached.entries;
+    if (Array.isArray(cached.timeline)) state.timeline = cached.timeline;
+    if (cached.timelineSummary) state.timelineSummary = cached.timelineSummary;
     if (Array.isArray(cached.watchlist)) state.watchlist = cached.watchlist;
     if (cached.status) state.status = cached.status;
     if (cached.access) state.access = cached.access;

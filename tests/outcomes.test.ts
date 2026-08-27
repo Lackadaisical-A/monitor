@@ -30,10 +30,10 @@ describe("OutcomeAuditor", () => {
     const marketData: MarketDataProvider = {
       configured: true,
       feed: "iex",
-      getMovements: async () => {
+      getMovements: async (requests) => {
         calls += 1;
-        return new Map([[item.id, {
-          ticker: "AVXL",
+        return new Map(requests.map((request) => [request.id, {
+          ticker: request.ticker,
           sessionDate: "2026-08-25",
           status: "live",
           announcementAt: eventAt,
@@ -42,18 +42,18 @@ describe("OutcomeAuditor", () => {
           cutoffAt: new Date(Date.parse(eventAt) + 5 * 24 * 60 * 60_000).toISOString(),
           window: "since_announcement",
           refreshIntervalSeconds: 300,
-          previousClose: 3.1,
-          open: 3.1,
-          high: 3.68,
-          low: 3.1,
-          close: 3.55,
-          change: 0.45,
-          changePct: 14.5,
+          previousClose: request.ticker === "XBI" ? 100 : 3.1,
+          open: request.ticker === "XBI" ? 100 : 3.1,
+          high: request.ticker === "XBI" ? 103 : 3.68,
+          low: request.ticker === "XBI" ? 99 : 3.1,
+          close: request.ticker === "XBI" ? 102.5 : 3.55,
+          change: request.ticker === "XBI" ? 2.5 : 0.45,
+          changePct: request.ticker === "XBI" ? 2.5 : 14.5,
           fetchedAt: new Date().toISOString(),
           feed: "iex",
           provider: "alpaca",
           basis: "pre_announcement_price",
-        }]]);
+        }]));
       },
     };
     const auditor = new OutcomeAuditor(db, marketData, { info: () => {}, warn: () => {} }, 15, 30);
@@ -63,7 +63,12 @@ describe("OutcomeAuditor", () => {
     expect(audits[0]).toMatchObject({
       eventKey: "AVXL:event-1",
       actualReturnPct: 14.5,
+      benchmarkReturnPct: 2.5,
+      abnormalReturnPct: 12,
+      marketSurpriseScore: 17,
+      surpriseAdjustedMateriality: 79,
       directionCorrect: true,
+      abnormalDirectionCorrect: true,
       expectedRangeHit: true,
       status: "live",
     });

@@ -6,6 +6,7 @@ import type { AppConfig } from "./config.js";
 import { areLikelySameEvent, eventIdentity } from "./events.js";
 import type { OutcomeAuditorLike, OutcomeAuditSummary } from "./outcomes.js";
 import type { SignalStore, SourceStateUpdate } from "./store.js";
+import { timelineEventsFromAnalysis } from "./timeline.js";
 import type { EvidenceContext, ImpactAssessment, NormalizedItem, SourceAdapter } from "./types.js";
 import { isCatalystCandidate, mapWithConcurrency, resolveWatchCompany } from "./utils.js";
 
@@ -139,9 +140,13 @@ export class MonitorPipeline {
           eventAnchorAt: identity.eventAnchorAt,
           analysisVersion: entry.analysis.analysisVersion ?? 1,
         };
-        if (JSON.stringify(next) === JSON.stringify(entry.analysis)) continue;
-        await this.db.saveAnalysis(next);
-        updatedCount += 1;
+        if (JSON.stringify(next) !== JSON.stringify(entry.analysis)) {
+          await this.db.saveAnalysis(next);
+          updatedCount += 1;
+        }
+        if (this.db.upsertTimelineEvents) {
+          await this.db.upsertTimelineEvents(timelineEventsFromAnalysis(entry.item, next));
+        }
       } catch (error) {
         errorCount += 1;
         this.logger.warn({ itemId: entry.item.id, error: errorMessage(error) }, "stored signal policy reconciliation failed");
@@ -345,6 +350,9 @@ export class MonitorPipeline {
         analysisVersion: CURRENT_ANALYSIS_VERSION,
       } as const;
       await this.db.saveAnalysis(analysis);
+      if (this.db.upsertTimelineEvents) {
+        await this.db.upsertTimelineEvents(timelineEventsFromAnalysis(item, analysis));
+      }
       const analysisLatency = (Date.parse(analysis.createdAt) - Date.parse(item.discoveredAt)) / 1000;
       if (!isReanalysis && this.analysisLatencyEligibleItemIds.delete(item.id) && analysisLatency >= 0) {
         observe(this.analysisLatencies, analysisLatency);

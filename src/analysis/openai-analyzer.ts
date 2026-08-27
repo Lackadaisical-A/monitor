@@ -31,6 +31,10 @@ Rules:
 - Quote or closely paraphrase short factual evidence snippets in evidence. Put genuinely contrary supplied facts in disconfirmingEvidence; put absent effect sizes, p-values, subgroup detail, or follow-up in uncertainty.
 - Compare current evidence with priorDisclosures. noveltySummary must identify the exact new delta. A previously announced plan becoming a completed submission is incremental but concrete; do not call the whole program wholly new.
 - eventSignature must identify the underlying company event rather than the article, publisher, timestamp, or framing. Example: "rgx-121-fda-clinical-hold".
+- futureMilestones must contain only clinical, data, or regulatory milestones explicitly scheduled or guided in the current evidence. Do not infer dates from typical development timelines. Use an empty array when no qualifying milestone is stated.
+- For each future milestone, preserve the source's date wording in dateLabel and put the end of that guidance window in expectedDate: the exact day for exact guidance, the last day of a stated month, quarter, half, or year otherwise.
+- anticipatedMateriality is the prospective valuation relevance if that future milestone produces a substantive outcome, not a claim that the outcome will be favorable.
+- expectedSuccessProbability is a frozen pre-event model estimate of a favorable clinical or regulatory outcome based only on supplied evidence. Use null for operational milestones such as enrollment or study completion, or when evidence is insufficient. expectedOutcome must state the expected result and sourceEvidence must identify its factual basis; never present a model estimate as market consensus.
 - Use empty strings rather than inventing unknown names. Use ticker without a dollar sign.`;
 
 const ADJUDICATION_PROMPT = `${SYSTEM_PROMPT}
@@ -91,7 +95,7 @@ export class OpenAICatalystAnalyzer implements CatalystAnalyzer {
       instructions,
       input: JSON.stringify(payload),
       text: {
-        format: zodTextFormat(ImpactAssessmentOutputSchema, "biotech_impact_assessment_v2"),
+        format: zodTextFormat(ImpactAssessmentOutputSchema, "biotech_impact_assessment_v3"),
       },
     });
     if (!response.output_parsed) throw new Error("OpenAI response did not contain a parsed impact assessment");

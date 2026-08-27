@@ -73,6 +73,28 @@ export const CatalystEventTypeSchema = z.enum([
 ]);
 export type CatalystEventType = z.infer<typeof CatalystEventTypeSchema>;
 
+export const TimelineDatePrecisionSchema = z.enum(["exact", "month", "quarter", "half", "year"]);
+export type TimelineDatePrecision = z.infer<typeof TimelineDatePrecisionSchema>;
+
+export const FutureMilestoneSchema = z.object({
+  title: z.string().min(1).max(220),
+  eventType: CatalystEventTypeSchema,
+  program: z.string().max(160),
+  indication: z.string().max(200),
+  expectedDate: z.string().describe(
+    "ISO 8601 date for the end of the explicitly stated guidance window.",
+  ),
+  datePrecision: TimelineDatePrecisionSchema,
+  dateLabel: z.string().min(1).max(80),
+  expectedDirection: z.enum(["positive", "mixed", "negative", "unclear"]),
+  expectedOutcome: z.string().max(500),
+  anticipatedMateriality: z.number().int().min(0).max(100),
+  expectedSuccessProbability: z.number().min(0).max(1).nullable(),
+  expectationConfidence: z.number().min(0).max(1),
+  sourceEvidence: z.string().min(1).max(500),
+});
+export type FutureMilestone = z.infer<typeof FutureMilestoneSchema>;
+
 export const ImpactAssessmentSchema = z.object({
   isBiotechCatalyst: z.boolean(),
   companyName: z.string(),
@@ -137,6 +159,9 @@ export const ImpactAssessmentSchema = z.object({
   noveltySummary: z.string().max(600).optional().describe(
     "What is newly completed or agency-confirmed versus prior disclosures supplied in context.",
   ),
+  futureMilestones: z.array(FutureMilestoneSchema).max(6).optional().describe(
+    "Explicitly guided future clinical, regulatory, or data milestones in the current evidence.",
+  ),
 });
 export type ImpactAssessment = z.infer<typeof ImpactAssessmentSchema>;
 
@@ -157,6 +182,7 @@ export const ImpactAssessmentOutputSchema = ImpactAssessmentSchema.extend({
   valuationImpact: z.enum(["transformative", "material", "moderate", "limited", "unknown"]),
   eventSignature: z.string().max(160),
   noveltySummary: z.string().max(600),
+  futureMilestones: z.array(FutureMilestoneSchema).max(6),
 });
 
 export type AnalysisMethod = "openai" | "heuristic_demo";
@@ -293,12 +319,62 @@ export interface OutcomeAudit {
   expectedMoveLowPct: number;
   expectedMoveBasePct: number;
   expectedMoveHighPct: number;
+  initialMateriality: number;
   actualReturnPct: number;
+  benchmarkReturnPct: number | null;
+  benchmarkBasis: "xbi_spy" | "xbi" | "spy" | "unavailable";
+  abnormalReturnPct: number | null;
+  marketSurpriseScore: number;
+  surpriseAdjustedMateriality: number;
   directionCorrect: boolean | null;
+  abnormalDirectionCorrect: boolean | null;
   expectedRangeHit: boolean;
   movementWindow: StockMovement["window"];
   status: StockMovement["status"];
   priceStartAt: string;
   priceEndAt: string;
   auditedAt: string;
+  calibrationVersion: number;
+}
+
+export type TimelineEventStatus = "upcoming" | "completed";
+export type TimelineEventBasis = "announced" | "company_guidance" | "registry_schedule";
+
+export interface TimelineEvent {
+  id: string;
+  status: TimelineEventStatus;
+  basis: TimelineEventBasis;
+  ticker: string;
+  companyName: string;
+  program: string;
+  indication: string;
+  eventType: CatalystEventType;
+  trialPhase: ImpactAssessment["trialPhase"];
+  title: string;
+  summary: string;
+  eventDate: string;
+  initialEventDate: string;
+  datePrecision: TimelineDatePrecision;
+  dateLabel: string;
+  sourceName: string;
+  sourceUrl: string;
+  sourceTier: SourceTier;
+  itemId: string | null;
+  eventKey: string | null;
+  alertTier: AlertTier | null;
+  initialMateriality: number | null;
+  anticipatedMateriality: number | null;
+  confidence: number | null;
+  expectedDirection: ImpactAssessment["resultDirection"] | null;
+  expectedOutcome: string | null;
+  expectedSuccessProbability: number | null;
+  expectationConfidence: number | null;
+  expectationAsOf: string | null;
+  resultDirection: ImpactAssessment["resultDirection"] | null;
+  expectationEventId: string | null;
+  resolvedByEventId: string | null;
+  clinicalSurpriseScore: number | null;
+  outcome: OutcomeAudit | null;
+  createdAt: string;
+  updatedAt: string;
 }

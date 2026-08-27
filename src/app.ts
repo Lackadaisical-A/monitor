@@ -19,6 +19,7 @@ import {
   type CompanyCoverage,
   type FeedEntry,
   type InstallationAccess,
+  type TimelineEvent,
   type WatchCompany,
 } from "./types.js";
 import { safeEqual } from "./utils.js";
@@ -231,6 +232,40 @@ export async function createApp(
     };
   });
 
+  app.get("/api/timeline", async (request) => {
+    const query = z.object({
+      limit: z.coerce.number().int().min(1).max(1_000).default(500),
+      status: z.enum(["upcoming", "completed"]).optional(),
+      scope: FeedModeSchema.optional(),
+    }).parse(request.query);
+    const dashboard = isDashboardAuthorized(request, config);
+    const access = dashboard ? null : await requireClientAccess(request, db);
+    const preferences = access ? await db.getInstallationPreferences(access.installationId) : null;
+    const scope = dashboard ? "all" : query.scope ?? preferences?.feedMode ?? "all";
+    const free = !dashboard && !access?.pro;
+    const publishedBefore = free
+      ? new Date(Date.now() - config.entitlements.freeFeedDelayMinutes * 60_000).toISOString()
+      : null;
+    const limit = free ? Math.min(query.limit, 150) : query.limit;
+    const events = db.listTimelineEvents ? await db.listTimelineEvents(
+      limit,
+      query.status ?? null,
+      publishedBefore,
+      scope === "watchlist" ? preferences?.watchedTickers ?? [] : null,
+    ) : [];
+    const visibleEvents = canDisplayMarketData(config, access, dashboard)
+      ? events
+      : events.map((event) => ({ ...event, outcome: null }));
+    return {
+      events: visibleEvents,
+      summary: summarizeTimeline(visibleEvents),
+      access,
+      delayedByMinutes: free ? config.entitlements.freeFeedDelayMinutes : 0,
+      scope,
+      generatedAt: new Date().toISOString(),
+    };
+  });
+
   app.get("/api/signals/:id", async (request, reply) => {
     const dashboard = isDashboardAuthorized(request, config);
     const access = dashboard ? null : await requireClientAccess(request, db);
@@ -369,6 +404,21 @@ function canDisplayMarketData(config: AppConfig, access: InstallationAccess | nu
   if (config.alpaca.scope === "disabled") return false;
   if (config.alpaca.scope === "all") return true;
   return dashboard || access?.level === "developer";
+}
+
+function summarizeTimeline(events: readonly TimelineEvent[]) {
+  const upcoming = events.filter((event) => event.status === "upcoming");
+  const completed = events.filter((event) => event.status === "completed");
+  const benchmarked = completed.filter((event) => event.outcome?.abnormalReturnPct !== null
+    && event.outcome?.abnormalReturnPct !== undefined);
+  return {
+    count: events.length,
+    upcomingCount: upcoming.length,
+    completedCount: completed.length,
+    benchmarkedCount: benchmarked.length,
+    expectationMatchedCount: completed.filter((event) => event.expectationEventId).length,
+    overdueCount: upcoming.filter((event) => Date.parse(event.eventDate) < Date.now()).length,
+  };
 }
 
 async function requireClientAccess(request: FastifyRequest, db: SignalStore): Promise<InstallationAccess> {

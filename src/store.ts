@@ -13,6 +13,7 @@ import type {
   PushMode,
   SourceDescriptor,
   StoreTransactionEntitlement,
+  TimelineEvent,
 } from "./types.js";
 
 export type Awaitable<T> = T | Promise<T>;
@@ -67,6 +68,13 @@ export interface SignalStore {
   listOutcomeAuditCandidates?(limit?: number, auditedBefore?: string): Awaitable<FeedEntry[]>;
   saveOutcomeAudit?(audit: OutcomeAudit): Awaitable<void>;
   listOutcomeAudits?(limit?: number): Awaitable<OutcomeAudit[]>;
+  upsertTimelineEvents?(events: readonly TimelineEvent[]): Awaitable<number>;
+  listTimelineEvents?(
+    limit?: number,
+    status?: TimelineEvent["status"] | null,
+    publishedBefore?: string | null,
+    tickers?: readonly string[] | null,
+  ): Awaitable<TimelineEvent[]>;
   listFeed(limit?: number, publishedBefore?: string | null, tickers?: readonly string[] | null): Awaitable<FeedEntry[]>;
   getAnalysis(itemId: string): Awaitable<AnalysisRecord | null>;
   getSourceCursor(sourceId: string): Awaitable<string | null>;

@@ -6,6 +6,7 @@ import { SignalDatabase } from "../src/db.js";
 import type { MarketDataProvider } from "../src/market-data/alpaca.js";
 import type { MonitorPipeline } from "../src/pipeline.js";
 import type { SubscriptionVerifier } from "../src/subscriptions.js";
+import { timelineEventsFromAnalysis } from "../src/timeline.js";
 import type { ImpactAssessment, NormalizedItem } from "../src/types.js";
 
 const installationId = "9c62cb51-26e7-48f3-a68b-f2e38ff8ab7a";
@@ -18,6 +19,65 @@ afterEach(() => {
 });
 
 describe("HTTP app", () => {
+  it("serves the catalyst timeline with completed-event calibration metadata", async () => {
+    db = new SignalDatabase(":memory:");
+    const timelineItem = { ...item("timeline-event", Date.now() - 60 * 60_000), tickerHint: "MRNA", companyHint: "Moderna" };
+    const timelineAnalysis = {
+      ...analysis(timelineItem.id, { resultDirection: "positive" }, "high"),
+      eventKey: "MRNA:timeline-event",
+      eventAnchorAt: timelineItem.publishedAt,
+      analysisVersion: 2,
+    };
+    db.insertItem(timelineItem);
+    db.saveAnalysis(timelineAnalysis);
+    db.upsertTimelineEvents(timelineEventsFromAnalysis(timelineItem, timelineAnalysis));
+    const newItem = { ...item("new-guidance", Date.now() - 5 * 60_000), tickerHint: "MRNA", companyHint: "Moderna" };
+    const newAnalysis = {
+      ...analysis(newItem.id, {
+        futureMilestones: [{
+          title: "Phase 3 readout",
+          eventType: "trial_topline",
+          program: "mRNA-1234",
+          indication: "Cancer",
+          expectedDate: "2027-03-31",
+          datePrecision: "quarter" as const,
+          dateLabel: "Q1 2027",
+          expectedDirection: "positive" as const,
+          expectedOutcome: "The primary endpoint is expected to be met.",
+          anticipatedMateriality: 90,
+          expectedSuccessProbability: 0.65,
+          expectationConfidence: 0.6,
+          sourceEvidence: "The company guided to Q1 2027.",
+        }],
+      }, "watch"),
+      eventKey: "MRNA:new-guidance",
+      eventAnchorAt: newItem.publishedAt,
+      analysisVersion: 2,
+    };
+    db.insertItem(newItem);
+    db.saveAnalysis(newAnalysis);
+    db.upsertTimelineEvents(timelineEventsFromAnalysis(newItem, newAnalysis));
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const app = await createApp(config(), db, pipeline, verifier());
+    await bootstrap(app);
+
+    const response = await app.inject({ method: "GET", url: "/api/timeline", headers: clientHeaders() });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().events).toHaveLength(1);
+    expect(response.json()).toMatchObject({
+      summary: { completedCount: 1, upcomingCount: 0 },
+      delayedByMinutes: 30,
+      events: [{
+        ticker: "MRNA",
+        eventKey: "MRNA:timeline-event",
+        initialMateriality: 60,
+        outcome: null,
+      }],
+    });
+    await app.close();
+  });
+
   it("gives free installations a delayed feed and blocks manual scans", async () => {
     db = new SignalDatabase(":memory:");
     db.insertItem(item("old", Date.now() - 60 * 60_000));

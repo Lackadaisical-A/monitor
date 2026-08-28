@@ -23,7 +23,7 @@ import type {
   TimelineEvent,
 } from "./types.js";
 import type { AlertInput, ItemFailureResult, SignalStore } from "./store.js";
-import { clinicalSurpriseScore } from "./timeline.js";
+import { clinicalSurpriseScore, isSecCalendarMilestoneSentence } from "./timeline.js";
 import { normalizedHeadline } from "./utils.js";
 
 interface ItemRow {
@@ -1429,6 +1429,17 @@ export class SignalDatabase implements SignalStore {
       SET surprise_adjusted_materiality = initial_materiality
       WHERE calibration_version < 2 AND surprise_adjusted_materiality = 0;
     `);
+    const staleSecEvents = this.sqlite.prepare(`
+      SELECT id, summary FROM timeline_events
+      WHERE status = 'upcoming' AND basis = 'company_guidance'
+        AND source_name = 'SEC catalyst calendar'
+    `).all() as Array<{ id: string; summary: string }>;
+    const deleteTimelineEvent = this.sqlite.prepare("DELETE FROM timeline_events WHERE id = ?");
+    this.sqlite.transaction((rows: Array<{ id: string; summary: string }>) => {
+      for (const row of rows) {
+        if (!isSecCalendarMilestoneSentence(row.summary)) deleteTimelineEvent.run(row.id);
+      }
+    })(staleSecEvents);
     if (addedAttemptCount) {
       this.sqlite.prepare(`
         UPDATE items SET next_attempt_at = ? WHERE status = 'error' AND attempt_count = 0

@@ -16,12 +16,17 @@ const MONTHS = [
 const MONTH_PATTERN = MONTHS.map((month) => `${month.slice(0, 3)}(?:${month.slice(3)})?`).join("|");
 const MILESTONE_CUE = /\b(?:pdufa|target action date|fda action|fda decision|advisory committee|adcom|priority review|accepted for review|topline|top-line|readout|results?|data|ind|nda|bla|submission|resubmission|filing|primary completion|study completion|enrollment|first patient|dose)\b/i;
 const FUTURE_CUE = /\b(?:expect(?:s|ed)?|anticipat(?:e|es|ed)|plan(?:s|ned)?|intend(?:s|ed)?|scheduled|target(?:s|ed)?|assign(?:s|ed)?|establish(?:es|ed)?|remain(?:s|ed)?|set|sets|on track|due|will|guidance)\b/i;
-const DECISION_DATE_CUE = /\b(?:pdufa(?: target action)? date|target action date)\b/i;
+const DECISION_DATE_CUE = /\b(?:pdufa\)?(?: target)?(?: action| goal)? date|target action date)\b/i;
 const BOILERPLATE = /\b(?:forward-looking statements?|safe harbor|risks and uncertainties|may differ materially|sec filings?)\b/i;
 const ROUTINE_EVENT = /\b(?:conference|symposium|presentation|webcast|fireside chat|investor event)\b/i;
 const SUBSTANTIVE_EVENT = /\b(?:topline|top-line|readout|clinical trial results?|new (?:clinical )?data|pdufa|fda (?:action|decision)|submission|resubmission|filing)\b/i;
 const SEC_CALENDAR_MILESTONE = /\b(?:pdufa|target action date|advisory committee|adcom|(?:topline|top-line|readout)(?:\s+(?:data|results?))?|(?:phase\s*(?:1|2|3|i|ii|iii)|clinical trial).{0,120}(?:data|results?|readout|primary endpoint)|(?:data|results?|readout|primary endpoint).{0,120}(?:phase\s*(?:1|2|3|i|ii|iii)|clinical trial)|(?:submit|submission|file|filing|resubmit|resubmission).{0,100}(?:ind|nda|bla|snda|sbla)|(?:ind|nda|bla|snda|sbla).{0,100}(?:submit|submission|file|filing|resubmit|resubmission)|fda (?:decision|action|meeting)|meet(?:ing)? with (?:the )?fda|enrollment completion|complete enrollment|first (?:patient|participant) dosed)\b/i;
-const SEC_RISK_BOILERPLATE = /\b(?:risk factors?|legal and regulatory risk|even if we receive regulatory approval|subject to ongoing regulatory obligations|preliminary or top-line data (?:also )?remain subject to audit|cannot assure|no assurance|general and administrative expenses|income tax|tax liabilities|tax provision|effective tax rate|royalty payments?|royalty pharma|purchase the rights|tranche|milestone payments?|license agreement)\b/i;
+const SEC_RISK_BOILERPLATE = /\b(?:risk factors?|legal and regulatory risk|even if we receive regulatory approval|subject to ongoing regulatory obligations|(?:preliminary|top[- ]?line) data (?:also )?remain subject to (?:audit|verification)|audit and verification procedures?|cannot assure|no assurance|general and administrative expenses|professional services costs?|costs? incurred|income tax|tax liabilities|tax provision|effective tax rate|royalty payments?|royalty pharma|purchase the rights|tranche|milestone payments?|license agreement|changes? in regulatory requirements?|unanticipated events?|could be affected by|customary closing conditions?|cash runway|exercise (?:that|the) right|opt-out window|other companies with product candidates|competitive landscape|sharing our plans)\b/i;
+const SEC_FORWARD_CUE = /\b(?:expect(?:s|ed)?|anticipat(?:e|es|ed)|plan(?:s|ned)?|intend(?:s|ed)?|schedul(?:e|es|ed)|target(?:s|ed)?|on track|due|will)\b/i;
+const SEC_RESULT_CUE = /\b(?:top[- ]?line|readout|data|results?)\b/i;
+const SEC_SUBMISSION_CUE = /\b(?:(?:submit|submission|file|filing|resubmit|resubmission|rolling application).{0,100}(?:ind|nda|bla|snda|sbla)|(?:ind|nda|bla|snda|sbla).{0,100}(?:submit|submission|file|filing|resubmit|resubmission))\b/i;
+const SEC_TRIAL_OPERATION_CUE = /\b(?:enrollment completion|complete enrollment|begin enrollment|initiate enrollment|first (?:patient|participant) dosed|(?:begin|initiate|start|commence|resume)\w*.{0,60}(?:enrollment|dosing|phase\s*(?:1|2|3|i|ii|iii).{0,30}(?:trial|study))|completion of .{0,80}(?:phase\s*(?:1|2|3|i|ii|iii)|trials?|studies))\b/i;
+const SEC_REGULATORY_MEETING_CUE = /\b(?:(?:fda|food and drug administration).{0,80}(?:decision|action|meeting|advisory committee)|(?:decision|action|meeting|advisory committee).{0,80}(?:fda|food and drug administration)|adcom)\b/i;
 const INACTIVE_STUDY_STATUSES = new Set(["COMPLETED", "TERMINATED", "WITHDRAWN", "SUSPENDED"]);
 const TRUSTED_CALENDAR_SOURCE_TYPES = new Set(["company_ir", "regulator", "sec"]);
 
@@ -228,8 +233,7 @@ function extractGuidedMilestones(item: NormalizedItem, identity: CalendarIdentit
     if (BOILERPLATE.test(sentence) || (ROUTINE_EVENT.test(sentence) && !SUBSTANTIVE_EVENT.test(sentence))
       || !MILESTONE_CUE.test(sentence)
       || (!FUTURE_CUE.test(sentence) && !DECISION_DATE_CUE.test(sentence))) return [];
-    if (item.source.type === "sec"
-      && (!SEC_CALENDAR_MILESTONE.test(sentence) || SEC_RISK_BOILERPLATE.test(sentence))) return [];
+    if (item.source.type === "sec" && !isSecCalendarMilestoneSentence(sentence)) return [];
     const parsed = parseDateMention(sentence, item.publishedAt);
     if (!parsed) return [];
     const eventType = eventTypeFromSentence(sentence);
@@ -253,6 +257,16 @@ function extractGuidedMilestones(item: NormalizedItem, identity: CalendarIdentit
       expectationConfidence: 0.62,
     })];
   });
+}
+
+export function isSecCalendarMilestoneSentence(sentence: string): boolean {
+  if (!SEC_CALENDAR_MILESTONE.test(sentence) || SEC_RISK_BOILERPLATE.test(sentence)) return false;
+  if (DECISION_DATE_CUE.test(sentence)) return true;
+  if (!SEC_FORWARD_CUE.test(sentence)) return false;
+  return SEC_RESULT_CUE.test(sentence)
+    || SEC_SUBMISSION_CUE.test(sentence)
+    || SEC_TRIAL_OPERATION_CUE.test(sentence)
+    || SEC_REGULATORY_MEETING_CUE.test(sentence);
 }
 
 interface UpcomingFields {

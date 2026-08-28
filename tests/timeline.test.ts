@@ -182,6 +182,22 @@ describe("catalyst timeline", () => {
     expect(first[0]?.program).toBe("mRNA-1010");
   });
 
+  it("recognizes a parenthetical PDUFA acronym followed by an action date", () => {
+    const item = {
+      ...signalItem(
+        "sec-parenthetical-pdufa",
+        "2026-02-10T14:00:00.000Z",
+        "The FDA assigned a Prescription Drug User Fee Act (PDUFA) action date of September 30, 2026.",
+      ),
+      source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
+    } satisfies NormalizedItem;
+
+    expect(timelineEventsFromItem(item)).toEqual([expect.objectContaining({
+      eventType: "regulatory_decision",
+      eventDate: "2026-09-30T12:00:00.000Z",
+    })]);
+  });
+
   it("rejects dated SEC risk-factor boilerplate as a calendar catalyst", () => {
     const item = {
       ...signalItem(
@@ -189,6 +205,22 @@ describe("catalyst timeline", () => {
         "2026-02-10T14:00:00.000Z",
         "We expect our general and administrative expenses to increase through May 2027 due to clinical trial data and regulatory submissions.",
       ),
+      source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
+    } satisfies NormalizedItem;
+
+    expect(timelineEventsFromItem(item)).toEqual([]);
+  });
+
+  it.each([
+    "Changes in regulatory requirements or unanticipated events during our clinical trials may result in protocol changes through May 2027.",
+    "Topline data remain subject to audit and verification procedures through May 2027.",
+    "Expectations regarding the transaction could be affected by customary closing conditions, including receipt of regulatory approval in May 2027.",
+    "We expect to exercise that right in Q2 2027 within the opt-out window after the NDA filing date under the license agreement.",
+    "Professional services costs incurred to support reporting of Phase 3 topline results are expected through Q2 2027.",
+    "We are aware of other companies with product candidates that anticipate a Phase 3 readout in Q2 2027.",
+  ])("rejects non-catalyst SEC calendar language: %s", (summary) => {
+    const item = {
+      ...signalItem("sec-non-catalyst", "2026-02-10T14:00:00.000Z", summary),
       source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
     } satisfies NormalizedItem;
 

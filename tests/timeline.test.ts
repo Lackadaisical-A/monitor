@@ -300,6 +300,42 @@ describe("catalyst timeline", () => {
     expect(timeline.some((event) => event.status === "upcoming" && event.program === "ABC-101")).toBe(false);
   });
 
+  it("returns current and future milestones before passed guidance", () => {
+    db = new SignalDatabase(":memory:");
+    const item = {
+      ...signalItem("ordering", new Date().toISOString(), "ClinicalTrials.gov record updated"),
+      source: { id: "clinicaltrials-ordering", name: "ClinicalTrials.gov", type: "clinical_trials", tier: "primary" } as const,
+      tickerHint: "EXBI",
+      raw: {
+        protocolSection: {
+          identificationModule: { nctId: "NCT00000001", briefTitle: "Ordering study" },
+          statusModule: {
+            overallStatus: "RECRUITING",
+            primaryCompletionDateStruct: { date: utcDay(30).slice(0, 10), type: "ESTIMATED" },
+          },
+          armsInterventionsModule: { interventions: [{ name: "ABC-101" }] },
+        },
+      },
+    } satisfies NormalizedItem;
+    const base = timelineEventsFromItem(item)[0]!;
+    const event = (id: string, offsetDays: number) => ({
+      ...base,
+      id,
+      itemId: null,
+      program: id,
+      title: id,
+      eventDate: utcDay(offsetDays),
+      initialEventDate: utcDay(offsetDays),
+    });
+    db.upsertTimelineEvents([
+      event("passed", -10),
+      event("current", 0),
+      event("future", 5),
+    ]);
+
+    expect(db.listTimelineEvents(2, "upcoming").map((entry) => entry.id)).toEqual(["current", "future"]);
+  });
+
   it("collapses duplicate guidance across reports and prunes stale extraction for an item", () => {
     db = new SignalDatabase(":memory:");
     const first = signalItem("guidance-one", "2026-02-01T12:00:00.000Z", "ABC-101 results are expected in Q4 2026.");
@@ -381,6 +417,13 @@ function signalItem(id: string, publishedAt: string, summary: string): Normalize
     provenance: "direct_primary",
     raw: {},
   };
+}
+
+function utcDay(offsetDays: number): string {
+  const now = new Date();
+  return new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offsetDays, 12,
+  )).toISOString();
 }
 
 function analysis(

@@ -703,8 +703,13 @@ export class SignalDatabase implements SignalStore {
       SELECT * FROM timeline_events
       WHERE ${clauses.join(" AND ")}
       ORDER BY
-        CASE status WHEN 'upcoming' THEN 0 ELSE 1 END,
-        CASE WHEN status = 'upcoming' THEN event_date END ASC,
+        CASE
+          WHEN status = 'upcoming' AND date(event_date) >= date('now', '-1 day') THEN 0
+          WHEN status = 'upcoming' THEN 1
+          ELSE 2
+        END,
+        CASE WHEN status = 'upcoming' AND date(event_date) >= date('now', '-1 day') THEN event_date END ASC,
+        CASE WHEN status = 'upcoming' AND date(event_date) < date('now', '-1 day') THEN event_date END DESC,
         CASE WHEN status = 'completed' THEN event_date END DESC
       LIMIT ?
     `).all(...params) as TimelineRow[];

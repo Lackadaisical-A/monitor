@@ -617,14 +617,22 @@ function renderTimeline() {
       .toLowerCase()
       .includes(state.timelineQuery);
   });
-  const upcoming = filtered.filter((event) => event.status === "upcoming")
-    .sort((left, right) => Date.parse(left.eventDate) - Date.parse(right.eventDate));
+  const today = marketDateKey(new Date());
+  const upcoming = filtered.filter((event) => (
+    event.status === "upcoming" && timelineEventDateKey(event) >= today
+  )).sort((left, right) => Date.parse(left.eventDate) - Date.parse(right.eventDate));
+  const passedGuidance = filtered.filter((event) => (
+    event.status === "upcoming" && timelineEventDateKey(event) < today
+  )).sort((left, right) => Date.parse(right.eventDate) - Date.parse(left.eventDate));
   const completed = filtered.filter((event) => event.status === "completed")
     .sort((left, right) => Date.parse(right.eventDate) - Date.parse(left.eventDate));
   const sections = [];
-  if (state.timelineStatus !== "completed" && upcoming.length) {
+  if (state.timelineStatus !== "completed" && (upcoming.length || passedGuidance.length)) {
     for (const group of groupTimelineMonths(upcoming)) {
       sections.push(timelineSection(group.label, group.events, "Confirmed dates, guided windows, and registry estimates"));
+    }
+    if (passedGuidance.length) {
+      sections.push(timelineSection("Guidance passed", passedGuidance, "Unresolved company guidance and registry estimates before today"));
     }
   }
   if (state.timelineStatus !== "upcoming" && completed.length) {
@@ -671,7 +679,8 @@ function timelineRow(event) {
   const dateStatus = timelineDateStatus(event);
   const outcome = event.outcome;
   const calibrated = outcome?.calibrationVersion >= 2;
-  const guidancePassed = event.status === "upcoming" && Date.parse(event.eventDate) < Date.now();
+  const guidancePassed = event.status === "upcoming"
+    && timelineEventDateKey(event) < marketDateKey(new Date());
   const expectationMetrics = event.status === "upcoming"
     ? [
       timelineMetric("Anticipated", scoreValue(event.anticipatedMateriality)),
@@ -703,6 +712,19 @@ function timelineRow(event) {
     <span class="timeline-metrics expectation">${expectationMetrics}</span>
     <span class="timeline-metrics realized">${realizedMetrics}</span>
   </button>`;
+}
+
+function timelineEventDateKey(event) {
+  const date = new Date(event.eventDate);
+  return Number.isNaN(date.getTime()) ? "9999-12-31" : date.toISOString().slice(0, 10);
+}
+
+function marketDateKey(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric", month: "2-digit", day: "2-digit", timeZone: "America/New_York",
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
 }
 
 function calendarEventLabel(event) {

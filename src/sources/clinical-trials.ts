@@ -45,6 +45,7 @@ interface ClinicalTrialsResponse {
 }
 
 const SPONSOR_BATCH_SIZE = 3;
+const BACKFILL_COMPANIES_PER_SCAN = 12;
 const BATCH_CONCURRENCY = 3;
 const MAX_PAGES_PER_BATCH = 25;
 const CALENDAR_FIELDS = [
@@ -72,9 +73,17 @@ const ACTIVE_STATUSES = [
   "ENROLLING_BY_INVITATION",
 ];
 
+interface ClinicalTrialsCursor {
+  version: 1;
+  mode: "backfill" | "incremental";
+  nextCompanyIndex: number;
+  cycleStartedAt: string;
+  since: string;
+}
+
 export class ClinicalTrialsSource implements SourceAdapter {
   readonly descriptor = {
-    id: "clinicaltrials-calendar-v2",
+    id: "clinicaltrials-calendar-v3",
     name: "ClinicalTrials.gov",
     type: "clinical_trials",
     tier: "primary",
@@ -87,11 +96,14 @@ export class ClinicalTrialsSource implements SourceAdapter {
 
   async fetch(cursor: string | null): Promise<SourceFetchResult> {
     if (this.watchlist.length === 0) return { items: [], diagnostics: { reason: "watchlist_empty" } };
-    const fullSync = cursor === null;
-    const since = cursor && /^\d{4}-\d{2}-\d{2}$/.test(cursor)
-      ? cursor
-      : new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const batches = chunk(this.watchlist, SPONSOR_BATCH_SIZE);
+    const now = new Date();
+    const state = parseCursor(cursor, now, this.watchlist.length);
+    const fullSync = state.mode === "backfill";
+    const syncWatchlist = fullSync
+      ? this.watchlist.slice(state.nextCompanyIndex, state.nextCompanyIndex + BACKFILL_COMPANIES_PER_SCAN)
+      : this.watchlist;
+    const since = fullSync ? state.cycleStartedAt.slice(0, 10) : state.since;
+    const batches = chunk(syncWatchlist, SPONSOR_BATCH_SIZE);
     const batchResults = await mapWithConcurrency(
       batches,
       BATCH_CONCURRENCY,
@@ -172,11 +184,24 @@ export class ClinicalTrialsSource implements SourceAdapter {
     const items = [...itemsById.values()];
     const complete = successful.length === batchResults.length
       && successful.every((result) => !result.value.truncated);
+    let nextState = state;
+    if (complete && fullSync) {
+      const nextCompanyIndex = Math.min(this.watchlist.length, state.nextCompanyIndex + syncWatchlist.length);
+      nextState = nextCompanyIndex >= this.watchlist.length
+        ? { ...state, mode: "incremental", nextCompanyIndex, since: state.cycleStartedAt.slice(0, 10) }
+        : { ...state, nextCompanyIndex };
+    } else if (complete) {
+      nextState = { ...state, since: discoveredAt.slice(0, 10) };
+    }
     return {
       items,
-      ...(complete ? { cursor: discoveredAt.slice(0, 10) } : cursor ? { cursor } : {}),
+      cursor: JSON.stringify(nextState),
       diagnostics: {
         syncMode: fullSync ? "full" : "incremental",
+        companyStartIndex: fullSync ? state.nextCompanyIndex : 0,
+        companyCount: syncWatchlist.length,
+        nextCompanyIndex: nextState.nextCompanyIndex,
+        totalCompanyCount: this.watchlist.length,
         batchCount: batches.length,
         failedBatchCount: batchResults.length - successful.length,
         reportedStudyCount: successful.reduce((sum, result) => sum + result.value.totalCount, 0),
@@ -292,6 +317,36 @@ function normalizedOrganization(value: string): string {
   const tokens = value.toLowerCase().replace(/&/g, " and ").match(/[a-z0-9]+/g) ?? [];
   while (tokens.length && suffixes.has(tokens[tokens.length - 1]!)) tokens.pop();
   return tokens.join("");
+}
+
+function parseCursor(value: string | null, now: Date, watchlistSize: number): ClinicalTrialsCursor {
+  if (value) {
+    try {
+      const parsed = JSON.parse(value) as Partial<ClinicalTrialsCursor>;
+      if (parsed.version === 1 && ["backfill", "incremental"].includes(parsed.mode ?? "")
+        && Number.isInteger(parsed.nextCompanyIndex) && typeof parsed.cycleStartedAt === "string"
+        && typeof parsed.since === "string") {
+        const nextCompanyIndex = Math.max(0, parsed.nextCompanyIndex ?? 0);
+        return {
+          version: 1,
+          mode: parsed.mode === "incremental" && nextCompanyIndex >= watchlistSize ? "incremental" : "backfill",
+          nextCompanyIndex: Math.min(nextCompanyIndex, watchlistSize),
+          cycleStartedAt: parsed.cycleStartedAt,
+          since: parsed.since,
+        };
+      }
+    } catch {
+      // Start a bounded backfill when the source version or cursor format changes.
+    }
+  }
+  const cycleStartedAt = now.toISOString();
+  return {
+    version: 1,
+    mode: "backfill",
+    nextCompanyIndex: 0,
+    cycleStartedAt,
+    since: new Date(now.getTime() - 48 * 60 * 60_000).toISOString().slice(0, 10),
+  };
 }
 
 function compactCalendarStudy(study: ClinicalStudy): ClinicalStudy {

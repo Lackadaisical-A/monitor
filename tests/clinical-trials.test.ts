@@ -58,7 +58,11 @@ describe("ClinicalTrialsSource calendar sync", () => {
       companyHint: "Moderna",
       raw: { catalystWatch: { syncMode: "full", calendarOnly: true } },
     });
-    expect(result.cursor).toBe("2026-08-27");
+    expect(JSON.parse(result.cursor!)).toMatchObject({
+      mode: "incremental",
+      nextCompanyIndex: 1,
+      since: "2026-08-27",
+    });
   });
 
   it("omits active studies whose registered primary completion is already past", async () => {
@@ -91,7 +95,7 @@ describe("ClinicalTrialsSource calendar sync", () => {
     const result = await source.fetch(null);
 
     expect(result.items).toEqual([]);
-    expect(result.cursor).toBe("2026-08-27");
+    expect(JSON.parse(result.cursor!)).toMatchObject({ mode: "incremental", nextCompanyIndex: 1 });
   });
 
   it("keeps an academically sponsored study when a watchlist company is a collaborator", async () => {
@@ -132,5 +136,33 @@ describe("ClinicalTrialsSource calendar sync", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toMatchObject({ tickerHint: "MRNA", companyHint: "Moderna" });
+  });
+
+  it("bounds a large initial backfill and persists the next company offset", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ totalCount: 0, studies: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const watchlist = Array.from({ length: 13 }, (_, index): WatchCompany => ({
+      ticker: `T${index}`,
+      company: `Example Therapeutics ${index}`,
+      aliases: [],
+      cik: String(1_000_000 + index),
+      marketCapBand: "small",
+      xAccounts: [],
+      programs: [],
+    }));
+    const source = new ClinicalTrialsSource(watchlist, 5_000);
+
+    const result = await source.fetch(null);
+    const cursor = JSON.parse(result.cursor!);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(result.diagnostics).toMatchObject({
+      syncMode: "full",
+      companyStartIndex: 0,
+      companyCount: 12,
+      nextCompanyIndex: 12,
+      totalCompanyCount: 13,
+    });
+    expect(cursor).toMatchObject({ mode: "backfill", nextCompanyIndex: 12 });
   });
 });

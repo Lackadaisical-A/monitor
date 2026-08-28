@@ -1411,6 +1411,9 @@ export class SignalDatabase implements SignalStore {
       WHERE item_id IN (SELECT id FROM items WHERE source_id = 'sec-calendar-backfill-v1');
       DELETE FROM items WHERE source_id = 'sec-calendar-backfill-v1';
       DELETE FROM source_state WHERE source_id = 'sec-calendar-backfill-v1';
+      DELETE FROM timeline_events
+      WHERE status = 'upcoming' AND basis = 'registry_schedule'
+        AND (title LIKE '%: study start' OR title LIKE '%: study completion');
       UPDATE alerts SET event_key = ticker || ':' || event_type || ':' || item_id WHERE event_key IS NULL;
       UPDATE outcome_audits
       SET initial_materiality = COALESCE(

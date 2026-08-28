@@ -182,6 +182,49 @@ describe("catalyst timeline", () => {
     expect(first[0]?.program).toBe("mRNA-1010");
   });
 
+  it("rejects dated SEC risk-factor boilerplate as a calendar catalyst", () => {
+    const item = {
+      ...signalItem(
+        "sec-risk-factor",
+        "2026-02-10T14:00:00.000Z",
+        "We expect our general and administrative expenses to increase through May 2027 due to clinical trial data and regulatory submissions.",
+      ),
+      source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
+    } satisfies NormalizedItem;
+
+    expect(timelineEventsFromItem(item)).toEqual([]);
+  });
+
+  it("keeps concrete dated SEC trial readout guidance", () => {
+    const item = {
+      ...signalItem(
+        "sec-readout-guidance",
+        "2026-02-10T14:00:00.000Z",
+        "We expect topline results from the Phase 3 ABC-101 trial in Q2 2027.",
+      ),
+      source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
+    } satisfies NormalizedItem;
+
+    expect(timelineEventsFromItem(item)).toEqual([expect.objectContaining({
+      eventType: "trial_topline",
+      datePrecision: "quarter",
+      eventDate: "2027-06-30T12:00:00.000Z",
+    })]);
+  });
+
+  it("rejects royalty-contract dates that use an FDA event only as a payment trigger", () => {
+    const item = {
+      ...signalItem(
+        "sec-royalty-trigger",
+        "2026-02-10T14:00:00.000Z",
+        "Royalty Pharma will purchase the rights to additional Royalty Payments if, before July 1, 2028, the FDA accepts an NDA submission based on the clinical readout (Tranche 2).",
+      ),
+      source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
+    } satisfies NormalizedItem;
+
+    expect(timelineEventsFromItem(item)).toEqual([]);
+  });
+
   it("links a result to an earlier expectation and removes the resolved duplicate", () => {
     db = new SignalDatabase(":memory:");
     const expectedItem = signalItem("expectation", "2026-01-10T12:00:00.000Z", "ABC-101 topline expected in Q3 2026.");

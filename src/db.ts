@@ -1407,6 +1407,10 @@ export class SignalDatabase implements SignalStore {
     this.sqlite.exec(`
       CREATE INDEX IF NOT EXISTS analyses_event_idx ON analyses(event_key, alert_tier);
       CREATE INDEX IF NOT EXISTS alerts_event_idx ON alerts(event_key, sent_at DESC);
+      DELETE FROM timeline_events
+      WHERE item_id IN (SELECT id FROM items WHERE source_id = 'sec-calendar-backfill-v1');
+      DELETE FROM items WHERE source_id = 'sec-calendar-backfill-v1';
+      DELETE FROM source_state WHERE source_id = 'sec-calendar-backfill-v1';
       UPDATE alerts SET event_key = ticker || ':' || event_type || ':' || item_id WHERE event_key IS NULL;
       UPDATE outcome_audits
       SET initial_materiality = COALESCE(

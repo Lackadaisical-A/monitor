@@ -20,6 +20,8 @@ const DECISION_DATE_CUE = /\b(?:pdufa(?: target action)? date|target action date
 const BOILERPLATE = /\b(?:forward-looking statements?|safe harbor|risks and uncertainties|may differ materially|sec filings?)\b/i;
 const ROUTINE_EVENT = /\b(?:conference|symposium|presentation|webcast|fireside chat|investor event)\b/i;
 const SUBSTANTIVE_EVENT = /\b(?:topline|top-line|readout|clinical trial results?|new (?:clinical )?data|pdufa|fda (?:action|decision)|submission|resubmission|filing)\b/i;
+const SEC_CALENDAR_MILESTONE = /\b(?:pdufa|target action date|advisory committee|adcom|(?:topline|top-line|readout)(?:\s+(?:data|results?))?|(?:phase\s*(?:1|2|3|i|ii|iii)|clinical trial).{0,120}(?:data|results?|readout|primary endpoint)|(?:data|results?|readout|primary endpoint).{0,120}(?:phase\s*(?:1|2|3|i|ii|iii)|clinical trial)|(?:submit|submission|file|filing|resubmit|resubmission).{0,100}(?:ind|nda|bla|snda|sbla)|(?:ind|nda|bla|snda|sbla).{0,100}(?:submit|submission|file|filing|resubmit|resubmission)|fda (?:decision|action|meeting)|meet(?:ing)? with (?:the )?fda|enrollment completion|complete enrollment|first (?:patient|participant) dosed)\b/i;
+const SEC_RISK_BOILERPLATE = /\b(?:risk factors?|legal and regulatory risk|even if we receive regulatory approval|subject to ongoing regulatory obligations|preliminary or top-line data (?:also )?remain subject to audit|cannot assure|no assurance|general and administrative expenses|income tax|tax liabilities|tax provision|effective tax rate|royalty payments?|royalty pharma|purchase the rights|tranche|milestone payments?|license agreement)\b/i;
 const INACTIVE_STUDY_STATUSES = new Set(["COMPLETED", "TERMINATED", "WITHDRAWN", "SUSPENDED"]);
 const TRUSTED_CALENDAR_SOURCE_TYPES = new Set(["company_ir", "regulator", "sec"]);
 
@@ -226,6 +228,8 @@ function extractGuidedMilestones(item: NormalizedItem, identity: CalendarIdentit
     if (BOILERPLATE.test(sentence) || (ROUTINE_EVENT.test(sentence) && !SUBSTANTIVE_EVENT.test(sentence))
       || !MILESTONE_CUE.test(sentence)
       || (!FUTURE_CUE.test(sentence) && !DECISION_DATE_CUE.test(sentence))) return [];
+    if (item.source.type === "sec"
+      && (!SEC_CALENDAR_MILESTONE.test(sentence) || SEC_RISK_BOILERPLATE.test(sentence))) return [];
     const parsed = parseDateMention(sentence, item.publishedAt);
     if (!parsed) return [];
     const eventType = eventTypeFromSentence(sentence);

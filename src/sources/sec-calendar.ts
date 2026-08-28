@@ -46,7 +46,7 @@ interface FilingCandidate {
 
 export class SecCalendarSource implements SourceAdapter {
   readonly descriptor = {
-    id: "sec-calendar-backfill-v1",
+    id: "sec-calendar-backfill-v2",
     name: "SEC catalyst calendar",
     type: "sec",
     tier: "primary",
@@ -206,7 +206,8 @@ function filingCandidates(submissions: SecSubmissions, threshold: string): Filin
 }
 
 function catalystContext(html: string): string {
-  const text = stripHtml(html);
+  const text = stripHtml(html.replace(/<(?:br|\/p|\/div|\/li|\/tr|\/td|\/h[1-6])\b[^>]*>/gi, ". "))
+    .replace(/\.{2,}/g, ".");
   const sentences = text.split(/(?<=[.!?])\s+|\n+/).map((sentence) => sentence.trim()).filter(Boolean);
   const selected = new Set<number>();
   for (let index = 0; index < sentences.length; index += 1) {
@@ -216,8 +217,8 @@ function catalystContext(html: string): string {
     }
   }
   return [...selected].sort((left, right) => left - right)
-    .map((index) => sentences[index])
-    .join(" ")
+    .map((index) => sentences[index]!.replace(/[.!?]+$/, ""))
+    .join(".\n")
     .slice(0, 45_000);
 }
 

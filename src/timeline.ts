@@ -14,12 +14,23 @@ const MONTHS = [
   "july", "august", "september", "october", "november", "december",
 ] as const;
 const MONTH_PATTERN = MONTHS.map((month) => `${month.slice(0, 3)}(?:${month.slice(3)})?`).join("|");
-const MILESTONE_CUE = /\b(?:pdufa|fda action|fda decision|advisory committee|adcom|topline|top-line|readout|results?|data|ind|nda|bla|submission|resubmission|filing|primary completion|study completion|enrollment|first patient|dose)\b/i;
-const FUTURE_CUE = /\b(?:expect(?:s|ed)?|anticipat(?:e|es|ed)|plan(?:s|ned)?|intend(?:s|ed)?|scheduled|target(?:s|ed)?|on track|due|will|guidance)\b/i;
+const MILESTONE_CUE = /\b(?:pdufa|target action date|fda action|fda decision|advisory committee|adcom|priority review|accepted for review|topline|top-line|readout|results?|data|ind|nda|bla|submission|resubmission|filing|primary completion|study completion|enrollment|first patient|dose)\b/i;
+const FUTURE_CUE = /\b(?:expect(?:s|ed)?|anticipat(?:e|es|ed)|plan(?:s|ned)?|intend(?:s|ed)?|scheduled|target(?:s|ed)?|assign(?:s|ed)?|establish(?:es|ed)?|remain(?:s|ed)?|set|sets|on track|due|will|guidance)\b/i;
+const DECISION_DATE_CUE = /\b(?:pdufa(?: target action)? date|target action date)\b/i;
 const BOILERPLATE = /\b(?:forward-looking statements?|safe harbor|risks and uncertainties|may differ materially|sec filings?)\b/i;
 const ROUTINE_EVENT = /\b(?:conference|symposium|presentation|webcast|fireside chat|investor event)\b/i;
 const SUBSTANTIVE_EVENT = /\b(?:topline|top-line|readout|clinical trial results?|new (?:clinical )?data|pdufa|fda (?:action|decision)|submission|resubmission|filing)\b/i;
 const INACTIVE_STUDY_STATUSES = new Set(["COMPLETED", "TERMINATED", "WITHDRAWN", "SUSPENDED"]);
+const TRUSTED_CALENDAR_SOURCE_TYPES = new Set(["company_ir", "regulator", "sec"]);
+
+interface CalendarIdentity {
+  ticker: string;
+  companyName: string;
+  trialPhase: ImpactAssessment["trialPhase"];
+  program: string;
+  indication: string;
+  createdAt: string;
+}
 
 export function timelineEventsFromAnalysis(
   item: NormalizedItem,
@@ -29,14 +40,27 @@ export function timelineEventsFromAnalysis(
   if (!assessment.isBiotechCatalyst || !assessment.ticker.trim()) return [];
   const events: TimelineEvent[] = [];
   if (analysis.alertTier !== "none") events.push(completedEvent(item, analysis));
+  const identity = calendarIdentity(item, analysis);
 
   const future = [
-    ...registryMilestones(item, analysis),
-    ...(assessment.futureMilestones ?? []).flatMap((milestone) => modelMilestone(item, analysis, milestone)),
-    ...extractGuidedMilestones(item, analysis),
+    ...registryMilestones(item, identity),
+    ...(assessment.futureMilestones ?? []).flatMap((milestone) => modelMilestone(item, identity, milestone)),
+    ...extractGuidedMilestones(item, identity),
   ];
   events.push(...deduplicateFutureEvents(future));
   return events;
+}
+
+export function timelineEventsFromItem(item: NormalizedItem): TimelineEvent[] {
+  const identity = calendarIdentity(item);
+  if (!identity.ticker) return [];
+  if (item.source.type === "clinical_trials") {
+    return deduplicateFutureEvents(registryMilestones(item, identity));
+  }
+  if (!TRUSTED_CALENDAR_SOURCE_TYPES.has(item.source.type) && item.provenance !== "syndicated_primary") {
+    return [];
+  }
+  return deduplicateFutureEvents(extractGuidedMilestones(item, identity));
 }
 
 export function clinicalSurpriseScore(
@@ -46,6 +70,19 @@ export function clinicalSurpriseScore(
   if (expectedSuccessProbability === null || !resultDirection || resultDirection === "unclear") return null;
   const actual = resultDirection === "positive" ? 1 : resultDirection === "mixed" ? 0.5 : 0;
   return Math.round((actual - expectedSuccessProbability) * 100);
+}
+
+function calendarIdentity(item: NormalizedItem, analysis?: AnalysisRecord): CalendarIdentity {
+  const assessment = analysis?.assessment;
+  const ticker = (assessment?.ticker || item.tickerHint || "").trim().toUpperCase();
+  return {
+    ticker,
+    companyName: assessment?.companyName || item.companyHint || ticker,
+    trialPhase: assessment?.trialPhase ?? "unknown",
+    program: assessment?.trialName ?? "",
+    indication: assessment?.indication ?? "",
+    createdAt: analysis?.createdAt ?? item.discoveredAt,
+  };
 }
 
 function completedEvent(item: NormalizedItem, analysis: AnalysisRecord): TimelineEvent {
@@ -94,18 +131,18 @@ function completedEvent(item: NormalizedItem, analysis: AnalysisRecord): Timelin
 
 function modelMilestone(
   item: NormalizedItem,
-  analysis: AnalysisRecord,
+  identity: CalendarIdentity,
   milestone: FutureMilestone,
 ): TimelineEvent[] {
   const eventDate = normalizeFutureDate(milestone.expectedDate, milestone.datePrecision, item.publishedAt);
   if (!eventDate) return [];
-  return [upcomingEvent(item, analysis, {
+  return [upcomingEvent(item, identity, {
     basis: "company_guidance",
     stableKey: `${milestone.eventType}:${milestone.program || milestone.indication}:${milestoneKind(milestone.title)}`,
     eventType: milestone.eventType,
-    trialPhase: analysis.assessment.trialPhase,
-    program: milestone.program || analysis.assessment.trialName,
-    indication: milestone.indication || analysis.assessment.indication,
+    trialPhase: identity.trialPhase,
+    program: milestone.program || identity.program,
+    indication: milestone.indication || identity.indication,
     title: milestone.title,
     summary: milestone.sourceEvidence,
     eventDate,
@@ -119,7 +156,7 @@ function modelMilestone(
   })];
 }
 
-function registryMilestones(item: NormalizedItem, analysis: AnalysisRecord): TimelineEvent[] {
+function registryMilestones(item: NormalizedItem, identity: CalendarIdentity): TimelineEvent[] {
   if (item.source.type !== "clinical_trials") return [];
   const raw = record(item.raw);
   const protocol = record(raw.protocolSection);
@@ -133,35 +170,41 @@ function registryMilestones(item: NormalizedItem, analysis: AnalysisRecord): Tim
   if (!nctId || INACTIVE_STUDY_STATUSES.has(overallStatus)) return [];
   const interventionList = Array.isArray(interventions.interventions) ? interventions.interventions : [];
   const program = interventionList.map((entry) => stringValue(record(entry).name)).find(Boolean)
-    || analysis.assessment.trialName;
-  const phase = Array.isArray(design.phases) ? design.phases.map(String).join("/") : "";
+    || identity.program;
+  const trialPhase = registryTrialPhase(design.phases) ?? identity.trialPhase;
+  const conditions = record(protocol.conditionsModule);
+  const conditionList = Array.isArray(conditions.conditions) ? conditions.conditions.map(String).filter(Boolean) : [];
+  const indication = conditionList.slice(0, 3).join(", ") || identity.indication;
   const milestones: Array<{
     field: string;
     label: string;
     title: string;
     eventType: CatalystEventType;
     anticipatedMateriality: number;
-  }> = [
-    { field: "startDateStruct", label: "Registered study start", title: `${studyTitle}: study start`, eventType: "trial_update", anticipatedMateriality: 45 },
-    { field: "primaryCompletionDateStruct", label: "Registered primary completion", title: `${studyTitle}: primary completion`, eventType: "trial_update", anticipatedMateriality: phase3Like(analysis.assessment) ? 78 : 62 },
-    { field: "completionDateStruct", label: "Registered study completion", title: `${studyTitle}: study completion`, eventType: "trial_update", anticipatedMateriality: 55 },
-  ];
+  }> = [{
+    field: "primaryCompletionDateStruct",
+    label: "Registered primary completion",
+    title: `${studyTitle}: primary completion`,
+    eventType: "trial_update",
+    anticipatedMateriality: phase3Like(trialPhase) ? 78
+      : ["phase_2", "phase_2_3"].includes(trialPhase) ? 62 : 55,
+  }];
   return milestones.flatMap((milestone) => {
     const dateStruct = record(status[milestone.field]);
     const rawDate = stringValue(dateStruct.date);
     if (!rawDate) return [];
-    const parsed = parseRegistryDate(rawDate, item.publishedAt);
+    const parsed = parseRegistryDate(rawDate, item.discoveredAt);
     if (!parsed) return [];
     const eventDate = parsed.eventDate;
-    if (Date.parse(eventDate) < startOfDay(item.publishedAt) - 24 * 60 * 60_000) return [];
+    if (Date.parse(eventDate) < startOfDay(item.discoveredAt)) return [];
     const estimated = stringValue(dateStruct.type).toUpperCase() !== "ACTUAL";
-    return [upcomingEvent(item, analysis, {
+    return [upcomingEvent(item, { ...identity, trialPhase, program, indication }, {
       basis: "registry_schedule",
       stableKey: `${nctId}:${milestone.field}`,
       eventType: milestone.eventType,
-      trialPhase: analysis.assessment.trialPhase,
+      trialPhase,
       program,
-      indication: analysis.assessment.indication,
+      indication,
       title: milestone.title,
       summary: `${milestone.label} from ClinicalTrials.gov${estimated ? " (estimated)" : ""}. Registry completion dates do not guarantee a data release on that date.`,
       eventDate,
@@ -176,29 +219,30 @@ function registryMilestones(item: NormalizedItem, analysis: AnalysisRecord): Tim
   });
 }
 
-function extractGuidedMilestones(item: NormalizedItem, analysis: AnalysisRecord): TimelineEvent[] {
-  const text = `${item.headline}. ${item.summary.slice(0, 12_000)}`;
+function extractGuidedMilestones(item: NormalizedItem, identity: CalendarIdentity): TimelineEvent[] {
+  const text = `${item.headline}. ${item.summary.slice(0, 50_000)}`;
   const sentences = text.split(/(?<=[.!?])\s+|\n+/).map((sentence) => sentence.trim()).filter(Boolean);
   return sentences.slice(0, 160).flatMap((sentence) => {
     if (BOILERPLATE.test(sentence) || (ROUTINE_EVENT.test(sentence) && !SUBSTANTIVE_EVENT.test(sentence))
-      || !MILESTONE_CUE.test(sentence) || !FUTURE_CUE.test(sentence)) return [];
+      || !MILESTONE_CUE.test(sentence)
+      || (!FUTURE_CUE.test(sentence) && !DECISION_DATE_CUE.test(sentence))) return [];
     const parsed = parseDateMention(sentence, item.publishedAt);
     if (!parsed) return [];
     const eventType = eventTypeFromSentence(sentence);
-    const program = analysis.assessment.trialName || programFromSentence(sentence);
-    return [upcomingEvent(item, analysis, {
+    const program = identity.program || programFromSentence(sentence);
+    return [upcomingEvent(item, identity, {
       basis: "company_guidance",
-      stableKey: `${eventType}:${program || analysis.assessment.indication}:${milestoneKind(sentence)}`,
+      stableKey: guidedMilestoneKey(eventType, parsed.eventDate, program, identity.indication, sentence),
       eventType,
-      trialPhase: analysis.assessment.trialPhase,
+      trialPhase: identity.trialPhase,
       program,
-      indication: analysis.assessment.indication,
+      indication: identity.indication,
       title: sentence.slice(0, 220),
       summary: sentence.slice(0, 500),
       eventDate: parsed.eventDate,
       datePrecision: parsed.precision,
       dateLabel: parsed.label,
-      anticipatedMateriality: anticipatedMateriality(eventType, analysis.assessment),
+      anticipatedMateriality: anticipatedMateriality(eventType, identity.trialPhase),
       expectedDirection: "unclear",
       expectedOutcome: "Company-guided milestone; outcome direction was not quantified in the source.",
       expectedSuccessProbability: null,
@@ -226,14 +270,13 @@ interface UpcomingFields {
   expectationConfidence: number;
 }
 
-function upcomingEvent(item: NormalizedItem, analysis: AnalysisRecord, fields: UpcomingFields): TimelineEvent {
-  const assessment = analysis.assessment;
+function upcomingEvent(item: NormalizedItem, identity: CalendarIdentity, fields: UpcomingFields): TimelineEvent {
   return {
-    id: timelineId(`upcoming:${assessment.ticker}:${fields.stableKey}`),
+    id: timelineId(`upcoming:${identity.ticker}:${fields.stableKey}`),
     status: "upcoming",
     basis: fields.basis,
-    ticker: assessment.ticker.trim().toUpperCase(),
-    companyName: assessment.companyName || item.companyHint || assessment.ticker,
+    ticker: identity.ticker,
+    companyName: identity.companyName,
     program: fields.program.slice(0, 160),
     indication: fields.indication.slice(0, 200),
     eventType: fields.eventType,
@@ -263,8 +306,8 @@ function upcomingEvent(item: NormalizedItem, analysis: AnalysisRecord, fields: U
     resolvedByEventId: null,
     clinicalSurpriseScore: null,
     outcome: null,
-    createdAt: analysis.createdAt,
-    updatedAt: analysis.createdAt,
+    createdAt: identity.createdAt,
+    updatedAt: identity.createdAt,
   };
 }
 
@@ -304,6 +347,14 @@ function likelySameMilestone(left: TimelineEvent, right: TimelineEvent): boolean
 }
 
 function parseDateMention(sentence: string, publishedAt: string): ParsedDate | null {
+  const iso = /\b(20\d{2})-(\d{2})-(\d{2})\b/.exec(sentence);
+  if (iso && isFutureDateContext(sentence, iso)) {
+    return parsedDate(Number(iso[1]), Number(iso[2]), Number(iso[3]), "exact", iso[0], publishedAt);
+  }
+  const numeric = /\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/.exec(sentence);
+  if (numeric && isFutureDateContext(sentence, numeric)) {
+    return parsedDate(Number(numeric[3]), Number(numeric[1]), Number(numeric[2]), "exact", numeric[0], publishedAt);
+  }
   const exact = new RegExp(`\\b(${MONTH_PATTERN})\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(20\\d{2})\\b`, "i").exec(sentence);
   if (exact && isFutureDateContext(sentence, exact)) {
     const month = monthNumber(exact[1]!);
@@ -417,22 +468,26 @@ function eventTypeFromSentence(sentence: string): CatalystEventType {
 
 function isFutureDateContext(sentence: string, match: RegExpExecArray): boolean {
   const before = sentence.slice(Math.max(0, match.index - 240), match.index);
-  if (FUTURE_CUE.test(before)) return true;
+  if (FUTURE_CUE.test(before) || DECISION_DATE_CUE.test(before)) return true;
   const after = sentence.slice(match.index + match[0].length, match.index + match[0].length + 90);
+  if (DECISION_DATE_CUE.test(after)) return true;
   return /^\s*(?:topline|top-line|readout|results?|data|submission|filing|meeting)?\s*(?:is|are|remains?)?\s*(?:expected|anticipated|planned|scheduled|targeted|due)\b/i.test(after);
 }
 
-function anticipatedMateriality(eventType: CatalystEventType, assessment: ImpactAssessment): number {
+function anticipatedMateriality(
+  eventType: CatalystEventType,
+  trialPhase: ImpactAssessment["trialPhase"],
+): number {
   if (eventType === "regulatory_decision") return 90;
   if (eventType === "safety_signal") return 88;
-  if (eventType === "trial_topline") return phase3Like(assessment) ? 90
-    : ["phase_2", "phase_2_3"].includes(assessment.trialPhase) ? 78 : 65;
+  if (eventType === "trial_topline") return phase3Like(trialPhase) ? 90
+    : ["phase_2", "phase_2_3"].includes(trialPhase) ? 78 : 65;
   if (eventType === "regulatory_update") return 68;
   return 55;
 }
 
-function phase3Like(assessment: ImpactAssessment): boolean {
-  return ["phase_2_3", "phase_3"].includes(assessment.trialPhase);
+function phase3Like(trialPhase: ImpactAssessment["trialPhase"]): boolean {
+  return ["phase_2_3", "phase_3"].includes(trialPhase);
 }
 
 function timelineId(value: string): string {
@@ -453,8 +508,51 @@ function milestoneKind(value: string): string {
   return lower.replace(/\b20\d{2}\b/g, "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 100);
 }
 
+function milestoneSubject(value: string): string {
+  const program = programFromSentence(value);
+  if (program) return program.toLowerCase();
+  return value.toLowerCase()
+    .replace(new RegExp(`\\b(?:${MONTH_PATTERN})\\b`, "gi"), " ")
+    .replace(/\b(?:20\d{2}|q[1-4]|h[12]|pdufa|fda|target|action|date|expected|expects|scheduled|plans?|will|results?|readout|topline|top-line)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 8)
+    .join("-");
+}
+
+function guidedMilestoneKey(
+  eventType: CatalystEventType,
+  eventDate: string,
+  program: string,
+  indication: string,
+  sentence: string,
+): string {
+  const kind = milestoneKind(sentence);
+  if (eventType === "regulatory_decision") {
+    const subtype = /\bpdufa\b|target action date/i.test(sentence) ? "pdufa"
+      : /\badcom\b|advisory committee/i.test(sentence) ? "adcom" : kind;
+    return `${eventType}:${subtype}:${eventDate.slice(0, 10)}`;
+  }
+  return `${eventType}:${program || indication}:${kind}:${milestoneSubject(sentence)}`;
+}
+
 function programFromSentence(sentence: string): string {
-  return /\b([A-Z]{2,10}[A-Z0-9]*-?\d{2,6}(?:-\d+)?)\b/.exec(sentence)?.[1] ?? "";
+  return /\b([A-Z]{2,10}[A-Z0-9]*-?\d{2,6}(?:-\d+)?)\b/i.exec(sentence)?.[1] ?? "";
+}
+
+function registryTrialPhase(value: unknown): ImpactAssessment["trialPhase"] | null {
+  if (!Array.isArray(value)) return null;
+  const phases = value.map((phase) => String(phase).toUpperCase().replace(/[^A-Z0-9]/g, ""));
+  if (phases.some((phase) => phase === "PHASE3")) {
+    return phases.some((phase) => phase === "PHASE2") ? "phase_2_3" : "phase_3";
+  }
+  if (phases.some((phase) => phase === "PHASE2")) {
+    return phases.some((phase) => phase === "PHASE1") ? "phase_1_2" : "phase_2";
+  }
+  if (phases.some((phase) => phase === "PHASE1")) return "phase_1";
+  if (phases.some((phase) => phase === "EARLYPHASE1")) return "phase_1";
+  return null;
 }
 
 function normalizeToken(value: string): string {

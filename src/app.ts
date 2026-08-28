@@ -246,7 +246,7 @@ export async function createApp(
     const publishedBefore = free
       ? new Date(Date.now() - config.entitlements.freeFeedDelayMinutes * 60_000).toISOString()
       : null;
-    const limit = free ? Math.min(query.limit, 150) : query.limit;
+    const limit = free ? Math.min(query.limit, 500) : query.limit;
     const events = db.listTimelineEvents ? await db.listTimelineEvents(
       limit,
       query.status ?? null,
@@ -418,6 +418,15 @@ function summarizeTimeline(events: readonly TimelineEvent[]) {
     benchmarkedCount: benchmarked.length,
     expectationMatchedCount: completed.filter((event) => event.expectationEventId).length,
     overdueCount: upcoming.filter((event) => Date.parse(event.eventDate) < Date.now()).length,
+    confirmedDateCount: upcoming.filter((event) => (
+      event.basis === "company_guidance" && event.datePrecision === "exact"
+    )).length,
+    guidedWindowCount: upcoming.filter((event) => (
+      event.basis === "company_guidance" && event.datePrecision !== "exact"
+    )).length,
+    registryEstimateCount: upcoming.filter((event) => event.basis === "registry_schedule").length,
+    regulatoryDecisionCount: upcoming.filter((event) => event.eventType === "regulatory_decision").length,
+    readoutCount: upcoming.filter((event) => event.eventType === "trial_topline").length,
   };
 }
 
@@ -475,12 +484,13 @@ function companyCoverage(config: AppConfig, company: WatchCompany): CompanyCover
   const quoteMediaSources = config.quoteMediaSources.filter((source) => (
     source.symbol === company.ticker || source.symbols.includes(company.ticker) || source.watchlist
   ));
+  const licensedNews = Boolean(config.alpaca.newsEnabled && config.alpaca.keyId && config.alpaca.secretKey);
   const companyIr = quoteMediaSources.some((source) => source.sourceType === "company_ir")
     || config.rssSources.some((source) => source.sourceType === "company_ir" && source.tickers.includes(company.ticker));
   const coverage = {
     sec: Boolean(company.cik && config.secEnabled),
     clinicalTrials: config.clinicalTrialsEnabled,
-    pressReleases: quoteMediaSources.length > 0,
+    pressReleases: quoteMediaSources.length > 0 || licensedNews,
     companyIr,
     programMetadata: company.programs.length > 0,
   };

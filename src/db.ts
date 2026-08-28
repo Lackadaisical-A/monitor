@@ -413,7 +413,8 @@ export class SignalDatabase implements SignalStore {
   findPriorItems(item: NormalizedItem, sinceIso: string, limit = 12): NormalizedItem[] {
     const rows = this.sqlite.prepare(`
       SELECT * FROM items
-      WHERE id <> ? AND published_at >= ? AND published_at < datetime(?, '-30 minutes')
+      WHERE id <> ? AND julianday(published_at) >= julianday(?)
+        AND julianday(published_at) < julianday(?, '-30 minutes')
         AND status = 'analyzed'
         AND (
           (? IS NOT NULL AND ticker_hint = ?)
@@ -656,7 +657,6 @@ export class SignalDatabase implements SignalStore {
       `(
         (
           status = 'upcoming'
-          AND COALESCE(anticipated_materiality, 0) >= 60
           AND julianday(event_date) >= julianday('now', '-90 days')
         )
         OR (
@@ -681,7 +681,8 @@ export class SignalDatabase implements SignalStore {
       clauses.push(`ticker IN (${normalizedTickers.map(() => "?").join(", ")})`);
       params.push(...normalizedTickers);
     }
-    params.push(Math.min(Math.max(limit, 1), 1_000));
+    const normalizedLimit = Math.min(Math.max(limit, 1), 1_000);
+    params.push(Math.min(normalizedLimit * 3, 3_000));
     const queriedRows = this.sqlite.prepare(`
       SELECT * FROM timeline_events
       WHERE ${clauses.join(" AND ")}
@@ -691,7 +692,7 @@ export class SignalDatabase implements SignalStore {
         CASE WHEN status = 'completed' THEN event_date END DESC
       LIMIT ?
     `).all(...params) as TimelineRow[];
-    const rows = collapseTimelineRows(queriedRows).slice(0, Math.min(Math.max(limit, 1), 1_000));
+    const rows = collapseTimelineRows(queriedRows).slice(0, normalizedLimit);
     if (!rows.length) return [];
 
     const outcomeKeys = [...new Set(rows.map((row) => row.event_key).filter((value): value is string => Boolean(value)))];

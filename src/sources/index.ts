@@ -4,6 +4,7 @@ import { ClinicalTrialsSource } from "./clinical-trials.js";
 import { RedditSource } from "./reddit.js";
 import { RssSource } from "./rss.js";
 import { SecFilingsSource } from "./sec.js";
+import { SecCalendarSource } from "./sec-calendar.js";
 import { FdaAdvisorySource } from "./federal-register.js";
 import { XRecentSearchSource } from "./x.js";
 import { QuoteMediaPressReleaseSource } from "./quote-media.js";
@@ -28,6 +29,7 @@ export function createSources(config: AppConfig): SourceAdapter[] {
   }
   if (config.secEnabled && config.watchlist.some((company) => company.cik)) {
     sources.push(new SecFilingsSource(config.watchlist, config.secUserAgent, config.sourceTimeoutMs));
+    sources.push(new SecCalendarSource(config.watchlist, config.secUserAgent, config.sourceTimeoutMs));
   }
   if (config.fdaAdcomEnabled) {
     sources.push(new FdaAdvisorySource(config.watchlist, config.sourceTimeoutMs));

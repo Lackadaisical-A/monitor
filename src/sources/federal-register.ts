@@ -21,7 +21,7 @@ interface FederalRegisterResponse {
 
 export class FdaAdvisorySource implements SourceAdapter {
   readonly descriptor = {
-    id: "fda-advisory-committees",
+    id: "fda-advisory-calendar-v2",
     name: "FDA advisory committee notices",
     type: "regulator",
     tier: "primary",
@@ -35,22 +35,31 @@ export class FdaAdvisorySource implements SourceAdapter {
   async fetch(cursor: string | null): Promise<SourceFetchResult> {
     const cursorTime = cursor && Number.isFinite(Date.parse(cursor))
       ? Date.parse(cursor) - 24 * 60 * 60 * 1000
-      : Date.now() - 14 * 24 * 60 * 60 * 1000;
-    const url = new URL(ENDPOINT);
-    url.searchParams.set("conditions[agencies][]", "food-and-drug-administration");
-    url.searchParams.set("conditions[term]", "advisory committee");
-    url.searchParams.set("conditions[publication_date][gte]", new Date(cursorTime).toISOString().slice(0, 10));
-    url.searchParams.set("order", "newest");
-    url.searchParams.set("per_page", "100");
-    const response = await fetchWithTimeout(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "CatalystWatch/0.2 FDA advisory monitor",
-      },
-    }, this.timeoutMs);
-    const payload = await response.json() as FederalRegisterResponse;
+      : Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const documents: FederalRegisterDocument[] = [];
+    let resultCount = 0;
+    let totalPages = 1;
+    for (let page = 1; page <= Math.min(totalPages, 10); page += 1) {
+      const url = new URL(ENDPOINT);
+      url.searchParams.set("conditions[agencies][]", "food-and-drug-administration");
+      url.searchParams.set("conditions[term]", "advisory committee");
+      url.searchParams.set("conditions[publication_date][gte]", new Date(cursorTime).toISOString().slice(0, 10));
+      url.searchParams.set("order", "newest");
+      url.searchParams.set("per_page", "100");
+      url.searchParams.set("page", String(page));
+      const response = await fetchWithTimeout(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "CatalystWatch/0.3 FDA advisory calendar",
+        },
+      }, this.timeoutMs);
+      const payload = await response.json() as FederalRegisterResponse;
+      documents.push(...(payload.results ?? []));
+      resultCount = payload.count ?? documents.length;
+      totalPages = payload.total_pages ?? 1;
+    }
     const discoveredAt = new Date().toISOString();
-    const items = (payload.results ?? []).flatMap((document): NormalizedItem[] => {
+    const items = documents.flatMap((document): NormalizedItem[] => {
       const documentNumber = document.document_number;
       const title = stripHtml(document.title ?? "");
       const sourceUrl = document.html_url;
@@ -75,16 +84,19 @@ export class FdaAdvisorySource implements SourceAdapter {
         tickerHint: company?.ticker ?? null,
         provenance: "direct_primary",
         independenceKey: `regulator:${documentNumber}`,
-        raw: document,
+        raw: {
+          ...document,
+          catalystWatch: { calendarOnly: cursor === null, backfill: cursor === null ? "fda_adcom" : null },
+        },
       }];
     });
     return {
       items,
       cursor: discoveredAt,
       diagnostics: {
-        resultCount: payload.count ?? items.length,
+        resultCount,
         itemCount: items.length,
-        totalPages: payload.total_pages ?? 1,
+        totalPages,
       },
     };
   }

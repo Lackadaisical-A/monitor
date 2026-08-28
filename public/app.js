@@ -1,5 +1,5 @@
 const IDENTITY_KEY = "catalyst-watch-installation-v1";
-const CACHE_KEY = "catalyst-watch-web-cache-v6";
+const CACHE_KEY = "catalyst-watch-web-cache-v7";
 const EVENT_TYPES = [
   "trial_topline", "trial_update", "regulatory_decision", "regulatory_update",
   "safety_signal", "publication", "financing", "partnership", "other",
@@ -30,6 +30,7 @@ const state = {
   watchlistScope: "all",
   marketCap: "all",
   timelineStatus: "all",
+  timelineKind: "all",
   timelineQuery: "",
   lastUpdatedAt: null,
   refreshing: false,
@@ -50,6 +51,7 @@ const elements = {
   timelineList: document.querySelector("#timeline-list"),
   timelineSearch: document.querySelector("#timeline-search"),
   timelineStatus: document.querySelector("#timeline-status"),
+  timelineKind: document.querySelector("#timeline-kind"),
   watchlistGrid: document.querySelector("#watchlist-grid"),
   signalSearch: document.querySelector("#signal-search"),
   mobileSignalSearch: document.querySelector("#mobile-signal-search"),
@@ -156,6 +158,12 @@ elements.timelineStatus.addEventListener("click", (event) => {
   if (!button) return;
   state.timelineStatus = ["upcoming", "completed"].includes(button.dataset.timelineStatus)
     ? button.dataset.timelineStatus : "all";
+  renderTimeline();
+});
+
+elements.timelineKind.addEventListener("change", () => {
+  state.timelineKind = ["regulatory", "readout", "registry"].includes(elements.timelineKind.value)
+    ? elements.timelineKind.value : "all";
   renderTimeline();
 });
 
@@ -565,21 +573,25 @@ function signalDetail(entry) {
 function renderTimeline() {
   const summary = state.timelineSummary || {
     upcomingCount: state.timeline.filter((event) => event.status === "upcoming").length,
-    completedCount: state.timeline.filter((event) => event.status === "completed").length,
-    benchmarkedCount: state.timeline.filter((event) => event.outcome?.abnormalReturnPct != null).length,
-    expectationMatchedCount: state.timeline.filter((event) => event.expectationEventId).length,
+    regulatoryDecisionCount: state.timeline.filter((event) => event.status === "upcoming" && event.eventType === "regulatory_decision").length,
+    readoutCount: state.timeline.filter((event) => event.status === "upcoming" && event.eventType === "trial_topline").length,
+    confirmedDateCount: state.timeline.filter((event) => (
+      event.status === "upcoming" && event.basis === "company_guidance" && event.datePrecision === "exact"
+    )).length,
   };
   text("#timeline-upcoming-count", summary.upcomingCount || 0);
-  text("#timeline-completed-count", summary.completedCount || 0);
-  text("#timeline-benchmarked-count", summary.benchmarkedCount || 0);
-  text("#timeline-matched-count", summary.expectationMatchedCount || 0);
+  text("#timeline-regulatory-count", summary.regulatoryDecisionCount || 0);
+  text("#timeline-readout-count", summary.readoutCount || 0);
+  text("#timeline-confirmed-count", summary.confirmedDateCount || 0);
   text("#timeline-updated", state.lastUpdatedAt ? relativeTime(state.lastUpdatedAt) : "--");
   elements.timelineStatus.querySelectorAll("[data-timeline-status]").forEach((button) => {
     button.classList.toggle("active", button.dataset.timelineStatus === state.timelineStatus);
   });
+  elements.timelineKind.value = state.timelineKind;
 
   const filtered = state.timeline.filter((event) => {
     if (state.timelineStatus !== "all" && event.status !== state.timelineStatus) return false;
+    if (!timelineKindMatches(event, state.timelineKind)) return false;
     if (!state.timelineQuery) return true;
     return [event.ticker, event.companyName, event.program, event.indication, event.title,
       event.summary, event.eventType, event.sourceName]
@@ -594,7 +606,9 @@ function renderTimeline() {
     .sort((left, right) => Date.parse(right.eventDate) - Date.parse(left.eventDate));
   const sections = [];
   if (state.timelineStatus !== "completed" && upcoming.length) {
-    sections.push(timelineSection("Upcoming", upcoming, "Company guidance and registered trial dates"));
+    for (const group of groupTimelineMonths(upcoming)) {
+      sections.push(timelineSection(group.label, group.events, "Confirmed dates, guided windows, and registry estimates"));
+    }
   }
   if (state.timelineStatus !== "upcoming" && completed.length) {
     sections.push(timelineSection("Completed", completed, "Original alert scores with post-event calibration"));
@@ -603,6 +617,29 @@ function renderTimeline() {
     state.timeline.length ? "No matching timeline events" : "No timeline events yet",
     state.timeline.length ? "Change the search or status filter." : "Milestones appear as monitored sources publish guidance and results.",
   );
+}
+
+function timelineKindMatches(event, kind) {
+  if (kind === "regulatory") return ["regulatory_decision", "regulatory_update"].includes(event.eventType);
+  if (kind === "readout") return event.eventType === "trial_topline";
+  if (kind === "registry") return event.basis === "registry_schedule";
+  return true;
+}
+
+function groupTimelineMonths(events) {
+  const groups = new Map();
+  for (const event of events) {
+    const date = new Date(event.eventDate);
+    const key = Number.isNaN(date.getTime()) ? "unknown" : date.toISOString().slice(0, 7);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(event);
+  }
+  return [...groups.entries()].map(([key, values]) => ({
+    label: key === "unknown" ? "Date pending" : new Intl.DateTimeFormat(undefined, {
+      month: "long", year: "numeric", timeZone: "UTC",
+    }).format(new Date(`${key}-01T12:00:00.000Z`)),
+    events: values,
+  }));
 }
 
 function timelineSection(title, events, subtitle) {
@@ -614,6 +651,7 @@ function timelineSection(title, events, subtitle) {
 
 function timelineRow(event) {
   const date = timelineDateParts(event);
+  const dateStatus = timelineDateStatus(event);
   const outcome = event.outcome;
   const calibrated = outcome?.calibrationVersion >= 2;
   const guidancePassed = event.status === "upcoming" && Date.parse(event.eventDate) < Date.now();
@@ -641,13 +679,28 @@ function timelineRow(event) {
     <time class="timeline-date" datetime="${escapeHtml(event.eventDate)}"><strong>${escapeHtml(date.primary)}</strong><span>${escapeHtml(date.secondary)}</span>${guidancePassed ? "<em>Guidance passed</em>" : ""}</time>
     <span class="timeline-rail"><i></i></span>
     <span class="timeline-copy">
-      <span class="timeline-badges"><b>${escapeHtml(event.ticker)}</b><em>${escapeHtml(prettyLabel(event.eventType))}</em>${event.alertTier ? `<em class="${escapeHtml(event.alertTier)}">${escapeHtml(event.alertTier)}</em>` : ""}</span>
+      <span class="timeline-badges"><b>${escapeHtml(event.ticker)}</b><em>${escapeHtml(calendarEventLabel(event))}</em><em class="date-status ${escapeHtml(dateStatus.className)}">${escapeHtml(dateStatus.label)}</em>${event.alertTier ? `<em class="${escapeHtml(event.alertTier)}">${escapeHtml(event.alertTier)}</em>` : ""}</span>
       <strong>${escapeHtml(event.title)}</strong>
       <small>${escapeHtml([event.program, event.indication, event.sourceName].filter(Boolean).join(" · "))}</small>
     </span>
     <span class="timeline-metrics expectation">${expectationMetrics}</span>
     <span class="timeline-metrics realized">${realizedMetrics}</span>
   </button>`;
+}
+
+function calendarEventLabel(event) {
+  const textValue = `${event.title} ${event.summary}`;
+  if (/\bpdufa\b|target action date/i.test(textValue)) return "PDUFA";
+  if (/\badcom\b|advisory committee/i.test(textValue)) return "AdCom";
+  if (event.basis === "registry_schedule") return "Primary completion";
+  return prettyLabel(event.eventType);
+}
+
+function timelineDateStatus(event) {
+  if (event.status === "completed") return { label: "Announced", className: "announced" };
+  if (event.basis === "registry_schedule") return { label: "Registry estimate", className: "estimated" };
+  if (event.datePrecision === "exact") return { label: "Confirmed date", className: "confirmed" };
+  return { label: "Guided window", className: "guided" };
 }
 
 function timelineMetric(label, value, className = "") {
@@ -663,6 +716,7 @@ function openTimelineEvent(eventId) {
 
 function timelineDetail(event) {
   const outcome = event.outcome;
+  const dateStatus = timelineDateStatus(event);
   const calibrated = outcome?.calibrationVersion >= 2;
   const dateChanged = event.initialEventDate && event.initialEventDate !== event.eventDate;
   const range = outcome ? `${signed(outcome.expectedMoveLowPct)} to ${signed(outcome.expectedMoveHighPct)}` : null;
@@ -688,7 +742,7 @@ function timelineDetail(event) {
   return `<div class="detail-content timeline-detail">
     <div class="detail-kicker"><span>${escapeHtml(event.status)}</span><time>${escapeHtml(event.dateLabel)}</time></div>
     <h2>${escapeHtml(event.title)}</h2>
-    <div class="detail-source">${escapeHtml(event.ticker)} · ${escapeHtml(event.sourceName)} · ${escapeHtml(prettyLabel(event.eventType))}</div>
+    <div class="detail-source">${escapeHtml(event.ticker)} · ${escapeHtml(dateStatus.label)} · ${escapeHtml(event.sourceName)} · ${escapeHtml(calendarEventLabel(event))}</div>
     ${scoreCards}
     ${event.summary ? `<section class="detail-section"><h3>${event.status === "upcoming" ? "Guidance" : "Assessment"}</h3><p>${escapeHtml(event.summary)}</p></section>` : ""}
     ${expectation}

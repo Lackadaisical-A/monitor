@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { SignalDatabase } from "../src/db.js";
-import { clinicalSurpriseScore, timelineEventsFromAnalysis } from "../src/timeline.js";
+import { clinicalSurpriseScore, timelineEventsFromAnalysis, timelineEventsFromItem } from "../src/timeline.js";
 import type { AnalysisRecord, ImpactAssessment, NormalizedItem } from "../src/types.js";
 
 let db: SignalDatabase | null = null;
@@ -103,6 +103,83 @@ describe("catalyst timeline", () => {
       datePrecision: "month",
       sourceName: "ClinicalTrials.gov",
     });
+  });
+
+  it("creates a registry calendar event without paying for historical AI analysis", () => {
+    const item = {
+      ...signalItem("nct-backfill", "2026-08-25T12:00:00.000Z", "ClinicalTrials.gov record updated"),
+      source: { id: "clinicaltrials-calendar-v2", name: "ClinicalTrials.gov", type: "clinical_trials", tier: "primary" } as const,
+      tickerHint: "EXBI",
+      companyHint: "Example Bio",
+      raw: {
+        protocolSection: {
+          identificationModule: { nctId: "NCT87654321", briefTitle: "Pivotal ABC-101 study" },
+          statusModule: {
+            overallStatus: "ACTIVE_NOT_RECRUITING",
+            primaryCompletionDateStruct: { date: "2027-04-15", type: "ESTIMATED" },
+          },
+          designModule: { phases: ["PHASE3"] },
+          conditionsModule: { conditions: ["Rare disease"] },
+          armsInterventionsModule: { interventions: [{ name: "ABC-101" }] },
+        },
+      },
+    } satisfies NormalizedItem;
+
+    expect(timelineEventsFromItem(item)).toEqual([expect.objectContaining({
+      ticker: "EXBI",
+      trialPhase: "phase_3",
+      indication: "Rare disease",
+      eventDate: "2027-04-15T12:00:00.000Z",
+      anticipatedMateriality: 78,
+      basis: "registry_schedule",
+    })]);
+  });
+
+  it("extracts an exact PDUFA date deterministically from an archival SEC filing", () => {
+    const item = {
+      ...signalItem(
+        "sec-calendar",
+        "2026-02-10T14:00:00.000Z",
+        "The ABC-101 application has a PDUFA date of September 30, 2026.",
+      ),
+      source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
+      provenance: "direct_primary" as const,
+    } satisfies NormalizedItem;
+
+    expect(timelineEventsFromItem(item)).toEqual([expect.objectContaining({
+      ticker: "EXBI",
+      eventType: "regulatory_decision",
+      datePrecision: "exact",
+      dateLabel: "September 30, 2026",
+      eventDate: "2026-09-30T12:00:00.000Z",
+      anticipatedMateriality: 90,
+    })]);
+  });
+
+  it("deduplicates repeated PDUFA disclosures for the same ticker and date", () => {
+    const baseItem = {
+      ...signalItem(
+        "sec-calendar-first",
+        "2026-02-10T14:00:00.000Z",
+        "The FDA assigned the mRNA-1010 BLA a PDUFA target action date of September 30, 2026.",
+      ),
+      source: { id: "sec-calendar", name: "SEC catalyst calendar", type: "sec", tier: "primary" } as const,
+      provenance: "direct_primary" as const,
+    } satisfies NormalizedItem;
+    const repeatedItem = {
+      ...baseItem,
+      id: "sec-calendar-second",
+      headline: "The PDUFA date for the mRNA-1010 application remains September 30, 2026.",
+      summary: "The PDUFA date for the mRNA-1010 application remains September 30, 2026.",
+    } satisfies NormalizedItem;
+
+    const first = timelineEventsFromItem(baseItem);
+    const repeated = timelineEventsFromItem(repeatedItem);
+
+    expect(first).toHaveLength(1);
+    expect(repeated).toHaveLength(1);
+    expect(first[0]?.id).toBe(repeated[0]?.id);
+    expect(first[0]?.program).toBe("mRNA-1010");
   });
 
   it("links a result to an earlier expectation and removes the resolved duplicate", () => {

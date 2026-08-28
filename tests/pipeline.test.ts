@@ -160,6 +160,33 @@ describe("MonitorPipeline processing", () => {
     await pipeline.run();
     expect(pipeline.telemetry().analysisLatencySeconds.count).toBe(1);
   });
+
+  it("stores archival calendar events without invoking the analyzer", async () => {
+    db = new SignalDatabase(":memory:");
+    const archival = candidateItem("archival-pdufa", "sec", -10);
+    archival.publishedAt = "2026-02-10T14:00:00.000Z";
+    archival.headline = "Example Bio 8-K catalyst disclosures";
+    archival.summary = "The FDA assigned EX-101 a PDUFA target action date of September 30, 2026.";
+    archival.raw = { catalystWatch: { calendarOnly: true, backfill: "sec" } };
+    let analysisCalls = 0;
+    const analyzer: CatalystAnalyzer = {
+      analyze: async () => {
+        analysisCalls += 1;
+        return { assessment: routineAssessment(), method: "openai", model: "test" };
+      },
+    };
+    const pipeline = processingPipeline(db, source([archival]), analyzer, 1);
+
+    const summary = await pipeline.run();
+
+    expect(summary).toMatchObject({ analyzedCount: 0, skippedCount: 1, errorCount: 0 });
+    expect(analysisCalls).toBe(0);
+    expect(db.listTimelineEvents()).toEqual([expect.objectContaining({
+      ticker: "EXBI",
+      eventType: "regulatory_decision",
+      eventDate: "2026-09-30T12:00:00.000Z",
+    })]);
+  });
 });
 
 function processingPipeline(

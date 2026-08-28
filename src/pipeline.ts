@@ -6,7 +6,7 @@ import type { AppConfig } from "./config.js";
 import { areLikelySameEvent, eventIdentity } from "./events.js";
 import type { OutcomeAuditorLike, OutcomeAuditSummary } from "./outcomes.js";
 import type { SignalStore, SourceStateUpdate } from "./store.js";
-import { timelineEventsFromAnalysis } from "./timeline.js";
+import { timelineEventsFromAnalysis, timelineEventsFromItem } from "./timeline.js";
 import type { EvidenceContext, ImpactAssessment, NormalizedItem, SourceAdapter } from "./types.js";
 import { isCatalystCandidate, mapWithConcurrency, resolveWatchCompany } from "./utils.js";
 
@@ -316,6 +316,18 @@ export class MonitorPipeline {
   }
 
   private async processItem(item: NormalizedItem): Promise<ProcessingSummary> {
+    if (this.db.upsertTimelineEvents) {
+      try {
+        await this.db.upsertTimelineEvents(timelineEventsFromItem(item));
+      } catch (error) {
+        this.logger.warn({ itemId: item.id, error: errorMessage(error) }, "deterministic calendar extraction failed");
+      }
+    }
+    if (isCalendarOnlyItem(item)) {
+      this.analysisLatencyEligibleItemIds.delete(item.id);
+      await this.db.markItem(item.id, "skipped");
+      return { ...emptyProcessingSummary(), skippedCount: 1 };
+    }
     const combinedText = `${item.headline}\n${item.summary}`;
     const trustedHint = ["company_ir", "sec", "regulator", "clinical_trials"].includes(item.source.type)
       ? item.tickerHint : null;
@@ -406,6 +418,13 @@ export class MonitorPipeline {
 
 function emptyProcessingSummary(): ProcessingSummary {
   return { analyzedCount: 0, skippedCount: 0, errorCount: 0, highCount: 0, urgentCount: 0 };
+}
+
+function isCalendarOnlyItem(item: NormalizedItem): boolean {
+  if (!item.raw || typeof item.raw !== "object" || Array.isArray(item.raw)) return false;
+  const metadata = (item.raw as Record<string, unknown>).catalystWatch;
+  return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata)
+    && (metadata as Record<string, unknown>).calendarOnly === true);
 }
 
 function observe(values: number[], value: number): void {

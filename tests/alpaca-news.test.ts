@@ -92,6 +92,38 @@ describe("AlpacaNewsSource", () => {
     expect(result.items[0]).toMatchObject({ tickerHint: null, companyHint: null });
   });
 
+  it("treats licensed wire releases as syndicated company evidence", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
+      news: [{
+        id: 994,
+        author: "PR Newswire",
+        created_at: "2026-08-25T15:00:00Z",
+        headline: "FDA accepts the vaccine application with a PDUFA date of December 18, 2026",
+        summary: "The application was accepted for priority review.",
+        url: "https://benzinga.test/pressreleases/994",
+        symbols: ["MRNA"],
+        source: "PR Newswire",
+      }],
+    })));
+    const source = new AlpacaNewsSource({
+      scope: "developer",
+      keyId: "test-key",
+      secretKey: "test-secret",
+      feed: "iex",
+      newsEnabled: true,
+    }, watchlist, 5_000);
+
+    const result = await source.fetch("2026-08-25T14:00:00Z");
+
+    expect(result.items[0]).toMatchObject({
+      source: { id: "alpaca-syndicated-press-releases", type: "company_ir", tier: "primary" },
+      provenance: "syndicated_primary",
+      independenceKey: "issuer:mrna",
+      tickerHint: "MRNA",
+      companyHint: "Moderna",
+    });
+  });
+
   it("drops generic investment-performance chatter before analysis", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({
       news: [{

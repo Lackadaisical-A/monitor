@@ -6,7 +6,7 @@
     "sourceType": "company_ir",
     "tier": "primary",
     "symbol": "MRNA",
-    "enabled": true
+    "enabled": false
   },
   {
     "id": "watchlist-press-releases",
@@ -15,7 +15,7 @@
     "sourceType": "company_ir",
     "tier": "primary",
     "watchlist": true,
-    "enabled": true
+    "enabled": false
   },
   {
     "id": "fda-press-releases",

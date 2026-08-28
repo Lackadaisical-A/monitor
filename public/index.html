@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/site.webmanifest" />
-    <link rel="stylesheet" href="/styles.css?v=10" />
+    <link rel="stylesheet" href="/styles.css?v=11" />
   </head>
   <body>
     <div class="app-shell">
@@ -144,17 +144,17 @@
         <section id="view-timeline" class="view" data-view-panel="timeline" hidden>
           <div class="workspace-heading">
             <div>
-              <div class="kicker">Forward calendar + realized impact</div>
-              <h1>Catalyst timeline</h1>
+              <div class="kicker">Verified dates + guided windows</div>
+              <h1>Catalyst calendar</h1>
             </div>
             <div class="timeline-updated"><span>Updated</span><strong id="timeline-updated">--</strong></div>
           </div>
 
           <div class="timeline-summary" aria-label="Timeline coverage">
-            <div><span>Upcoming</span><strong id="timeline-upcoming-count">--</strong><small>guided milestones</small></div>
-            <div><span>Completed</span><strong id="timeline-completed-count">--</strong><small>recorded catalysts</small></div>
-            <div><span>Benchmarked</span><strong id="timeline-benchmarked-count">--</strong><small>XBI-adjusted</small></div>
-            <div><span>Expectation matched</span><strong id="timeline-matched-count">--</strong><small>forecast to result</small></div>
+            <div><span>Upcoming</span><strong id="timeline-upcoming-count">--</strong><small>all tracked catalysts</small></div>
+            <div><span>FDA decisions</span><strong id="timeline-regulatory-count">--</strong><small>PDUFA and AdCom</small></div>
+            <div><span>Data readouts</span><strong id="timeline-readout-count">--</strong><small>company-guided</small></div>
+            <div><span>Confirmed dates</span><strong id="timeline-confirmed-count">--</strong><small>exact disclosed dates</small></div>
           </div>
 
           <div class="timeline-toolbar">
@@ -167,6 +167,15 @@
               <button data-timeline-status="upcoming" type="button">Upcoming</button>
               <button data-timeline-status="completed" type="button">Completed</button>
             </div>
+            <label class="select-field timeline-kind-filter" for="timeline-kind">
+              <span>Event</span>
+              <select id="timeline-kind">
+                <option value="all">All catalysts</option>
+                <option value="regulatory">FDA and AdCom</option>
+                <option value="readout">Data readouts</option>
+                <option value="registry">Trial schedules</option>
+              </select>
+            </label>
           </div>
 
           <div class="timeline-column-key" aria-hidden="true">
@@ -284,6 +293,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status"></div>
-    <script src="/app.js?v=10" defer></script>
+    <script src="/app.js?v=11" defer></script>
   </body>
 </html>

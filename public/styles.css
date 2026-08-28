@@ -1636,6 +1636,11 @@ dialog::backdrop {
   background: var(--surface);
 }
 
+.timeline-kind-filter {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
 .timeline-column-key {
   display: grid;
   grid-template-columns: minmax(360px, 1fr) 190px 230px;
@@ -1812,8 +1817,8 @@ dialog::backdrop {
   display: flex;
   min-width: 0;
   align-items: center;
+  flex-wrap: wrap;
   gap: 5px;
-  overflow: hidden;
 }
 
 .timeline-badges b,
@@ -1846,6 +1851,24 @@ dialog::backdrop {
 
 .timeline-badges em.urgent {
   color: var(--green);
+}
+
+.timeline-badges em.date-status.confirmed {
+  border-color: #367a61;
+  color: var(--green);
+  background: #10271f;
+}
+
+.timeline-badges em.date-status.guided {
+  border-color: #725b31;
+  color: var(--amber);
+  background: #282113;
+}
+
+.timeline-badges em.date-status.estimated {
+  border-color: #356277;
+  color: var(--cyan);
+  background: #11242d;
 }
 
 .timeline-metrics {
@@ -2162,6 +2185,10 @@ dialog::backdrop {
   .timeline-toolbar .segmented-control {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .timeline-kind-filter {
+    justify-content: space-between;
   }
 
   .timeline-row {

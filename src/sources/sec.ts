@@ -1,7 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import type { NormalizedItem, SourceAdapter, SourceFetchResult, WatchCompany } from "../types.js";
 import { canonicalUrl, itemId, stripHtml } from "../utils.js";
-import { fetchWithTimeout } from "./http.js";
+import { fetchSec } from "./sec-http.js";
 
 interface SecSubmissions {
   name?: string;
@@ -34,8 +34,6 @@ const parser = new XMLParser({
 
 export class SecFilingsSource implements SourceAdapter {
   readonly descriptor = { id: "sec-edgar", name: "SEC EDGAR", type: "sec", tier: "primary" } as const;
-  private nextRequestAt = 0;
-  private rateGate: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly watchlist: WatchCompany[],
@@ -81,9 +79,9 @@ export class SecFilingsSource implements SourceAdapter {
       let filingText = "";
       if (primaryDocument) {
         try {
-          const response = await this.fetchSec(documentUrl, {
+          const response = await fetchSec(documentUrl, {
             headers: { "User-Agent": this.userAgent, Accept: "text/html, text/plain;q=0.9" },
-          });
+          }, this.timeoutMs);
           filingText = stripHtml(await response.text()).slice(0, 25_000);
         } catch (error) {
           filingText = `Primary filing document could not be fetched: ${error instanceof Error ? error.message : String(error)}`;
@@ -147,12 +145,12 @@ export class SecFilingsSource implements SourceAdapter {
         count: "100",
         output: "atom",
       }).toString();
-      const response = await this.fetchSec(url.toString(), {
+      const response = await fetchSec(url.toString(), {
         headers: {
           "User-Agent": this.userAgent,
           Accept: "application/atom+xml, application/xml;q=0.9",
         },
-      });
+      }, this.timeoutMs);
       const page = parseAtomFilings(await response.text());
       filings.push(...page.filter((filing) => Date.parse(filing.updatedAt) >= sinceTime));
       const oldest = Math.min(...page.map((filing) => Date.parse(filing.updatedAt)).filter(Number.isFinite));
@@ -164,26 +162,11 @@ export class SecFilingsSource implements SourceAdapter {
   private getSubmissions(cik: string, cache: Map<string, Promise<SecSubmissions>>): Promise<SecSubmissions> {
     const existing = cache.get(cik);
     if (existing) return existing;
-    const request = this.fetchSec(`https://data.sec.gov/submissions/CIK${cik.padStart(10, "0")}.json`, {
+    const request = fetchSec(`https://data.sec.gov/submissions/CIK${cik.padStart(10, "0")}.json`, {
       headers: { "User-Agent": this.userAgent, Accept: "application/json" },
-    }).then((response) => response.json() as Promise<SecSubmissions>);
+    }, this.timeoutMs).then((response) => response.json() as Promise<SecSubmissions>);
     cache.set(cik, request);
     return request;
-  }
-
-  private async fetchSec(input: string, init: RequestInit): Promise<Response> {
-    let releaseGate!: () => void;
-    const previousGate = this.rateGate;
-    this.rateGate = new Promise<void>((resolve) => { releaseGate = resolve; });
-    await previousGate;
-    try {
-      const waitMs = Math.max(0, this.nextRequestAt - Date.now());
-      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
-      this.nextRequestAt = Date.now() + 125;
-    } finally {
-      releaseGate();
-    }
-    return fetchWithTimeout(input, init, this.timeoutMs);
   }
 }
 

@@ -10,6 +10,14 @@ const BATCH_CONCURRENCY = 3;
 const MAX_PAGES = 5;
 const CURSOR_OVERLAP_MS = 10 * 60_000;
 const MARKET_CHATTER = /(?:here['’]s how much .{0,40} invested|stocks? moving in .{0,30} session|maintains? (?:buy|sell|hold|neutral|overweight|underweight)|(?:raises?|lowers?) price target|shares? (?:rise|fall|gain|drop).{0,50}(?:trading|technical) signal|unusual options activity|options? market tells us|whale activity)/i;
+const RELEASE_PUBLISHER = /\b(?:accesswire|business wire|canada newswire|globe ?newswire|newsfile|pr newswire|the newswire)\b/i;
+const RELEASE_URL = /\/(?:press-?releases?|news-releases?)\//i;
+const SYNDICATED_RELEASE_SOURCE = {
+  id: "alpaca-syndicated-press-releases",
+  name: "Watchlist company press releases",
+  type: "company_ir",
+  tier: "primary",
+} as const;
 
 const NewsArticleSchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -80,14 +88,18 @@ export class AlpacaNewsSource implements SourceAdapter {
       const taggedCompanies = article.symbols
         .map((symbol) => watchlistByTicker.get(symbol.toUpperCase()))
         .filter((company): company is WatchCompany => Boolean(company));
-      const company = resolveWatchCompany({ headline, summary }, taggedCompanies);
       const externalId = String(article.id);
       const url = canonicalUrl(article.url);
       const publisher = (article.source || "benzinga").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const syndicatedRelease = isSyndicatedRelease(article);
+      const company = syndicatedRelease && taggedCompanies.length === 1
+        ? taggedCompanies[0]!
+        : resolveWatchCompany({ headline, summary }, taggedCompanies);
+      const source = syndicatedRelease ? SYNDICATED_RELEASE_SOURCE : this.descriptor;
       return [{
-        id: itemId(this.descriptor.id, externalId, url, headline),
+        id: itemId(source.id, externalId, url, headline),
         externalId,
-        source: this.descriptor,
+        source,
         headline,
         summary,
         url,
@@ -96,8 +108,9 @@ export class AlpacaNewsSource implements SourceAdapter {
         discoveredAt,
         companyHint: company?.company ?? null,
         tickerHint: company?.ticker ?? null,
-        provenance: "independent_reporting",
-        independenceKey: `publisher:${publisher || "alpaca-news"}`,
+        provenance: syndicatedRelease ? "syndicated_primary" : "independent_reporting",
+        independenceKey: syndicatedRelease && company
+          ? `issuer:${company.ticker.toLowerCase()}` : `publisher:${publisher || "alpaca-news"}`,
         raw: article,
       }];
     });
@@ -148,6 +161,11 @@ export class AlpacaNewsSource implements SourceAdapter {
     }
     return { articles, truncated };
   }
+}
+
+function isSyndicatedRelease(article: NewsArticle): boolean {
+  return RELEASE_PUBLISHER.test(`${article.source ?? ""} ${article.author ?? ""}`)
+    || RELEASE_URL.test(new URL(article.url).pathname);
 }
 
 function chunk<T>(items: readonly T[], size: number): T[][] {

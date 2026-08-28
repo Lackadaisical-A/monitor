@@ -1,5 +1,5 @@
 const IDENTITY_KEY = "catalyst-watch-installation-v1";
-const CACHE_KEY = "catalyst-watch-web-cache-v7";
+const CACHE_KEY = "catalyst-watch-web-cache-v8";
 const EVENT_TYPES = [
   "trial_topline", "trial_update", "regulatory_decision", "regulatory_update",
   "safety_signal", "publication", "financing", "partnership", "other",
@@ -29,7 +29,7 @@ const state = {
   watchlistQuery: "",
   watchlistScope: "all",
   marketCap: "all",
-  timelineStatus: "all",
+  timelineStatus: "upcoming",
   timelineKind: "all",
   timelineQuery: "",
   lastUpdatedAt: null,
@@ -252,7 +252,7 @@ async function refresh({ forceWatchlist }) {
     const requests = [
       api("/api/status"),
       api(`/api/feed?limit=150&scope=${scope}`),
-      api(`/api/timeline?limit=500&scope=${scope}`),
+      loadTimeline(scope),
     ];
     if (forceWatchlist || !state.watchlist.length) requests.push(api("/api/watchlist"));
     const responses = await Promise.all(requests);
@@ -280,6 +280,23 @@ async function refresh({ forceWatchlist }) {
     state.refreshing = false;
     elements.refreshButton.classList.remove("loading");
   }
+}
+
+async function loadTimeline(scope) {
+  const [upcoming, completed] = await Promise.all([
+    api(`/api/timeline?limit=500&scope=${scope}&status=upcoming`),
+    api(`/api/timeline?limit=250&scope=${scope}&status=completed`),
+  ]);
+  return {
+    events: [...upcoming.events, ...completed.events],
+    summary: {
+      ...upcoming.summary,
+      count: upcoming.events.length + completed.events.length,
+      completedCount: completed.summary.completedCount,
+      benchmarkedCount: completed.summary.benchmarkedCount,
+      expectationMatchedCount: completed.summary.expectationMatchedCount,
+    },
+  };
 }
 
 async function setFeedScope(scope) {

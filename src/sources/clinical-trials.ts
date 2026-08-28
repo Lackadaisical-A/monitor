@@ -230,9 +230,7 @@ export class ClinicalTrialsSource implements SourceAdapter {
       else url.searchParams.set("filter.advanced", `AREA[LastUpdatePostDate]RANGE[${since}, MAX]`);
       url.searchParams.set("sort", "LastUpdatePostDate:desc");
       if (nextPageToken) url.searchParams.set("pageToken", nextPageToken);
-      const response = await fetchWithTimeout(url, {
-        headers: { "User-Agent": "CatalystWatch/0.1 clinical trial monitor" },
-      }, this.timeoutMs);
+      const response = await this.fetchPage(url);
       const payload = await response.json() as ClinicalTrialsResponse;
       studies.push(...(payload.studies ?? []));
       totalCount = payload.totalCount ?? totalCount;
@@ -240,6 +238,21 @@ export class ClinicalTrialsSource implements SourceAdapter {
       page += 1;
     } while (nextPageToken && page < MAX_PAGES_PER_BATCH);
     return { studies, totalCount, truncated: Boolean(nextPageToken) };
+  }
+
+  private async fetchPage(url: URL): Promise<Response> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await fetchWithTimeout(url, {
+          headers: { "User-Agent": "CatalystWatch/0.3 clinical trial calendar" },
+        }, this.timeoutMs);
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await delay(400 * 2 ** attempt);
+      }
+    }
+    throw lastError;
   }
 }
 
@@ -380,4 +393,8 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
   return chunks;
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

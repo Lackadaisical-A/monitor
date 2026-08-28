@@ -3008,10 +3008,13 @@
   },
   {
     "ticker": "GSK",
-    "company": "Gsk",
+    "company": "GSK",
     "aliases": [
       "$GSK",
-      "GSK plc"
+      "GSK plc",
+      "GlaxoSmithKline",
+      "GlaxoSmithKline plc",
+      "GSK/TESARO"
     ],
     "cik": "0001131399",
     "marketCapBand": "mega",
@@ -3035,7 +3038,11 @@
     "ticker": "JNJ",
     "company": "Johnson & Johnson",
     "aliases": [
-      "$JNJ"
+      "$JNJ",
+      "Janssen Research & Development, LLC",
+      "Janssen Scientific Affairs, LLC",
+      "Janssen Pharmaceuticals, Inc.",
+      "Janssen-Cilag"
     ],
     "cik": "0000200406",
     "marketCapBand": "mega",
@@ -3047,7 +3054,8 @@
     "company": "Eli Lilly",
     "aliases": [
       "$LLY",
-      "ELI LILLY & Co"
+      "ELI LILLY & Co",
+      "Eli Lilly and Company"
     ],
     "cik": "0000059478",
     "marketCapBand": "mega",
@@ -3072,7 +3080,9 @@
     "company": "Merck",
     "aliases": [
       "$MRK",
-      "Merck & Co., Inc."
+      "Merck & Co., Inc.",
+      "Merck Sharp & Dohme LLC",
+      "Merck Sharp & Dohme Corp."
     ],
     "cik": "0000310158",
     "marketCapBand": "mega",
@@ -3099,7 +3109,9 @@
     "company": "Novartis",
     "aliases": [
       "$NVS",
-      "NOVARTIS AG"
+      "NOVARTIS AG",
+      "Novartis Pharmaceuticals",
+      "Novartis Pharmaceuticals Corporation"
     ],
     "cik": "0001114448",
     "marketCapBand": "mega",
@@ -3122,7 +3134,10 @@
     "ticker": "RHHBY",
     "company": "Roche",
     "aliases": [
-      "$RHHBY"
+      "$RHHBY",
+      "Hoffmann-La Roche",
+      "Hoffmann-La Roche Ltd",
+      "Roche Pharma AG"
     ],
     "marketCapBand": "mega",
     "xAccounts": [],
@@ -3132,7 +3147,8 @@
     "ticker": "SNY",
     "company": "Sanofi",
     "aliases": [
-      "$SNY"
+      "$SNY",
+      "Sanofi-Aventis"
     ],
     "cik": "0001121404",
     "marketCapBand": "mega",
@@ -3144,7 +3160,8 @@
     "company": "Takeda Pharmaceutical",
     "aliases": [
       "$TAK",
-      "TAKEDA PHARMACEUTICAL CO LTD"
+      "TAKEDA PHARMACEUTICAL CO LTD",
+      "Takeda Development Center Americas, Inc."
     ],
     "cik": "0001395064",
     "marketCapBand": "large",
@@ -3156,7 +3173,9 @@
     "company": "Teva Pharmaceutical",
     "aliases": [
       "$TEVA",
-      "TEVA PHARMACEUTICAL INDUSTRIES LTD"
+      "TEVA PHARMACEUTICAL INDUSTRIES LTD",
+      "Teva Pharmaceuticals USA",
+      "Teva Branded Pharmaceutical Products R&D, Inc."
     ],
     "cik": "0000818686",
     "marketCapBand": "large",

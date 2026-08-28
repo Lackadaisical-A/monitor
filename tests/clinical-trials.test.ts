@@ -165,4 +165,38 @@ describe("ClinicalTrialsSource calendar sync", () => {
     });
     expect(cursor).toMatchObject({ mode: "backfill", nextCompanyIndex: 12 });
   });
+
+  it("isolates mega-cap sponsors from neighboring backfill queries", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) => Response.json({ totalCount: 0, studies: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const watchlist: WatchCompany[] = [
+      company("SM1", "Small Bio One", "small"),
+      company("SM2", "Small Bio Two", "small"),
+      company("MEGA", "Mega Pharma", "mega"),
+      company("SM3", "Small Bio Three", "small"),
+    ];
+    const source = new ClinicalTrialsSource(watchlist, 5_000);
+
+    const first = await source.fetch(null);
+    const firstCursor = JSON.parse(first.cursor!);
+    const second = await source.fetch(first.cursor!);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(first.diagnostics).toMatchObject({ companyCount: 2, nextCompanyIndex: 2 });
+    expect(firstCursor).toMatchObject({ mode: "backfill", nextCompanyIndex: 2 });
+    expect(second.diagnostics).toMatchObject({ companyCount: 1, nextCompanyIndex: 3 });
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get("query.spons")).toContain("Mega Pharma");
+  });
 });
+
+function company(ticker: string, name: string, marketCapBand: WatchCompany["marketCapBand"]): WatchCompany {
+  return {
+    ticker,
+    company: name,
+    aliases: [],
+    cik: "1000000",
+    marketCapBand,
+    xAccounts: [],
+    programs: [],
+  };
+}

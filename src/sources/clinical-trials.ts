@@ -100,7 +100,7 @@ export class ClinicalTrialsSource implements SourceAdapter {
     const state = parseCursor(cursor, now, this.watchlist.length);
     const fullSync = state.mode === "backfill";
     const syncWatchlist = fullSync
-      ? this.watchlist.slice(state.nextCompanyIndex, state.nextCompanyIndex + BACKFILL_COMPANIES_PER_SCAN)
+      ? backfillWindow(this.watchlist, state.nextCompanyIndex)
       : this.watchlist;
     const since = fullSync ? state.cycleStartedAt.slice(0, 10) : state.since;
     const batches = chunk(syncWatchlist, SPONSOR_BATCH_SIZE);
@@ -206,6 +206,8 @@ export class ClinicalTrialsSource implements SourceAdapter {
         failedBatchCount: batchResults.length - successful.length,
         reportedStudyCount: successful.reduce((sum, result) => sum + result.value.totalCount, 0),
         truncatedBatchCount: successful.filter((result) => result.value.truncated).length,
+        batchErrors: batchResults.flatMap((result) => result.status === "rejected"
+          ? [errorMessage(result.reason).slice(0, 240)] : []),
         since,
       },
     };
@@ -393,6 +395,23 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
   return chunks;
+}
+
+function backfillWindow(watchlist: readonly WatchCompany[], startIndex: number): WatchCompany[] {
+  const first = watchlist[startIndex];
+  if (!first) return [];
+  if (first.marketCapBand === "mega") return [first];
+  const selected: WatchCompany[] = [];
+  for (let index = startIndex; index < watchlist.length && selected.length < BACKFILL_COMPANIES_PER_SCAN; index += 1) {
+    const company = watchlist[index]!;
+    if (company.marketCapBand === "mega") break;
+    selected.push(company);
+  }
+  return selected;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function delay(milliseconds: number): Promise<void> {

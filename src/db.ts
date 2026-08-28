@@ -183,7 +183,12 @@ export class SignalDatabase implements SignalStore {
   }
 
   insertItem(item: NormalizedItem): boolean {
-    const result = this.sqlite.prepare(`
+    return this.insertItems([item]) === 1;
+  }
+
+  insertItems(items: NormalizedItem[]): number {
+    if (!items.length) return 0;
+    const insert = this.sqlite.prepare(`
       INSERT OR IGNORE INTO items (
         id, external_id, source_id, source_name, source_type, source_tier,
         headline, summary, url, author, published_at, discovered_at,
@@ -193,27 +198,8 @@ export class SignalDatabase implements SignalStore {
         @headline, @summary, @url, @author, @publishedAt, @discoveredAt,
         @companyHint, @tickerHint, @provenance, @independenceKey, @rawJson, 'pending'
       )
-    `).run({
-      id: item.id,
-      externalId: item.externalId,
-      sourceId: item.source.id,
-      sourceName: item.source.name,
-      sourceType: item.source.type,
-      sourceTier: item.source.tier,
-      headline: item.headline,
-      summary: item.summary,
-      url: item.url,
-      author: item.author,
-      publishedAt: item.publishedAt,
-      discoveredAt: item.discoveredAt,
-      companyHint: item.companyHint,
-      tickerHint: item.tickerHint,
-      provenance: item.provenance ?? null,
-      independenceKey: item.independenceKey ?? null,
-      rawJson: JSON.stringify(item.raw),
-    });
-    if (result.changes > 0) return true;
-    this.sqlite.prepare(`
+    `);
+    const updateDescriptor = this.sqlite.prepare(`
       UPDATE items
       SET source_name = ?, source_type = ?, source_tier = ?,
         provenance = COALESCE(?, provenance), independence_key = COALESCE(?, independence_key)
@@ -224,24 +210,54 @@ export class SignalDatabase implements SignalStore {
         OR (? IS NOT NULL AND provenance IS NOT ?)
         OR (? IS NOT NULL AND independence_key IS NOT ?)
       )
-    `).run(
-      item.source.name,
-      item.source.type,
-      item.source.tier,
-      item.provenance ?? null,
-      item.independenceKey ?? null,
-      item.id,
-      item.source.name,
-      item.source.type,
-      item.source.tier,
-      item.provenance ?? null,
-      item.independenceKey ?? null,
-      item.provenance ?? null,
-      item.provenance ?? null,
-      item.independenceKey ?? null,
-      item.independenceKey ?? null,
-    );
-    return false;
+    `);
+    const insertMany = this.sqlite.transaction((values: readonly NormalizedItem[]) => {
+      let inserted = 0;
+      for (const item of values) {
+        const result = insert.run({
+          id: item.id,
+          externalId: item.externalId,
+          sourceId: item.source.id,
+          sourceName: item.source.name,
+          sourceType: item.source.type,
+          sourceTier: item.source.tier,
+          headline: item.headline,
+          summary: item.summary,
+          url: item.url,
+          author: item.author,
+          publishedAt: item.publishedAt,
+          discoveredAt: item.discoveredAt,
+          companyHint: item.companyHint,
+          tickerHint: item.tickerHint,
+          provenance: item.provenance ?? null,
+          independenceKey: item.independenceKey ?? null,
+          rawJson: JSON.stringify(item.raw),
+        });
+        if (result.changes > 0) {
+          inserted += 1;
+          continue;
+        }
+        updateDescriptor.run(
+          item.source.name,
+          item.source.type,
+          item.source.tier,
+          item.provenance ?? null,
+          item.independenceKey ?? null,
+          item.id,
+          item.source.name,
+          item.source.type,
+          item.source.tier,
+          item.provenance ?? null,
+          item.independenceKey ?? null,
+          item.provenance ?? null,
+          item.provenance ?? null,
+          item.independenceKey ?? null,
+          item.independenceKey ?? null,
+        );
+      }
+      return inserted;
+    });
+    return insertMany(items);
   }
 
   syncSourceDescriptors(sources: readonly SourceDescriptor[]): number {

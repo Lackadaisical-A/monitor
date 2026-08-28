@@ -254,9 +254,11 @@ export class MonitorPipeline {
           if (await this.db.insertItem(item)) {
             insertedCount += 1;
             insertedItemIds.add(item.id);
-            if (latencyEligibleItemIds.has(item.id)) this.analysisLatencyEligibleItemIds.add(item.id);
           }
         }
+      }
+      for (const itemId of insertedItemIds) {
+        if (latencyEligibleItemIds.has(itemId)) this.analysisLatencyEligibleItemIds.add(itemId);
       }
       if (this.db.saveCompanyPrograms) {
         for (const company of this.config.watchlist) {

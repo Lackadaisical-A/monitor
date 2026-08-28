@@ -47,6 +47,24 @@ interface ClinicalTrialsResponse {
 const SPONSOR_BATCH_SIZE = 3;
 const BATCH_CONCURRENCY = 3;
 const MAX_PAGES_PER_BATCH = 25;
+const CALENDAR_FIELDS = [
+  "NCTId",
+  "BriefTitle",
+  "OfficialTitle",
+  "OverallStatus",
+  "LastUpdatePostDate",
+  "ResultsFirstPostDate",
+  "PrimaryCompletionDate",
+  "LeadSponsorName",
+  "CollaboratorName",
+  "Phase",
+  "StudyType",
+  "EnrollmentCount",
+  "Condition",
+  "InterventionType",
+  "InterventionName",
+  "InterventionOtherName",
+].join(",");
 const ACTIVE_STATUSES = [
   "RECRUITING",
   "NOT_YET_RECRUITING",
@@ -180,7 +198,10 @@ export class ClinicalTrialsSource implements SourceAdapter {
       url.searchParams.set("pageSize", "100");
       url.searchParams.set("countTotal", page === 0 ? "true" : "false");
       url.searchParams.set("query.spons", sponsorQuery);
-      if (fullSync) url.searchParams.set("filter.overallStatus", ACTIVE_STATUSES.join("|"));
+      if (fullSync) {
+        url.searchParams.set("filter.overallStatus", ACTIVE_STATUSES.join("|"));
+        url.searchParams.set("fields", CALENDAR_FIELDS);
+      }
       else url.searchParams.set("filter.advanced", `AREA[LastUpdatePostDate]RANGE[${since}, MAX]`);
       url.searchParams.set("sort", "LastUpdatePostDate:desc");
       if (nextPageToken) url.searchParams.set("pageToken", nextPageToken);

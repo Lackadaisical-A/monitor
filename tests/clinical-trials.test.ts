@@ -49,6 +49,8 @@ describe("ClinicalTrialsSource calendar sync", () => {
 
     expect(requestedUrl.searchParams.get("query.spons")).toContain("ModernaTX");
     expect(requestedUrl.searchParams.get("filter.overallStatus")).toContain("RECRUITING");
+    expect(requestedUrl.searchParams.get("fields")).toContain("PrimaryCompletionDate");
+    expect(requestedUrl.searchParams.get("fields")).not.toContain("DetailedDescription");
     expect(requestedUrl.searchParams.has("filter.advanced")).toBe(false);
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toMatchObject({

@@ -13,7 +13,7 @@ Free access shows up to 30 recent signals after a 30-minute delay and supports 1
 5. Build to a physical iPhone. The simulator does not issue the same production device token workflow.
 6. The production server URL is compiled from `CatalystWatchServerURL`. For local Debug runs, set `CATALYST_WATCH_SERVER_URL` in the scheme environment.
 7. To activate developer access, expand **Settings > Plan > Developer access** and enter the private key. Debug builds can alternatively set `CATALYST_WATCH_DEVELOPER_TOKEN` in the scheme environment.
-8. Enable notifications and send a local test before enabling live APNs on the server.
+8. Enable notifications, confirm Sound and Time Sensitive delivery are enabled in iPhone Settings, and test both bundled alert sounds before enabling live APNs on the server.
 
 For deterministic App Store review screenshots, launch a Debug build with
 `CATALYST_WATCH_SCREENSHOT_MODE=1`. This opens the paywall with the configured
@@ -57,3 +57,5 @@ Only after Apple approves that entitlement for this exact app:
 4. Set `APNS_ALLOW_CRITICAL=true` on the server only after the app reports Critical Alert authorization.
 
 Without all four pieces, the server falls back to Time Sensitive or ordinary notification delivery.
+
+The standard App Store build uses `CatalystHigh.caf` for high alerts and the longer `CatalystUrgent.caf` for urgent alerts. Both remain subject to the iPhone's notification-sound and Ring/Silent settings. The client advertises bundled-sound support during APNs registration, so existing builds continue receiving the default Apple sound until upgraded.

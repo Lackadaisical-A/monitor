@@ -226,6 +226,7 @@ export interface DeviceRegistration {
   environment: "sandbox" | "production";
   timeSensitiveAuthorized: boolean;
   criticalAuthorized: boolean;
+  attentionSoundsSupported: boolean;
 }
 
 export type AccessLevel = "free" | "pro" | "developer";

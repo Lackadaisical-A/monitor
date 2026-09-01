@@ -4,6 +4,9 @@ import { importPKCS8, SignJWT } from "jose";
 import type { AppConfig } from "../config.js";
 import type { AnalysisRecord, DeviceRegistration, NormalizedItem } from "../types.js";
 
+export const HIGH_ALERT_SOUND = "CatalystHigh.caf";
+export const URGENT_ALERT_SOUND = "CatalystUrgent.caf";
+
 export interface ApnsResult {
   ok: boolean;
   status: number;
@@ -32,7 +35,13 @@ export class ApnsClient {
     const critical = this.config.allowCritical && device.criticalAuthorized && analysis.alertTier === "urgent";
     const timeSensitive = !critical && device.timeSensitiveAuthorized
       && (analysis.alertTier === "high" || analysis.alertTier === "urgent");
-    const payload = buildApnsPayload(item, analysis, critical, timeSensitive);
+    const payload = buildApnsPayload(
+      item,
+      analysis,
+      critical,
+      timeSensitive,
+      device.attentionSoundsSupported,
+    );
     const token = await this.getProviderToken();
     const origin = device.environment === "production" ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com";
     const session = connect(origin);
@@ -68,18 +77,22 @@ export function buildApnsPayload(
   analysis: AnalysisRecord,
   critical: boolean,
   timeSensitive = true,
+  attentionSoundsSupported = false,
 ): Record<string, unknown> {
   const assessment = analysis.assessment;
   const range = formatRange(assessment.expectedMoveLowPct, assessment.expectedMoveHighPct);
   const interruptionLevel = critical ? "critical" : timeSensitive ? "time-sensitive" : "active";
+  const ticker = assessment.ticker || item.tickerHint || "Biotech";
+  const tier = analysis.alertTier.toUpperCase();
   return {
     aps: {
       alert: {
-        title: `${assessment.ticker || item.tickerHint || "Biotech"} · ${analysis.alertTier} catalyst`,
+        title: `${tier} · ${ticker}`,
         subtitle: `${assessment.marketMateriality ?? assessment.materiality}/100 market materiality · ${(assessment.confidence * 100).toFixed(0)}% confidence`,
         body: `${item.headline}\nScenario range: ${range}. Verify the primary source before acting.`,
       },
-      sound: critical ? { critical: 1, name: "default", volume: 1 } : "default",
+      sound: alertSound(analysis.alertTier, critical, attentionSoundsSupported),
+      badge: 1,
       "interruption-level": interruptionLevel,
       "relevance-score": Math.min(1, Math.max(0, analysis.policyScore / 100)),
       "thread-id": assessment.ticker || item.tickerHint || "biotech",
@@ -89,6 +102,13 @@ export function buildApnsPayload(
     sourceUrl: item.url,
     disclaimer: "Probabilistic decision support; not a trading instruction.",
   };
+}
+
+function alertSound(tier: AnalysisRecord["alertTier"], critical: boolean, supported: boolean): string | Record<string, unknown> {
+  const name = supported
+    ? tier === "urgent" ? URGENT_ALERT_SOUND : HIGH_ALERT_SOUND
+    : "default";
+  return critical ? { critical: 1, name, volume: 1 } : name;
 }
 
 function sendHttp2(

@@ -1040,13 +1040,14 @@ export class SignalDatabase implements SignalStore {
       this.sqlite.prepare(`
         INSERT INTO devices (
           installation_id, device_token, environment, time_sensitive_authorized,
-          critical_authorized, active, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 1, ?)
+          critical_authorized, attention_sounds_supported, active, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
         ON CONFLICT(installation_id) DO UPDATE SET
           device_token = excluded.device_token,
           environment = excluded.environment,
           time_sensitive_authorized = excluded.time_sensitive_authorized,
           critical_authorized = excluded.critical_authorized,
+          attention_sounds_supported = excluded.attention_sounds_supported,
           active = 1,
           updated_at = excluded.updated_at
       `).run(
@@ -1055,6 +1056,7 @@ export class SignalDatabase implements SignalStore {
         device.environment,
         device.timeSensitiveAuthorized ? 1 : 0,
         device.criticalAuthorized ? 1 : 0,
+        device.attentionSoundsSupported ? 1 : 0,
         new Date().toISOString(),
       );
     })();
@@ -1067,6 +1069,7 @@ export class SignalDatabase implements SignalStore {
       environment: "sandbox" | "production";
       time_sensitive_authorized: number;
       critical_authorized: number;
+      attention_sounds_supported: number;
       active: number;
     }>;
     return rows.map((row) => ({
@@ -1075,6 +1078,7 @@ export class SignalDatabase implements SignalStore {
       environment: row.environment,
       timeSensitiveAuthorized: Boolean(row.time_sensitive_authorized),
       criticalAuthorized: Boolean(row.critical_authorized),
+      attentionSoundsSupported: Boolean(row.attention_sounds_supported),
       active: Boolean(row.active),
     }));
   }
@@ -1102,6 +1106,7 @@ export class SignalDatabase implements SignalStore {
       environment: "sandbox" | "production";
       time_sensitive_authorized: number;
       critical_authorized: number;
+      attention_sounds_supported: number;
       active: number;
       push_mode: PushMode;
       event_types_json: string;
@@ -1118,6 +1123,7 @@ export class SignalDatabase implements SignalStore {
       environment: row.environment,
       timeSensitiveAuthorized: Boolean(row.time_sensitive_authorized),
       criticalAuthorized: Boolean(row.critical_authorized),
+      attentionSoundsSupported: Boolean(row.attention_sounds_supported),
       active: Boolean(row.active),
     }));
   }
@@ -1294,6 +1300,7 @@ export class SignalDatabase implements SignalStore {
         environment TEXT NOT NULL,
         time_sensitive_authorized INTEGER NOT NULL DEFAULT 0,
         critical_authorized INTEGER NOT NULL DEFAULT 0,
+        attention_sounds_supported INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
       );
@@ -1418,6 +1425,7 @@ export class SignalDatabase implements SignalStore {
     this.ensureColumn("analyses", "event_key", "TEXT");
     this.ensureColumn("analyses", "event_anchor_at", "TEXT");
     this.ensureColumn("analyses", "analysis_version", "INTEGER NOT NULL DEFAULT 1");
+    this.ensureColumn("devices", "attention_sounds_supported", "INTEGER NOT NULL DEFAULT 0");
     const addedMinimumAlertTier = this.ensureColumn("installation_preferences", "minimum_alert_tier", "TEXT NOT NULL DEFAULT 'urgent'");
     this.ensureColumn("alerts", "event_key", "TEXT");
     this.ensureColumn("outcome_audits", "initial_materiality", "INTEGER");

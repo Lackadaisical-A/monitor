@@ -23,7 +23,7 @@ It does **not** claim that any announcement will definitely move a stock. Market
 - SQLite deduplication, source cursors, bounded analysis retries, event-level cooldowns, and alert/outcome audit logs.
 - OpenAI Responses API structured output with `gpt-5.6-luna` as the configurable default.
 - Offline demo heuristic with a hard block against high/urgent alerts.
-- Time Sensitive APNs notifications, plus guarded Critical Alert payload support.
+- Time Sensitive APNs notifications with distinct high and urgent sounds, plus guarded Critical Alert payload support.
 - Token-protected responsive dashboard and iOS 17+ SwiftUI app source.
 - Per-installation iPhone authentication, StoreKit 2 subscriptions, and server-side App Store JWS verification.
 - Per-installation company watchlists, All/Following feed modes, and company/event/priority-specific Pro alert routing on web and iPhone.
@@ -189,7 +189,7 @@ The Blueprint also configures the App Store bundle ID, Apple app ID, product IDs
 
 ### “Wake me up” limitation
 
-Time Sensitive notifications can break through Focus and Notification Summary if the user allows them, but they do not bypass the mute switch. Critical Alerts can bypass mute and Do Not Disturb, yet require a special entitlement approved by Apple plus explicit user permission. This repository keeps that capability off by default. A financial-news use case should not assume entitlement approval.
+Capable iPhone builds register support for bundled high and urgent sounds; older builds continue receiving Apple's default sound. Time Sensitive notifications can break through Focus and Notification Summary if the user allows them, but neither the default nor bundled sounds bypass the mute switch. Critical Alerts can bypass mute and Do Not Disturb, yet require a special entitlement approved by Apple plus explicit user permission. This repository keeps that capability off by default. A financial-news use case should not assume entitlement approval.
 
 Even correctly configured APNs delivery is best-effort; neither the server nor Apple guarantees zero-latency delivery.
 

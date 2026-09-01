@@ -157,6 +157,40 @@ describe("HTTP app", () => {
     await app.close();
   });
 
+  it("keeps default sounds for legacy clients and accepts bundled-sound capability", async () => {
+    db = new SignalDatabase(":memory:");
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const app = await createApp(config(), db, pipeline, verifier());
+    await bootstrap(app);
+    const registration = {
+      installationId,
+      deviceToken: "a".repeat(64),
+      environment: "sandbox",
+      timeSensitiveAuthorized: true,
+      criticalAuthorized: false,
+    };
+
+    const legacy = await app.inject({
+      method: "POST",
+      url: "/api/devices",
+      headers: clientHeaders(),
+      payload: registration,
+    });
+    expect(legacy.statusCode).toBe(201);
+    expect(db.listDevices()[0]?.attentionSoundsSupported).toBe(false);
+
+    const capable = await app.inject({
+      method: "POST",
+      url: "/api/devices",
+      headers: clientHeaders(),
+      payload: { ...registration, attentionSoundsSupported: true },
+    });
+    expect(capable.statusCode).toBe(201);
+    expect(capable.json().attentionSoundsAccepted).toBe(true);
+    expect(db.listDevices()[0]?.attentionSoundsSupported).toBe(true);
+    await app.close();
+  });
+
   it("allows the private dashboard to run a scan", async () => {
     db = new SignalDatabase(":memory:");
     let runCount = 0;

@@ -101,6 +101,7 @@ describe("SignalDatabase", () => {
         environment: "sandbox",
         timeSensitiveAuthorized: true,
         criticalAuthorized: false,
+        attentionSoundsSupported: id === developerId,
       });
     }
     db.applyStoreTransaction({
@@ -115,6 +116,7 @@ describe("SignalDatabase", () => {
     db.activateDeveloperAccess(developerId);
 
     expect(db.listDevices()).toHaveLength(3);
+    expect(db.listDevices().find((device) => device.installationId === developerId)?.attentionSoundsSupported).toBe(true);
     expect(db.listAlertDevices().map((device) => device.installationId).sort()).toEqual([developerId, proId].sort());
     expect(db.listAlertDevices("MRNA", "regulatory_update", "high").map((device) => device.installationId))
       .toEqual([developerId]);
@@ -144,6 +146,7 @@ describe("SignalDatabase", () => {
       environment: "sandbox",
       timeSensitiveAuthorized: true,
       criticalAuthorized: false,
+      attentionSoundsSupported: false,
     });
     db.upsertDevice({
       installationId: currentId,
@@ -151,9 +154,14 @@ describe("SignalDatabase", () => {
       environment: "sandbox",
       timeSensitiveAuthorized: true,
       criticalAuthorized: false,
+      attentionSoundsSupported: true,
     });
 
-    expect(db.listDevices()).toMatchObject([{ installationId: currentId, deviceToken }]);
+    expect(db.listDevices()).toMatchObject([{
+      installationId: currentId,
+      deviceToken,
+      attentionSoundsSupported: true,
+    }]);
   });
 
   it("persists learned program aliases without case-variant duplicates", () => {
@@ -225,6 +233,7 @@ describe("SignalDatabase", () => {
         environment: "sandbox",
         timeSensitiveAuthorized: true,
         criticalAuthorized: false,
+        attentionSoundsSupported: false,
       });
     }
     db.updateInstallationPreferences({

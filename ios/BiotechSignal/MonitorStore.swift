@@ -20,6 +20,7 @@ final class MonitorStore: ObservableObject {
     @Published private(set) var screenshotMode = false
     @Published private(set) var connection: ConnectionState = .notConfigured
     @Published private(set) var notificationStatus = "Not checked"
+    @Published private(set) var notificationSoundStatus = "Not checked"
     @Published private(set) var scanInProgress = false
     @Published private(set) var purchaseInProgress = false
     @Published private(set) var preferenceUpdateInProgress = false
@@ -287,11 +288,15 @@ final class MonitorStore: ObservableObject {
         }
     }
 
-    func sendLocalTest() async {
+    func sendLocalTest(_ sound: CatalystAlertSound) async {
         do {
-            try await NotificationManager.shared.scheduleLocalTest()
+            try await NotificationManager.shared.scheduleLocalTest(sound)
             lastError = nil
         } catch { lastError = error.localizedDescription }
+    }
+
+    func openNotificationSettings() {
+        NotificationManager.shared.openSystemNotificationSettings()
     }
 
     func purchase(_ product: Product) async {
@@ -471,11 +476,17 @@ final class MonitorStore: ObservableObject {
     }
 
     private func updateNotificationStatus() async {
-        guard access.pro else { notificationStatus = "Pro required"; return }
+        guard access.pro else {
+            notificationStatus = "Pro required"
+            notificationSoundStatus = "Pro required"
+            return
+        }
         let snapshot = await NotificationManager.shared.authorizationSnapshot()
+        notificationSoundStatus = snapshot.soundAuthorized ? "Enabled" : "Disabled"
         if snapshot.criticalAuthorized { notificationStatus = "Critical Alerts authorized" }
         else if snapshot.timeSensitiveAuthorized { notificationStatus = "Time Sensitive authorized" }
-        else if snapshot.authorized { notificationStatus = "Standard alerts authorized" }
+        else if snapshot.authorized && snapshot.alertsAuthorized { notificationStatus = "Standard alerts authorized" }
+        else if snapshot.authorized { notificationStatus = "Alerts disabled" }
         else { notificationStatus = "Notifications not authorized" }
     }
 
@@ -493,7 +504,8 @@ final class MonitorStore: ObservableObject {
                 deviceToken: token,
                 environment: environment,
                 timeSensitiveAuthorized: snapshot.timeSensitiveAuthorized,
-                criticalAuthorized: snapshot.criticalAuthorized
+                criticalAuthorized: snapshot.criticalAuthorized,
+                attentionSoundsSupported: NotificationManager.shared.attentionSoundsSupported
             ))
             lastError = nil
         } catch { lastError = "Device registration failed: \(error.localizedDescription)" }

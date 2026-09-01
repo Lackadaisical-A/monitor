@@ -261,6 +261,7 @@ struct DeviceRegistration: Encodable {
     let environment: String
     let timeSensitiveAuthorized: Bool
     let criticalAuthorized: Bool
+    let attentionSoundsSupported: Bool
 }
 
 struct StatusResponse: Decodable {

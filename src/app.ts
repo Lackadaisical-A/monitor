@@ -35,6 +35,7 @@ const DeviceSchema = z.object({
   environment: z.enum(["sandbox", "production"]),
   timeSensitiveAuthorized: z.boolean(),
   criticalAuthorized: z.boolean(),
+  attentionSoundsSupported: z.boolean().default(false),
 });
 
 const SignedTransactionSchema = z.object({
@@ -357,6 +358,7 @@ export async function createApp(
       ok: true,
       pushEligible: access.pro,
       criticalAccepted: access.pro && config.apns.allowCritical && device.criticalAuthorized,
+      attentionSoundsAccepted: device.attentionSoundsSupported,
     });
   });
 

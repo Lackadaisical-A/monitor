@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApnsPayload } from "../src/alerts/apns.js";
+import { buildApnsPayload, HIGH_ALERT_SOUND, URGENT_ALERT_SOUND } from "../src/alerts/apns.js";
 import type { AnalysisRecord, NormalizedItem } from "../src/types.js";
 
 const item: NormalizedItem = {
@@ -40,12 +40,21 @@ describe("APNs payload", () => {
     const payload = buildApnsPayload(item, analysis, false, true) as { aps: Record<string, unknown> };
     expect(payload.aps["interruption-level"]).toBe("time-sensitive");
     expect(payload.aps.sound).toBe("default");
+    expect(payload.aps.badge).toBe(1);
     expect(JSON.stringify(payload)).toContain("Verify the primary source");
   });
 
+  it("uses tier-specific sounds only for capable app builds", () => {
+    const urgent = buildApnsPayload(item, analysis, false, true, true) as { aps: Record<string, unknown> };
+    const high = buildApnsPayload(item, { ...analysis, alertTier: "high" }, false, true, true) as { aps: Record<string, unknown> };
+
+    expect(urgent.aps.sound).toBe(URGENT_ALERT_SOUND);
+    expect(high.aps.sound).toBe(HIGH_ALERT_SOUND);
+  });
+
   it("only uses critical sound fields when explicitly requested", () => {
-    const payload = buildApnsPayload(item, analysis, true, true) as { aps: Record<string, unknown> };
+    const payload = buildApnsPayload(item, analysis, true, true, true) as { aps: Record<string, unknown> };
     expect(payload.aps["interruption-level"]).toBe("critical");
-    expect(payload.aps.sound).toEqual({ critical: 1, name: "default", volume: 1 });
+    expect(payload.aps.sound).toEqual({ critical: 1, name: URGENT_ALERT_SOUND, volume: 1 });
   });
 });

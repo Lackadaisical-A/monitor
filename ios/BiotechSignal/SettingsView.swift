@@ -65,16 +65,31 @@ struct SettingsView: View {
 
             Section("iPhone alerts") {
                 LabeledContent("Permission", value: store.notificationStatus)
+                LabeledContent("Sound", value: store.notificationSoundStatus)
                 LabeledContent("APNs token", value: NotificationManager.shared.deviceToken == nil ? "Not registered" : "Registered")
                 Button {
                     Task { await store.enableNotifications() }
                 } label: {
                     Label("Enable notifications", systemImage: "bell.badge")
                 }
-                Button {
-                    Task { await store.sendLocalTest() }
+                Menu {
+                    Button {
+                        Task { await store.sendLocalTest(.high) }
+                    } label: {
+                        Label("High", systemImage: "bell")
+                    }
+                    Button {
+                        Task { await store.sendLocalTest(.urgent) }
+                    } label: {
+                        Label("Urgent", systemImage: "bell.and.waves.left.and.right")
+                    }
                 } label: {
-                    Label("Send local test", systemImage: "bell.and.waves.left.and.right")
+                    Label("Test alert sound", systemImage: "speaker.wave.3")
+                }
+                Button {
+                    store.openNotificationSettings()
+                } label: {
+                    Label("iPhone notification settings", systemImage: "gear")
                 }
                 if store.access.pro {
                     NavigationLink {

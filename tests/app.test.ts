@@ -174,6 +174,34 @@ describe("HTTP app", () => {
     await app.close();
   });
 
+  it("lets only the private dashboard requeue a bounded number of failed items", async () => {
+    db = new SignalDatabase(":memory:");
+    db.insertItem(item("failed", Date.now()));
+    for (let attempt = 0; attempt < 4; attempt += 1) db.recordItemFailure("failed", "quota exhausted");
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const app = await createApp(config(), db, pipeline, verifier());
+
+    const unauthorized = await app.inject({
+      method: "POST",
+      url: "/api/admin/requeue-failed",
+      payload: { limit: 1 },
+    });
+    const authorized = await app.inject({
+      method: "POST",
+      url: "/api/admin/requeue-failed",
+      headers: { authorization: "Bearer dash-token" },
+      payload: { limit: 1 },
+    });
+
+    expect(unauthorized.statusCode).toBe(401);
+    expect(authorized.statusCode).toBe(200);
+    expect(authorized.json()).toMatchObject({
+      requeuedCount: 1,
+      stats: { pending_count: 1, error_count: 0 },
+    });
+    await app.close();
+  });
+
   it("persists a personal watchlist and filters the installation feed", async () => {
     db = new SignalDatabase(":memory:");
     db.insertItem({ ...item("moderna", Date.now() - 60 * 60_000), tickerHint: "MRNA", companyHint: "Moderna" });

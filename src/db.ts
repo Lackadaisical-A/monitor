@@ -405,6 +405,25 @@ export class SignalDatabase implements SignalStore {
     return rows.map(rowToItem);
   }
 
+  requeueFailedItems(limit = 20): number {
+    const boundedLimit = Math.max(1, Math.min(100, Math.floor(limit)));
+    const rows = this.sqlite.prepare(`
+      SELECT id FROM items
+      WHERE status = 'error' AND next_attempt_at IS NULL
+      ORDER BY published_at DESC, discovered_at DESC, rowid DESC
+      LIMIT ?
+    `).all(boundedLimit) as Array<{ id: string }>;
+    if (!rows.length) return 0;
+    const update = this.sqlite.prepare(`
+      UPDATE items SET status = 'pending', attempt_count = 0,
+        last_error = NULL, next_attempt_at = NULL WHERE id = ?
+    `);
+    return this.sqlite.transaction((ids: Array<{ id: string }>) => ids.reduce(
+      (count, row) => count + update.run(row.id).changes,
+      0,
+    ))(rows);
+  }
+
   findCorroboratingItems(item: NormalizedItem, sinceIso: string): NormalizedItem[] {
     const rows = this.sqlite.prepare(`
       SELECT * FROM items

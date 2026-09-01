@@ -236,6 +236,7 @@ npm start          Run compiled server
 - `GET /api/outcomes` — developer/dashboard outcome calibration summary and records.
 - `GET /api/signals/:id` — one evidence record and analysis.
 - `POST /api/scan` — manually trigger a scan; dashboard, Pro, or developer access required.
+- `POST /api/admin/requeue-failed` — dashboard-only bounded recovery for the newest permanently failed analyses.
 - `POST /api/devices` — register/update an APNs token for an authenticated installation.
 
 ## Production gaps to address before relying on money-sensitive alerts

@@ -337,6 +337,17 @@ export async function createApp(
     return reply.code(result.alreadyRunning ? 202 : 200).send(result);
   });
 
+  app.post("/api/admin/requeue-failed", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+  }, async (request) => {
+    if (!isDashboardAuthorized(request, config)) throw httpError(401, "Dashboard credentials are required");
+    const body = z.object({
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+    }).parse(request.body ?? {});
+    const requeuedCount = db.requeueFailedItems ? await db.requeueFailedItems(body.limit) : 0;
+    return { requeuedCount, stats: await db.stats() };
+  });
+
   app.post("/api/devices", async (request, reply) => {
     const access = await requireClientAccess(request, db);
     const device = DeviceSchema.parse(request.body);

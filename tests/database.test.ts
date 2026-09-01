@@ -288,6 +288,25 @@ describe("SignalDatabase", () => {
 
     expect(db.getInstallationAccess(id)).toMatchObject({ level: "free", pro: false, source: "free" });
   });
+
+  it("requeues only the newest permanent failures", () => {
+    db = new SignalDatabase(":memory:");
+    const failed = [
+      { id: "old-failure", publishedAt: "2026-08-30T12:00:00.000Z" },
+      { id: "middle-failure", publishedAt: "2026-08-31T12:00:00.000Z" },
+      { id: "new-failure", publishedAt: "2026-09-01T12:00:00.000Z" },
+    ];
+    for (const candidate of failed) {
+      db.insertItem({ ...signalItem(candidate.id, "MRNA"), publishedAt: candidate.publishedAt });
+      for (let attempt = 0; attempt < 4; attempt += 1) db.recordItemFailure(candidate.id, "quota exhausted");
+    }
+    db.insertItem(signalItem("scheduled-retry", "MRNA"));
+    db.recordItemFailure("scheduled-retry", "temporary failure");
+
+    expect(db.requeueFailedItems(2)).toBe(2);
+    expect(db.getPendingItems().map((item) => item.id)).toEqual(["new-failure", "middle-failure"]);
+    expect(db.stats()).toMatchObject({ pending_count: 2, retry_count: 1, error_count: 1 });
+  });
 });
 
 function signalItem(id: string, ticker: string): NormalizedItem {

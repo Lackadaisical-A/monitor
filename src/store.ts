@@ -64,6 +64,7 @@ export interface SignalStore {
   getPendingItems(limit?: number): Awaitable<NormalizedItem[]>;
   findCorroboratingItems(item: NormalizedItem, sinceIso: string): Awaitable<NormalizedItem[]>;
   findPriorItems(item: NormalizedItem, sinceIso: string, limit?: number): Awaitable<NormalizedItem[]>;
+  requeueFailedItems?(limit?: number): Awaitable<number>;
   requeueOutdatedAnalyses?(analysisVersion: number, sinceIso: string, limit?: number): Awaitable<number>;
   listOutcomeAuditCandidates?(limit?: number, auditedBefore?: string): Awaitable<FeedEntry[]>;
   saveOutcomeAudit?(audit: OutcomeAudit): Awaitable<void>;

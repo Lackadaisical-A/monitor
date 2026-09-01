@@ -6,6 +6,8 @@ struct SettingsView: View {
     @State private var baseURL = ""
     @State private var developerCredential = ""
     @State private var isSaving = false
+    @State private var isActivatingDeveloper = false
+    @State private var developerAccessExpanded = false
     @State private var showSaved = false
 
     var body: some View {
@@ -26,6 +28,37 @@ struct SettingsView: View {
                         store.showingPaywall = true
                     } label: {
                         Label("View Pro plans", systemImage: "sparkles")
+                    }
+                }
+
+                if store.access.level != "developer" {
+                    DisclosureGroup(isExpanded: $developerAccessExpanded) {
+                        SecureField("Developer key", text: $developerCredential)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .onSubmit {
+                                guard developerCredentialIsValid else { return }
+                                Task { await activateDeveloperAccess() }
+                            }
+
+                        Button {
+                            Task { await activateDeveloperAccess() }
+                        } label: {
+                            HStack {
+                                if isActivatingDeveloper {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "key.fill")
+                                }
+                                Text(isActivatingDeveloper ? "Activating…" : "Activate")
+                            }
+                        }
+                        .disabled(isActivatingDeveloper || !developerCredentialIsValid)
+                    } label: {
+                        Label("Developer access", systemImage: "key")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -74,9 +107,6 @@ struct SettingsView: View {
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
-                SecureField("Developer credential (optional)", text: $developerCredential)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
                 Button {
                     Task { await save() }
                 } label: {
@@ -124,12 +154,29 @@ struct SettingsView: View {
         }
     }
 
+    private var developerCredentialIsValid: Bool {
+        developerCredential.trimmingCharacters(in: .whitespacesAndNewlines).count >= 32
+    }
+
+    private func activateDeveloperAccess() async {
+        guard !isActivatingDeveloper else { return }
+        isActivatingDeveloper = true
+        store.lastError = nil
+        defer { isActivatingDeveloper = false }
+        do {
+            try await store.activateDeveloperAccess(credential: developerCredential)
+            developerCredential = ""
+            developerAccessExpanded = false
+        } catch {
+            store.lastError = error.localizedDescription
+        }
+    }
+
     private func save() async {
         isSaving = true
         defer { isSaving = false }
         do {
-            try await store.saveSettings(baseURL: baseURL, developerCredential: developerCredential)
-            developerCredential = ""
+            try await store.saveSettings(baseURL: baseURL)
             showSaved = true
         } catch {
             store.lastError = error.localizedDescription

@@ -249,7 +249,7 @@ final class MonitorStore: ObservableObject {
         _ = await persistPreferences(next)
     }
 
-    func saveSettings(baseURL: String, developerCredential: String) async throws {
+    func saveSettings(baseURL: String) async throws {
         let normalizedURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: normalizedURL), ["http", "https"].contains(url.scheme?.lowercased()) else {
@@ -257,10 +257,21 @@ final class MonitorStore: ObservableObject {
         }
         UserDefaults.standard.set(normalizedURL, forKey: baseURLKey)
         try await bootstrapInstallation()
-        let credential = developerCredential.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !credential.isEmpty { try await activateDeveloper(credential: credential) }
         await refresh()
         guard connection == .connected else { throw APIError.unauthorized }
+        await syncDeviceRegistration()
+    }
+
+    func activateDeveloperAccess(credential: String) async throws {
+        let normalizedCredential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedCredential.count >= 32 else { throw DeveloperAccessError.invalidCredential }
+        try await bootstrapInstallation()
+        do {
+            try await activateDeveloper(credential: normalizedCredential)
+        } catch APIError.unauthorized {
+            throw DeveloperAccessError.rejected
+        }
+        await refresh()
         await syncDeviceRegistration()
     }
 
@@ -486,5 +497,17 @@ final class MonitorStore: ObservableObject {
             ))
             lastError = nil
         } catch { lastError = "Device registration failed: \(error.localizedDescription)" }
+    }
+}
+
+private enum DeveloperAccessError: LocalizedError {
+    case invalidCredential
+    case rejected
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidCredential: "Enter the complete developer key."
+        case .rejected: "The developer key was not accepted."
+        }
     }
 }

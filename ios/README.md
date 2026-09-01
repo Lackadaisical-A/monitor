@@ -12,7 +12,7 @@ Free access shows up to 30 recent signals after a 30-minute delay and supports 1
 4. Confirm **Push Notifications** and **Time Sensitive Notifications** are enabled for the App ID and provisioning profile.
 5. Build to a physical iPhone. The simulator does not issue the same production device token workflow.
 6. The production server URL is compiled from `CatalystWatchServerURL`. For local Debug runs, set `CATALYST_WATCH_SERVER_URL` in the scheme environment.
-7. To activate developer access on a Debug build, set `CATALYST_WATCH_DEVELOPER_TOKEN` or enter the credential under **Settings > Advanced connection**.
+7. To activate developer access, expand **Settings > Plan > Developer access** and enter the private key. Debug builds can alternatively set `CATALYST_WATCH_DEVELOPER_TOKEN` in the scheme environment.
 8. Enable notifications and send a local test before enabling live APNs on the server.
 
 For deterministic App Store review screenshots, launch a Debug build with
@@ -22,7 +22,7 @@ monthly and annual plan metadata. Set `CATALYST_WATCH_INITIAL_TAB` to `signals`,
 
 Debug builds register as APNs `sandbox`; archived Release builds register as `production`. The server routes each token to the matching APNs environment.
 
-The app creates a random installation ID and a 256-bit client credential. The client credential is stored in Keychain, never uses the dashboard bearer token, and is rotated once if a stale server record rejects it. StoreKit purchases, current entitlements, restores, and transaction updates are synchronized to the server using Apple's signed JWS representation.
+The app creates a random installation ID and a 256-bit client credential. The client credential is stored in Keychain, never uses the dashboard bearer token, and is rotated once if a stale server record rejects it. The private developer key is sent only during activation, cleared from the form immediately, and never stored by the app. StoreKit purchases, current entitlements, restores, and transaction updates are synchronized to the server using Apple's signed JWS representation.
 
 `CatalystWatch.storekit` defines local monthly and annual products for Debug testing. The App Store build uses the same product IDs from App Store Connect:
 

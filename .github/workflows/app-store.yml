@@ -88,6 +88,12 @@ jobs:
           mkdir -p "$PROFILE_DIRECTORY"
           cp "$PROFILE_PATH" "$PROFILE_DIRECTORY/$PROFILE_UUID.mobileprovision"
 
+          PROFILE_PLIST="$RUNNER_TEMP/provisioned-profile.plist"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_NFC_FORMATS="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.nfc.readersession.formats' "$PROFILE_PLIST")"
+          printf 'Provisioned profile NFC formats:\n%s\n' "$PROFILE_NFC_FORMATS"
+          printf '%s\n' "$PROFILE_NFC_FORMATS" | grep -q TAG
+
           EXPORT_OPTIONS="$RUNNER_TEMP/ExportOptions.plist"
           cp ios/ExportOptions.plist "$EXPORT_OPTIONS"
           /usr/libexec/PlistBuddy -c "Set :provisioningProfiles:$ASC_BUNDLE_ID $ASC_PROFILE_NAME" "$EXPORT_OPTIONS"
@@ -121,8 +127,11 @@ jobs:
           PROFILE_PLIST="$RUNNER_TEMP/embedded-profile.plist"
           codesign -d --entitlements :- "$APP_PATH" > "$SIGNED_ENTITLEMENTS" 2>/dev/null
           security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$PROFILE_PLIST"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.nfc.readersession.formats:0' "$SIGNED_ENTITLEMENTS")" = TAG
-          test "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.nfc.readersession.formats:0' "$PROFILE_PLIST")" = TAG
+          SIGNED_NFC_FORMATS="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.nfc.readersession.formats' "$SIGNED_ENTITLEMENTS")"
+          PROFILE_NFC_FORMATS="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.nfc.readersession.formats' "$PROFILE_PLIST")"
+          printf 'Signed app NFC formats:\n%s\nEmbedded profile NFC formats:\n%s\n' "$SIGNED_NFC_FORMATS" "$PROFILE_NFC_FORMATS"
+          printf '%s\n' "$SIGNED_NFC_FORMATS" | grep -q TAG
+          printf '%s\n' "$PROFILE_NFC_FORMATS" | grep -q TAG
 
       - name: Export IPA
         run: |

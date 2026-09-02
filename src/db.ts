@@ -145,6 +145,7 @@ interface InstallationRow {
   installation_id: string;
   client_token_hash: string;
   access_level: AccessLevel;
+  club_access: number;
   product_id: string | null;
   original_transaction_id: string | null;
   transaction_id: string | null;
@@ -965,6 +966,7 @@ export class SignalDatabase implements SignalStore {
       installationId: row.installation_id,
       level: developer ? "developer" : subscriptionActive ? "pro" : "free",
       pro: developer || subscriptionActive,
+      clubAccess: developer || Boolean(row.club_access),
       productId: developer || subscriptionActive ? row.product_id : null,
       expiresAt: developer || subscriptionActive ? row.expires_at : null,
       source: developer ? "developer" : subscriptionActive ? "app_store" : "free",
@@ -977,6 +979,15 @@ export class SignalDatabase implements SignalStore {
       UPDATE installations
       SET access_level = 'developer', product_id = NULL, expires_at = NULL,
         verified_at = ?, updated_at = ?
+      WHERE installation_id = ?
+    `).run(now, now, installationId);
+  }
+
+  activateClubAccess(installationId: string): void {
+    const now = new Date().toISOString();
+    this.sqlite.prepare(`
+      UPDATE installations
+      SET club_access = 1, verified_at = ?, updated_at = ?
       WHERE installation_id = ?
     `).run(now, now, installationId);
   }
@@ -1036,6 +1047,18 @@ export class SignalDatabase implements SignalStore {
       ...rowToClubEvent(eventRow),
       checkIns: checkInRows.map((row) => this.rowToClubCheckIn(row)),
     };
+  }
+
+  getActiveClubEvent(): ClubEvent | null {
+    this.requireClubData();
+    const row = this.sqlite.prepare(`
+      SELECT e.*, 0 AS check_in_count
+      FROM club_events e
+      WHERE e.ended_at IS NULL
+      ORDER BY e.started_at DESC
+      LIMIT 1
+    `).get() as ClubEventRow | undefined;
+    return row ? rowToClubEvent(row) : null;
   }
 
   getClubDashboard(limit = 12): ClubDashboard {
@@ -1575,6 +1598,7 @@ export class SignalDatabase implements SignalStore {
         installation_id TEXT PRIMARY KEY,
         client_token_hash TEXT NOT NULL,
         access_level TEXT NOT NULL DEFAULT 'free',
+        club_access INTEGER NOT NULL DEFAULT 0,
         product_id TEXT,
         original_transaction_id TEXT,
         transaction_id TEXT,
@@ -1725,6 +1749,7 @@ export class SignalDatabase implements SignalStore {
     this.ensureColumn("analyses", "event_anchor_at", "TEXT");
     this.ensureColumn("analyses", "analysis_version", "INTEGER NOT NULL DEFAULT 1");
     this.ensureColumn("devices", "attention_sounds_supported", "INTEGER NOT NULL DEFAULT 0");
+    this.ensureColumn("installations", "club_access", "INTEGER NOT NULL DEFAULT 0");
     const addedMinimumAlertTier = this.ensureColumn("installation_preferences", "minimum_alert_tier", "TEXT NOT NULL DEFAULT 'urgent'");
     this.ensureColumn("alerts", "event_key", "TEXT");
     this.ensureColumn("outcome_audits", "initial_materiality", "INTEGER");

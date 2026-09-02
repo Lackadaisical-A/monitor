@@ -14,6 +14,7 @@ const EnvSchema = z.object({
   DASHBOARD_TOKEN: z.string().default(""),
   DEVICE_PAIRING_TOKEN: z.string().default(""),
   DEVELOPER_PAIRING_TOKEN: z.string().default(""),
+  CLUB_PAIRING_TOKEN: z.union([z.literal(""), z.string().min(32)]).default(""),
   CLUB_DATA_KEY: z.union([z.literal(""), z.string().min(32)]).default(""),
   GOOGLE_SHEETS_SPREADSHEET_ID: z.string().default(""),
   GOOGLE_SHEETS_SHEET_ID: z.coerce.number().int().nonnegative().default(0),
@@ -150,6 +151,7 @@ export interface AppConfig {
     appleRootCaDirectory: string;
   };
   club: {
+    pairingToken: string;
     dataKey: string;
     sheets: {
       spreadsheetId: string;
@@ -237,6 +239,7 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
       appleRootCaDirectory: resolve(env.APPLE_ROOT_CA_DIR),
     },
     club: {
+      pairingToken: env.CLUB_PAIRING_TOKEN,
       dataKey: env.CLUB_DATA_KEY,
       sheets: {
         spreadsheetId: env.GOOGLE_SHEETS_SPREADSHEET_ID.trim(),

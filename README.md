@@ -28,12 +28,13 @@ It does **not** claim that any announcement will definitely move a stock. Market
 - Per-installation iPhone authentication, StoreKit 2 subscriptions, and server-side App Store JWS verification.
 - Per-installation company watchlists, All/Following feed modes, and company/event/priority-specific Pro alert routing on web and iPhone.
 - A responsive catalyst timeline that combines explicit company guidance, ClinicalTrials.gov schedule dates, completed alerts, frozen expectation snapshots, and realized outcome calibration.
-- A developer-only iPhone NFC attendance tool with encrypted member profiles, one-way card fingerprints, event rosters, duplicate prevention, and profile deletion.
+- A role-scoped iPhone NFC attendance tool with encrypted member profiles, one-way card fingerprints, event rosters, duplicate prevention, and profile deletion.
 
 ## Free, Pro, and developer access
 
 - **Free:** up to 30 recent signals with a 30-minute publication delay and a personal watchlist of up to 10 companies.
 - **Catalyst Watch Pro:** the real-time feed, the complete monitored universe, filtered Time Sensitive APNs alerts, and manual scans.
+- **Club access:** keeps the installation on its existing Free or Pro plan while adding privacy-limited self check-in. It does not unlock real-time news, alerts, rosters, or attendance administration.
 - **Developer:** the same capabilities as Pro, activated for one installation with `DEVELOPER_PAIRING_TOKEN`. The credential stays server-side and is never compiled into the App Store build.
 
 The proposed App Store products are `com.yingcui.CatalystWatch.pro.monthly` at $9.99 per month and `com.yingcui.CatalystWatch.pro.yearly` at $79.99 per year. StoreKit supplies the localized customer price at runtime.
@@ -163,10 +164,11 @@ Server-side APNs setup:
 2. Create an APNs authentication key and download its `.p8` file once.
 3. Set `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_BUNDLE_ID`, and either `APNS_PRIVATE_KEY_PATH` or the inline `APNS_PRIVATE_KEY` secret on the server.
 4. Set a long random `DEVELOPER_PAIRING_TOKEN` if the developer installation needs Pro without purchasing its own subscription.
-5. Set a random `CLUB_DATA_KEY` of at least 32 characters before using developer club check-in.
-6. For Google Sheets attendance, share the target spreadsheet with a dedicated service account and set `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL`, and `GOOGLE_SHEETS_PRIVATE_KEY`. The optional tab, timezone, and retry controls default to tab ID `0`, `Attendance`, `America/New_York`, and 300 seconds.
-7. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
-8. Debug device builds use the APNs sandbox; archived builds use production.
+5. Set a separate random `CLUB_PAIRING_TOKEN` of at least 32 characters for member self check-in.
+6. Set a random `CLUB_DATA_KEY` of at least 32 characters before using club check-in.
+7. For Google Sheets attendance, share the target spreadsheet with a dedicated service account and set `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL`, and `GOOGLE_SHEETS_PRIVATE_KEY`. The optional tab, timezone, and retry controls default to tab ID `0`, `Attendance`, `America/New_York`, and 300 seconds.
+8. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
+9. Debug device builds use the APNs sandbox; archived builds use production.
 
 The attendance sheet is rebuilt after each club mutation and every five minutes. Attendee names are rows and dated meetings are columns. `PRESENT` is green, `ABSENT` becomes red only after a meeting closes, and `PENDING` or `N/A` is black. Contact details, ages, card identifiers, and card fingerprints are never exported.
 
@@ -185,6 +187,7 @@ Create a Render Blueprint from this repository and provide the prompted secrets:
 - `OPENAI_API_KEY`
 - `DASHBOARD_TOKEN`
 - `DEVELOPER_PAIRING_TOKEN`
+- `CLUB_PAIRING_TOKEN`
 - `CLUB_DATA_KEY` (a random value of at least 32 characters)
 - `SEC_USER_AGENT` in the form `Catalyst Watch contact@example.com`
 - `APNS_PRIVATE_KEY` containing the complete `.p8` key, including its `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines
@@ -193,9 +196,11 @@ The launch Blueprint sets `ALERT_DRY_RUN=false`; only authenticated Pro or devel
 
 The Blueprint also configures the App Store bundle ID, Apple app ID, product IDs, and bundled Apple root certificates used for signed-transaction verification. Configure App Store Server Notifications V2 to send production and sandbox notifications to `https://YOUR-SERVICE.onrender.com/api/app-store/notifications`.
 
-### Developer club check-in
+### Club check-in
 
-The native iPhone app exposes **Settings > Developer tools > Club check-in** only after that installation has developer access. Create an attendance event, scan a supported contactless card, and collect a member's name, age, phone number or Instagram handle, and grade on the first scan. Later scans check the member into the active event without asking for the profile again. A member can be deleted from the member detail screen, which also removes that member's attendance records.
+Developer access can create and close events, view rosters and member profiles, and delete attendance records. A separate `CLUB_PAIRING_TOKEN` activates only self check-in while preserving the installation's Free or Pro news plan. Club-key installations can see the current event and scan a card, but API responses redact member profiles, card hints, attendance totals, recent events, and rosters. The first scan collects the member's consented profile; later scans check that card into the active event without asking again.
+
+Rotating `CLUB_PAIRING_TOKEN` prevents future activations with the old key. It does not revoke club access already stored for an installation.
 
 The phone sends the tag identifier over HTTPS. The server immediately replaces it with a keyed HMAC fingerprint and never persists the raw identifier; profile fields are encrypted at rest with AES-256-GCM. Back up `CLUB_DATA_KEY` securely. Losing or rotating it makes existing card fingerprints and profiles unusable.
 
@@ -252,11 +257,14 @@ npm start          Run compiled server
 - `POST /api/scan` — manually trigger a scan; dashboard, Pro, or developer access required.
 - `POST /api/admin/requeue-failed` — dashboard-only bounded recovery for the newest permanently failed analyses.
 - `POST /api/devices` — register/update an APNs token for an authenticated installation.
+- `POST /api/entitlements/club` — activate privacy-limited club access without changing the installation's Free or Pro plan.
+- `GET /api/club` — privacy-limited active event for club access, without counts, rosters, profiles, or history.
+- `POST /api/club/check-ins` — privacy-limited member registration and self check-in with profile and card details redacted from responses.
 - `GET /api/developer/club` — developer-only active event, attendance roster, and recent event summary.
 - `GET /api/developer/club/events/:id` — developer-only historical event roster.
 - `POST /api/developer/club/events` — developer-only creation of a new active attendance event.
 - `POST /api/developer/club/events/:id/close` — developer-only event closure.
-- `POST /api/developer/club/check-ins` — developer-only card lookup, first-scan registration, and event check-in.
+- `POST /api/developer/club/check-ins` — developer-only card lookup, first-scan registration, and event check-in with operator details.
 - `GET /api/developer/club/sheet` — developer-only Google Sheets synchronization status.
 - `POST /api/developer/club/sheet/sync` — developer-only immediate Google Sheets rebuild.
 - `DELETE /api/developer/club/members/:id` — developer-only profile and attendance deletion.

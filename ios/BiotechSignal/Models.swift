@@ -129,6 +129,7 @@ struct AccessInfo: Decodable, Equatable {
     let installationId: String
     let level: String
     let pro: Bool
+    let clubAccess: Bool
     let productId: String?
     let expiresAt: String?
     let source: String
@@ -137,6 +138,7 @@ struct AccessInfo: Decodable, Equatable {
         installationId: "",
         level: "free",
         pro: false,
+        clubAccess: false,
         productId: nil,
         expiresAt: nil,
         source: "free"

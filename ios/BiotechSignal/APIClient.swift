@@ -47,6 +47,11 @@ struct APIClient {
         return try await request(path: "/api/entitlements/developer", method: "POST", body: body)
     }
 
+    func activateClub(credential: String) async throws -> EntitlementResponse {
+        let body = try JSONEncoder().encode(DeveloperActivationRequest(credential: credential))
+        return try await request(path: "/api/entitlements/club", method: "POST", body: body)
+    }
+
     func registerDevice(_ registration: DeviceRegistration) async throws -> PairResponse {
         let body = try JSONEncoder().encode(registration)
         return try await request(path: "/api/devices", method: "POST", body: body)
@@ -56,8 +61,9 @@ struct APIClient {
         try await request(path: "/api/scan", method: "POST")
     }
 
-    func fetchClubDashboard() async throws -> ClubDashboardResponse {
-        try await request(path: "/api/developer/club")
+    func fetchClubDashboard(operatorMode: Bool) async throws -> ClubDashboardResponse {
+        let path = operatorMode ? "/api/developer/club" : "/api/club"
+        return try await request(path: path)
     }
 
     func fetchClubEvent(id: String) async throws -> ClubEventResponse {
@@ -73,10 +79,11 @@ struct APIClient {
         try await request(path: "/api/developer/club/events/\(id)/close", method: "POST")
     }
 
-    func checkInClubMember(_ checkIn: ClubCheckInRequest) async throws -> ClubCheckInResponse {
+    func checkInClubMember(_ checkIn: ClubCheckInRequest, operatorMode: Bool) async throws -> ClubCheckInResponse {
         let body = try JSONEncoder().encode(checkIn)
+        let path = operatorMode ? "/api/developer/club/check-ins" : "/api/club/check-ins"
         return try await request(
-            path: "/api/developer/club/check-ins",
+            path: path,
             method: "POST",
             body: body,
             acceptedStatusCodes: [409]

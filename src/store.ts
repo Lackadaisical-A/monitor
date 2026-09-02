@@ -7,6 +7,7 @@ import type {
   ClubCardCheckInResult,
   ClubAttendanceSnapshot,
   ClubDashboard,
+  ClubEvent,
   ClubEventDetail,
   DeviceRegistration,
   FeedEntry,
@@ -92,9 +93,11 @@ export interface SignalStore {
   installationTokenMatches(installationId: string, clientTokenHash: string): Awaitable<boolean>;
   getInstallationAccess(installationId: string): Awaitable<InstallationAccess | null>;
   activateDeveloperAccess(installationId: string): Awaitable<void>;
+  activateClubAccess(installationId: string): Awaitable<void>;
   createClubEvent?(title: string, installationId: string): Awaitable<ClubEventDetail>;
   closeClubEvent?(eventId: string): Awaitable<ClubEventDetail | null>;
   getClubEvent?(eventId: string): Awaitable<ClubEventDetail | null>;
+  getActiveClubEvent?(): Awaitable<ClubEvent | null>;
   getClubDashboard?(limit?: number): Awaitable<ClubDashboard>;
   getClubAttendanceSnapshot?(): Awaitable<ClubAttendanceSnapshot>;
   checkInClubCard?(input: ClubCardCheckInInput): Awaitable<ClubCardCheckInResult>;

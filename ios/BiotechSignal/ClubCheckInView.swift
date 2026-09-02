@@ -9,12 +9,12 @@ final class ClubCheckInModel: ObservableObject {
     @Published var pendingCard: ClubCardScan?
     @Published var message: ClubOperatorMessage?
 
-    func load(settings: ServerSettings) async {
+    func load(settings: ServerSettings, operatorMode: Bool) async {
         guard settings.isComplete, !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
-            dashboard = try await APIClient(settings: settings).fetchClubDashboard()
+            dashboard = try await APIClient(settings: settings).fetchClubDashboard(operatorMode: operatorMode)
         } catch {
             message = ClubOperatorMessage(title: "Could not load check-in", body: error.localizedDescription)
         }
@@ -27,7 +27,7 @@ final class ClubCheckInModel: ObservableObject {
         defer { isSaving = false }
         do {
             _ = try await APIClient(settings: settings).createClubEvent(title: normalized)
-            await reload(settings: settings)
+            await reload(settings: settings, operatorMode: true)
             return true
         } catch {
             message = ClubOperatorMessage(title: "Could not start event", body: error.localizedDescription)
@@ -41,13 +41,13 @@ final class ClubCheckInModel: ObservableObject {
         defer { isSaving = false }
         do {
             _ = try await APIClient(settings: settings).closeClubEvent(id: event.id)
-            await reload(settings: settings)
+            await reload(settings: settings, operatorMode: true)
         } catch {
             message = ClubOperatorMessage(title: "Could not close event", body: error.localizedDescription)
         }
     }
 
-    func scan(settings: ServerSettings) async {
+    func scan(settings: ServerSettings, operatorMode: Bool) async {
         guard let event = dashboard?.activeEvent, !isScanning else { return }
         isScanning = true
         defer { isScanning = false }
@@ -59,9 +59,10 @@ final class ClubCheckInModel: ObservableObject {
                     eventId: event.id,
                     card: ClubCardRequest(technology: card.technology, identifier: card.identifier),
                     registration: nil
-                )
+                ),
+                operatorMode: operatorMode
             )
-            await handle(result, settings: settings)
+            await handle(result, settings: settings, operatorMode: operatorMode)
         } catch ClubCardReaderError.cancelled {
             pendingCard = nil
         } catch {
@@ -73,7 +74,8 @@ final class ClubCheckInModel: ObservableObject {
     func register(
         card: ClubCardScan,
         registration: ClubMemberRegistrationRequest,
-        settings: ServerSettings
+        settings: ServerSettings,
+        operatorMode: Bool
     ) async {
         guard let event = dashboard?.activeEvent, !isSaving else { return }
         isSaving = true
@@ -84,9 +86,10 @@ final class ClubCheckInModel: ObservableObject {
                     eventId: event.id,
                     card: ClubCardRequest(technology: card.technology, identifier: card.identifier),
                     registration: registration
-                )
+                ),
+                operatorMode: operatorMode
             )
-            await handle(result, settings: settings)
+            await handle(result, settings: settings, operatorMode: operatorMode)
         } catch {
             message = ClubOperatorMessage(title: "Could not register member", body: error.localizedDescription)
         }
@@ -98,7 +101,7 @@ final class ClubCheckInModel: ObservableObject {
         defer { isSaving = false }
         do {
             _ = try await APIClient(settings: settings).deleteClubMember(id: member.id)
-            await reload(settings: settings)
+            await reload(settings: settings, operatorMode: true)
             return true
         } catch {
             message = ClubOperatorMessage(title: "Could not delete profile", body: error.localizedDescription)
@@ -106,7 +109,7 @@ final class ClubCheckInModel: ObservableObject {
         }
     }
 
-    private func handle(_ result: ClubCheckInResponse, settings: ServerSettings) async {
+    private func handle(_ result: ClubCheckInResponse, settings: ServerSettings, operatorMode: Bool) async {
         switch result.status {
         case "registration_required":
             return
@@ -114,26 +117,26 @@ final class ClubCheckInModel: ObservableObject {
             pendingCard = nil
             message = ClubOperatorMessage(
                 title: "Checked in",
-                body: result.member?.name ?? "Member"
+                body: result.member?.name ?? "Your attendance was recorded."
             )
-            await reload(settings: settings)
+            await reload(settings: settings, operatorMode: operatorMode)
         case "already_checked_in":
             pendingCard = nil
             message = ClubOperatorMessage(
                 title: "Already checked in",
-                body: result.member?.name ?? "Member"
+                body: result.member?.name ?? "Your attendance was already recorded."
             )
-            await reload(settings: settings)
+            await reload(settings: settings, operatorMode: operatorMode)
         default:
             pendingCard = nil
             message = ClubOperatorMessage(title: "Event unavailable", body: "Start an active event and scan again.")
-            await reload(settings: settings)
+            await reload(settings: settings, operatorMode: operatorMode)
         }
     }
 
-    private func reload(settings: ServerSettings) async {
+    private func reload(settings: ServerSettings, operatorMode: Bool) async {
         do {
-            dashboard = try await APIClient(settings: settings).fetchClubDashboard()
+            dashboard = try await APIClient(settings: settings).fetchClubDashboard(operatorMode: operatorMode)
         } catch {
             message = ClubOperatorMessage(title: "Could not refresh check-in", body: error.localizedDescription)
         }
@@ -154,16 +157,16 @@ struct ClubCheckInView: View {
 
     var body: some View {
         Group {
-            if store.access.level != "developer" {
-                ContentUnavailableView("Developer access required", systemImage: "lock.shield")
+            if !store.access.clubAccess {
+                ContentUnavailableView("Club access required", systemImage: "lock.shield")
             } else {
                 List {
                     if model.dashboard == nil && model.isLoading {
                         Section { HStack { Spacer(); ProgressView(); Spacer() } }
                     } else if let event = model.dashboard?.activeEvent {
                         activeEventSection(event)
-                        checkInSection(event)
-                    } else {
+                        if store.access.level == "developer" { checkInSection(event) }
+                    } else if store.access.level == "developer" {
                         Section {
                             Button {
                                 showingNewEvent = true
@@ -171,9 +174,19 @@ struct ClubCheckInView: View {
                                 Label("Start club event", systemImage: "calendar.badge.plus")
                             }
                         }
+                    } else {
+                        Section {
+                            ContentUnavailableView(
+                                "No active meeting",
+                                systemImage: "calendar.badge.clock",
+                                description: Text("Check back after a club organizer starts the meeting.")
+                            )
+                        }
                     }
 
-                    if let recent = model.dashboard?.recentEvents, !recent.isEmpty {
+                    if store.access.level == "developer",
+                       let recent = model.dashboard?.recentEvents,
+                       !recent.isEmpty {
                         Section("Recent events") {
                             ForEach(recent) { event in
                                 NavigationLink {
@@ -197,10 +210,17 @@ struct ClubCheckInView: View {
                     Section {
                         Label("Club attendance only", systemImage: "person.text.rectangle")
                     } footer: {
-                        Text("A card scan does not verify Rutgers affiliation or grant university access.")
+                        Text(store.access.level == "developer"
+                            ? "A card scan does not verify Rutgers affiliation or grant university access."
+                            : "Scan only your own card. This records meeting attendance and does not verify Rutgers affiliation or grant university access.")
                     }
                 }
-                .refreshable { await model.load(settings: store.settings) }
+                .refreshable {
+                    await model.load(
+                        settings: store.settings,
+                        operatorMode: store.access.level == "developer"
+                    )
+                }
             }
         }
         .scrollContentBackground(.hidden)
@@ -217,7 +237,12 @@ struct ClubCheckInView: View {
                 }
             }
         }
-        .task { await model.load(settings: store.settings) }
+        .task {
+            await model.load(
+                settings: store.settings,
+                operatorMode: store.access.level == "developer"
+            )
+        }
         .sheet(isPresented: $showingNewEvent) {
             NewClubEventView(model: model)
                 .environmentObject(store)
@@ -245,9 +270,16 @@ struct ClubCheckInView: View {
         Section("Active event") {
             LabeledContent("Event", value: event.title)
             LabeledContent("Started", value: clubTime(event.startedAt))
-            LabeledContent("Attendance", value: "\(event.checkInCount)")
+            if store.access.level == "developer" {
+                LabeledContent("Attendance", value: "\(event.checkInCount)")
+            }
             Button {
-                Task { await model.scan(settings: store.settings) }
+                Task {
+                    await model.scan(
+                        settings: store.settings,
+                        operatorMode: store.access.level == "developer"
+                    )
+                }
             } label: {
                 HStack {
                     Label("Scan member card", systemImage: "wave.3.right")
@@ -256,12 +288,14 @@ struct ClubCheckInView: View {
                 }
             }
             .disabled(model.isScanning || model.isSaving)
-            Button(role: .destructive) {
-                showingCloseConfirmation = true
-            } label: {
-                Label("Close event", systemImage: "stop.circle")
+            if store.access.level == "developer" {
+                Button(role: .destructive) {
+                    showingCloseConfirmation = true
+                } label: {
+                    Label("Close event", systemImage: "stop.circle")
+                }
+                .disabled(model.isSaving)
             }
-            .disabled(model.isSaving)
         }
     }
 
@@ -391,7 +425,8 @@ private struct ClubMemberRegistrationView: View {
                                     grade: grade,
                                     consent: true
                                 ),
-                                settings: store.settings
+                                settings: store.settings,
+                                operatorMode: store.access.level == "developer"
                             )
                         }
                     }

@@ -235,6 +235,7 @@ export interface InstallationAccess {
   installationId: string;
   level: AccessLevel;
   pro: boolean;
+  clubAccess: boolean;
   productId: string | null;
   expiresAt: string | null;
   source: "free" | "app_store" | "developer";

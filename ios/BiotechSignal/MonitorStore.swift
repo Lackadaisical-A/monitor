@@ -276,6 +276,18 @@ final class MonitorStore: ObservableObject {
         await syncDeviceRegistration()
     }
 
+    func activateClubAccess(credential: String) async throws {
+        let normalizedCredential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedCredential.count >= 32 else { throw ClubAccessError.invalidCredential }
+        try await bootstrapInstallation()
+        do {
+            applyEntitlement(try await APIClient(settings: settings).activateClub(credential: normalizedCredential))
+        } catch APIError.unauthorized {
+            throw ClubAccessError.rejected
+        }
+        await refresh()
+    }
+
     func enableNotifications() async {
         guard access.pro else { showingPaywall = true; return }
         do {
@@ -520,6 +532,18 @@ private enum DeveloperAccessError: LocalizedError {
         switch self {
         case .invalidCredential: "Enter the complete developer key."
         case .rejected: "The developer key was not accepted."
+        }
+    }
+}
+
+private enum ClubAccessError: LocalizedError {
+    case invalidCredential
+    case rejected
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidCredential: "Enter the complete club key."
+        case .rejected: "The club key was not accepted."
         }
     }
 }

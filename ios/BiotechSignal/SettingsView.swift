@@ -5,9 +5,12 @@ struct SettingsView: View {
     @EnvironmentObject private var store: MonitorStore
     @State private var baseURL = ""
     @State private var developerCredential = ""
+    @State private var clubCredential = ""
     @State private var isSaving = false
     @State private var isActivatingDeveloper = false
+    @State private var isActivatingClub = false
     @State private var developerAccessExpanded = false
+    @State private var clubAccessExpanded = false
     @State private var showSaved = false
 
     var body: some View {
@@ -63,12 +66,41 @@ struct SettingsView: View {
                 }
             }
 
-            if store.access.level == "developer" {
-                Section("Developer tools") {
+            Section("Club") {
+                if store.access.clubAccess {
                     NavigationLink {
                         ClubCheckInView()
                     } label: {
                         Label("Club check-in", systemImage: "person.badge.key")
+                    }
+                } else {
+                    DisclosureGroup(isExpanded: $clubAccessExpanded) {
+                        SecureField("Club key", text: $clubCredential)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .onSubmit {
+                                guard clubCredentialIsValid else { return }
+                                Task { await activateClubAccess() }
+                            }
+
+                        Button {
+                            Task { await activateClubAccess() }
+                        } label: {
+                            HStack {
+                                if isActivatingClub {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "person.badge.key.fill")
+                                }
+                                Text(isActivatingClub ? "Activating…" : "Activate")
+                            }
+                        }
+                        .disabled(isActivatingClub || !clubCredentialIsValid)
+                    } label: {
+                        Label("Enter club key", systemImage: "person.badge.key")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -183,6 +215,10 @@ struct SettingsView: View {
         developerCredential.trimmingCharacters(in: .whitespacesAndNewlines).count >= 32
     }
 
+    private var clubCredentialIsValid: Bool {
+        clubCredential.trimmingCharacters(in: .whitespacesAndNewlines).count >= 32
+    }
+
     private func activateDeveloperAccess() async {
         guard !isActivatingDeveloper else { return }
         isActivatingDeveloper = true
@@ -192,6 +228,20 @@ struct SettingsView: View {
             try await store.activateDeveloperAccess(credential: developerCredential)
             developerCredential = ""
             developerAccessExpanded = false
+        } catch {
+            store.lastError = error.localizedDescription
+        }
+    }
+
+    private func activateClubAccess() async {
+        guard !isActivatingClub else { return }
+        isActivatingClub = true
+        store.lastError = nil
+        defer { isActivatingClub = false }
+        do {
+            try await store.activateClubAccess(credential: clubCredential)
+            clubCredential = ""
+            clubAccessExpanded = false
         } catch {
             store.lastError = error.localizedDescription
         }

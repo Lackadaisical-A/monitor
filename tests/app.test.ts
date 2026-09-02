@@ -115,10 +115,118 @@ describe("HTTP app", () => {
     const scan = await app.inject({ method: "POST", url: "/api/scan", headers: clientHeaders() });
 
     expect(activation.statusCode).toBe(200);
-    expect(activation.json().access).toMatchObject({ level: "developer", pro: true, source: "developer" });
+    expect(activation.json().access).toMatchObject({
+      level: "developer",
+      pro: true,
+      clubAccess: true,
+      source: "developer",
+    });
     expect(preferences.json().preferences.minimumAlertTier).toBe("high");
     expect(scan.statusCode).toBe(200);
     expect(runCount).toBe(1);
+    await app.close();
+  });
+
+  it("grants privacy-limited club check-in while keeping the installation free", async () => {
+    const clubDataKey = "club-test-key-that-is-at-least-thirty-two-characters";
+    db = new SignalDatabase(":memory:", clubDataKey);
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const appConfig = config();
+    appConfig.club.dataKey = clubDataKey;
+    const app = await createApp(appConfig, db, pipeline, verifier());
+    await bootstrap(app);
+
+    expect((await app.inject({
+      method: "POST",
+      url: "/api/entitlements/club",
+      headers: clientHeaders(),
+      payload: { credential: "wrong-club-token-that-is-still-long-enough" },
+    })).statusCode).toBe(401);
+    const activation = await app.inject({
+      method: "POST",
+      url: "/api/entitlements/club",
+      headers: clientHeaders(),
+      payload: { credential: "club-token-that-is-long-and-private-2026" },
+    });
+    expect(activation.statusCode).toBe(200);
+    expect(activation.json().access).toMatchObject({
+      level: "free",
+      pro: false,
+      source: "free",
+      clubAccess: true,
+    });
+    expect((await app.inject({
+      method: "POST",
+      url: "/api/scan",
+      headers: clientHeaders(),
+    })).statusCode).toBe(403);
+    expect((await app.inject({
+      method: "POST",
+      url: "/api/developer/club/events",
+      headers: clientHeaders(),
+      payload: { title: "Unauthorized event" },
+    })).statusCode).toBe(403);
+    expect((await app.inject({
+      method: "GET",
+      url: "/api/developer/club",
+      headers: clientHeaders(),
+    })).statusCode).toBe(403);
+
+    const event = db.createClubEvent("Member meeting", installationId);
+    const dashboard = await app.inject({
+      method: "GET",
+      url: "/api/club",
+      headers: clientHeaders(),
+    });
+    expect(dashboard.statusCode).toBe(200);
+    expect(dashboard.json()).toMatchObject({
+      activeEvent: { id: event.id, title: "Member meeting", checkInCount: 0, checkIns: [] },
+      recentEvents: [],
+    });
+
+    const card = { technology: "mifare", identifier: "04F1E2D3C4B5A6" };
+    const registered = await app.inject({
+      method: "POST",
+      url: "/api/club/check-ins",
+      headers: clientHeaders(),
+      payload: {
+        eventId: event.id,
+        card,
+        registration: {
+          name: "Private Member",
+          age: 19,
+          contactType: "instagram",
+          contact: "@private_member",
+          grade: "sophomore",
+          consent: true,
+        },
+      },
+    });
+    expect(registered.statusCode).toBe(201);
+    expect(registered.json()).toEqual({
+      status: "checked_in",
+      cardHint: "",
+      member: null,
+      checkIn: null,
+    });
+    expect(db.getClubEvent(event.id)).toMatchObject({
+      checkInCount: 1,
+      checkIns: [{ member: { name: "Private Member", contact: "@private_member" } }],
+    });
+    const memberDashboard = await app.inject({
+      method: "GET",
+      url: "/api/club",
+      headers: clientHeaders(),
+    });
+    expect(memberDashboard.json().activeEvent).toMatchObject({ checkInCount: 0, checkIns: [] });
+    expect(memberDashboard.body).not.toContain("Private Member");
+    expect(memberDashboard.body).not.toContain("@private_member");
+    expect(memberDashboard.body).not.toContain(card.identifier);
+    expect((await app.inject({
+      method: "GET",
+      url: `/api/developer/club/events/${event.id}`,
+      headers: clientHeaders(),
+    })).statusCode).toBe(403);
     await app.close();
   });
 
@@ -526,6 +634,7 @@ function config(): AppConfig {
       appleRootCaDirectory: resolve("config/apple"),
     },
     club: {
+      pairingToken: "club-token-that-is-long-and-private-2026",
       dataKey: "club-test-key-that-is-at-least-thirty-two-characters",
       sheets: {
         spreadsheetId: "",

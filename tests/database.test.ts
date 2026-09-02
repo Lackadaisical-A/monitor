@@ -298,6 +298,25 @@ describe("SignalDatabase", () => {
     expect(db.getInstallationAccess(id)).toMatchObject({ level: "free", pro: false, source: "free" });
   });
 
+  it("preserves club access independently from a paid subscription", () => {
+    db = new SignalDatabase(":memory:");
+    const id = "848a40d5-48ae-45ef-b969-036d25f62a30";
+    db.registerInstallation(id, "client-token-hash");
+    db.activateClubAccess(id);
+
+    expect(db.getInstallationAccess(id)).toMatchObject({ level: "free", pro: false, clubAccess: true });
+    db.applyStoreTransaction({
+      installationId: id,
+      productId: "com.yingcui.CatalystWatch.pro.monthly",
+      originalTransactionId: "original-club-pro",
+      transactionId: "transaction-club-pro",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      environment: "Sandbox",
+      revoked: false,
+    });
+    expect(db.getInstallationAccess(id)).toMatchObject({ level: "pro", pro: true, clubAccess: true });
+  });
+
   it("requeues only the newest permanent failures", () => {
     db = new SignalDatabase(":memory:");
     const failed = [

@@ -164,8 +164,11 @@ Server-side APNs setup:
 3. Set `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_BUNDLE_ID`, and either `APNS_PRIVATE_KEY_PATH` or the inline `APNS_PRIVATE_KEY` secret on the server.
 4. Set a long random `DEVELOPER_PAIRING_TOKEN` if the developer installation needs Pro without purchasing its own subscription.
 5. Set a random `CLUB_DATA_KEY` of at least 32 characters before using developer club check-in.
-6. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
-7. Debug device builds use the APNs sandbox; archived builds use production.
+6. For Google Sheets attendance, share the target spreadsheet with a dedicated service account and set `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL`, and `GOOGLE_SHEETS_PRIVATE_KEY`. The optional tab, timezone, and retry controls default to tab ID `0`, `Attendance`, `America/New_York`, and 300 seconds.
+7. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
+8. Debug device builds use the APNs sandbox; archived builds use production.
+
+The attendance sheet is rebuilt after each club mutation and every five minutes. Attendee names are rows and dated meetings are columns. `PRESENT` is green, `ABSENT` becomes red only after a meeting closes, and `PENDING` or `N/A` is black. Contact details, ages, card identifiers, and card fingerprints are never exported.
 
 The iPhone app creates a random installation credential in Keychain. Free devices may register an APNs token, but the alert service only targets an active App Store Pro or developer installation. App Store transactions and server notifications are verified with Apple's official server library before access changes.
 
@@ -254,6 +257,8 @@ npm start          Run compiled server
 - `POST /api/developer/club/events` — developer-only creation of a new active attendance event.
 - `POST /api/developer/club/events/:id/close` — developer-only event closure.
 - `POST /api/developer/club/check-ins` — developer-only card lookup, first-scan registration, and event check-in.
+- `GET /api/developer/club/sheet` — developer-only Google Sheets synchronization status.
+- `POST /api/developer/club/sheet/sync` — developer-only immediate Google Sheets rebuild.
 - `DELETE /api/developer/club/members/:id` — developer-only profile and attendance deletion.
 
 ## Production gaps to address before relying on money-sensitive alerts

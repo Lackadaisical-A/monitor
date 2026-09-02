@@ -15,6 +15,13 @@ const EnvSchema = z.object({
   DEVICE_PAIRING_TOKEN: z.string().default(""),
   DEVELOPER_PAIRING_TOKEN: z.string().default(""),
   CLUB_DATA_KEY: z.union([z.literal(""), z.string().min(32)]).default(""),
+  GOOGLE_SHEETS_SPREADSHEET_ID: z.string().default(""),
+  GOOGLE_SHEETS_SHEET_ID: z.coerce.number().int().nonnegative().default(0),
+  GOOGLE_SHEETS_SHEET_TITLE: z.string().trim().min(1).max(100).default("Attendance"),
+  GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(""),
+  GOOGLE_SHEETS_PRIVATE_KEY: z.string().default(""),
+  GOOGLE_SHEETS_TIME_ZONE: z.string().trim().min(1).default("America/New_York"),
+  GOOGLE_SHEETS_SYNC_INTERVAL_SECONDS: z.coerce.number().int().min(30).default(300),
   FREE_FEED_DELAY_MINUTES: z.coerce.number().int().min(5).max(1_440).default(30),
   APP_STORE_BUNDLE_ID: z.string().default("com.yingcui.CatalystWatch"),
   APP_STORE_APP_ID: z.coerce.number().int().positive().default(6803988538),
@@ -144,6 +151,15 @@ export interface AppConfig {
   };
   club: {
     dataKey: string;
+    sheets: {
+      spreadsheetId: string;
+      sheetId: number;
+      sheetTitle: string;
+      serviceAccountEmail: string;
+      privateKey: string;
+      timeZone: string;
+      syncIntervalSeconds: number;
+    };
   };
   openaiApiKey: string;
   openaiModel: string;
@@ -222,6 +238,15 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
     },
     club: {
       dataKey: env.CLUB_DATA_KEY,
+      sheets: {
+        spreadsheetId: env.GOOGLE_SHEETS_SPREADSHEET_ID.trim(),
+        sheetId: env.GOOGLE_SHEETS_SHEET_ID,
+        sheetTitle: env.GOOGLE_SHEETS_SHEET_TITLE,
+        serviceAccountEmail: env.GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL.trim(),
+        privateKey: env.GOOGLE_SHEETS_PRIVATE_KEY.replace(/\\n/g, "\n"),
+        timeZone: env.GOOGLE_SHEETS_TIME_ZONE,
+        syncIntervalSeconds: env.GOOGLE_SHEETS_SYNC_INTERVAL_SECONDS,
+      },
     },
     openaiApiKey: env.OPENAI_API_KEY,
     openaiModel: env.OPENAI_MODEL,

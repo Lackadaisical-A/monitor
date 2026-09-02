@@ -17,7 +17,7 @@ Free access shows up to 30 recent signals after a 30-minute delay and supports 1
 
 ## Developer club check-in
 
-After developer access is active, open **Settings > Developer tools > Club check-in**. Create an event before scanning. The first supported card scan opens a registration form for name, age, phone number or Instagram handle, grade, and consent; later scans record attendance for the active event. Member detail includes permanent profile and attendance deletion.
+After developer access is active, open **Settings > Developer tools > Club check-in**. Create an event before scanning. The first supported card scan opens a registration form for name, age, phone number or Instagram handle, grade, and consent; later scans record attendance for the active event. When Google Sheets sync is configured, the consent text discloses that the member's name and attendance state are copied to the private club Sheet. Member detail includes permanent profile and attendance deletion, which also removes the synchronized Sheet row.
 
 Core NFC tag reading works only on a signed physical iPhone. The simulator can validate the UI but cannot scan a card. Card technologies differ, and some protected cards do not expose a stable identifier, so test the intended Rutgers ID cards before operational use. This tool does not write to a card and must not be presented as Rutgers identity verification or access control.
 

@@ -300,6 +300,24 @@ export interface ClubDashboard {
   recentEvents: ClubEvent[];
 }
 
+export interface ClubAttendanceSnapshot {
+  members: Array<{
+    id: string;
+    name: string;
+    createdAt: string;
+  }>;
+  meetings: Array<{
+    id: string;
+    title: string;
+    startedAt: string;
+    endedAt: string | null;
+  }>;
+  checkIns: Array<{
+    eventId: string;
+    memberId: string;
+  }>;
+}
+
 export interface ClubCardCheckInInput {
   eventId: string;
   cardIdentifier: string;

@@ -2,6 +2,7 @@ import { HeuristicDemoAnalyzer } from "./analysis/heuristic-analyzer.js";
 import { OpenAICatalystAnalyzer } from "./analysis/openai-analyzer.js";
 import { AlertService } from "./alerts/service.js";
 import { loadConfig } from "./config.js";
+import { createClubAttendanceSheetSync } from "./club-sheets.js";
 import { SignalDatabase } from "./db.js";
 import { AlpacaMarketDataService } from "./market-data/alpaca.js";
 import { OutcomeAuditor } from "./outcomes.js";
@@ -34,6 +35,7 @@ export function bootstrap(logger: PipelineLogger) {
     config.outcomes.intervalMinutes,
     config.outcomes.batchSize,
   );
+  const clubSheets = createClubAttendanceSheetSync(config.club.sheets, db, logger);
   const pipeline = new MonitorPipeline(config, db, sources, analyzer, alerts, logger, outcomes);
-  return { config, db, sources, analyzer, alerts, marketData, outcomes, pipeline };
+  return { config, db, sources, analyzer, alerts, marketData, outcomes, clubSheets, pipeline };
 }

@@ -85,6 +85,20 @@ services:
         sync: false
       - key: CLUB_DATA_KEY
         sync: false
+      - key: GOOGLE_SHEETS_SPREADSHEET_ID
+        sync: false
+      - key: GOOGLE_SHEETS_SHEET_ID
+        value: 0
+      - key: GOOGLE_SHEETS_SHEET_TITLE
+        value: Attendance
+      - key: GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_SHEETS_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_SHEETS_TIME_ZONE
+        value: America/New_York
+      - key: GOOGLE_SHEETS_SYNC_INTERVAL_SECONDS
+        value: 300
       - key: SEC_USER_AGENT
         sync: false
       - key: APNS_PRIVATE_KEY

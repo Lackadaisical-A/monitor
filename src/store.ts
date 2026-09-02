@@ -5,6 +5,7 @@ import type {
   CatalystEventType,
   ClubCardCheckInInput,
   ClubCardCheckInResult,
+  ClubAttendanceSnapshot,
   ClubDashboard,
   ClubEventDetail,
   DeviceRegistration,
@@ -95,6 +96,7 @@ export interface SignalStore {
   closeClubEvent?(eventId: string): Awaitable<ClubEventDetail | null>;
   getClubEvent?(eventId: string): Awaitable<ClubEventDetail | null>;
   getClubDashboard?(limit?: number): Awaitable<ClubDashboard>;
+  getClubAttendanceSnapshot?(): Awaitable<ClubAttendanceSnapshot>;
   checkInClubCard?(input: ClubCardCheckInInput): Awaitable<ClubCardCheckInResult>;
   deleteClubMember?(memberId: string): Awaitable<boolean>;
   applyStoreTransaction(entitlement: StoreTransactionEntitlement): Awaitable<number>;

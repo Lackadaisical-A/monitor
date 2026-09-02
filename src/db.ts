@@ -8,6 +8,7 @@ import type {
   AlertTier,
   AnalysisRecord,
   CatalystEventType,
+  ClubAttendanceSnapshot,
   ClubCardCheckInInput,
   ClubCardCheckInResult,
   ClubCheckIn,
@@ -189,6 +190,11 @@ interface ClubCheckInJoinedRow extends ClubMemberRow {
   event_id: string;
   member_id: string;
   checked_in_at: string;
+}
+
+interface ClubAttendanceCheckInRow {
+  event_id: string;
+  member_id: string;
 }
 
 const ALL_EVENT_TYPES: CatalystEventType[] = [
@@ -1055,6 +1061,39 @@ export class SignalDatabase implements SignalStore {
     return {
       activeEvent: activeRow ? this.getClubEvent(activeRow.id) : null,
       recentEvents: recentRows.map(rowToClubEvent),
+    };
+  }
+
+  getClubAttendanceSnapshot(): ClubAttendanceSnapshot {
+    this.requireClubData();
+    const memberRows = this.sqlite.prepare(`
+      SELECT * FROM club_members
+      ORDER BY created_at ASC, id ASC
+    `).all() as ClubMemberRow[];
+    const eventRows = this.sqlite.prepare(`
+      SELECT e.*, COUNT(ci.id) AS check_in_count
+      FROM club_events e
+      LEFT JOIN club_checkins ci ON ci.event_id = e.id
+      GROUP BY e.id
+      ORDER BY e.started_at ASC, e.id ASC
+    `).all() as ClubEventRow[];
+    const checkInRows = this.sqlite.prepare(`
+      SELECT event_id, member_id
+      FROM club_checkins
+      ORDER BY checked_in_at ASC, id ASC
+    `).all() as ClubAttendanceCheckInRow[];
+    return {
+      members: memberRows.map((row) => {
+        const member = this.rowToClubMember(row);
+        return { id: member.id, name: member.name, createdAt: member.createdAt };
+      }),
+      meetings: eventRows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        startedAt: row.started_at,
+        endedAt: row.ended_at,
+      })),
+      checkIns: checkInRows.map((row) => ({ eventId: row.event_id, memberId: row.member_id })),
     };
   }
 

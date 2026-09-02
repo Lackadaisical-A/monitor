@@ -365,9 +365,9 @@ private struct ClubMemberRegistrationView: View {
                         .autocorrectionDisabled()
                 }
                 Section {
-                    Toggle("I consent to storing this profile and my club attendance.", isOn: $consent)
+                    Toggle("I consent to storing this profile and listing my name and attendance in the club's private Google Sheet.", isOn: $consent)
                 } footer: {
-                    Text("The card identifier is converted to a one-way service fingerprint and is not stored in raw form.")
+                    Text("Age, contact information, and card data are not copied to Google Sheets. The card identifier is converted to a one-way service fingerprint and is not stored in raw form.")
                 }
             }
             .navigationTitle("New Member")

@@ -5,6 +5,7 @@ import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { ClubAttendanceSheetSync } from "./club-sheets.js";
 import type { AppConfig } from "./config.js";
 import { AlpacaMarketDataService, type MarketDataProvider } from "./market-data/alpaca.js";
 import { summarizeOutcomes } from "./outcomes.js";
@@ -91,6 +92,7 @@ export async function createApp(
   pipeline: MonitorPipeline,
   subscriptionVerifier: SubscriptionVerifier = new AppStoreSubscriptionVerifier(config.entitlements),
   marketDataProvider?: MarketDataProvider,
+  clubSheetSync?: ClubAttendanceSheetSync | null,
 ): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: config.logLevel },
@@ -199,6 +201,7 @@ export async function createApp(
     requireClubFeature(config, db);
     const body = ClubEventSchema.parse(request.body);
     const event = await db.createClubEvent(body.title, access.installationId);
+    clubSheetSync?.requestSync();
     return reply.code(201).send({ event });
   });
 
@@ -208,6 +211,7 @@ export async function createApp(
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const event = await db.closeClubEvent(id);
     if (!event) return reply.code(404).send({ error: "club_event_not_found" });
+    clubSheetSync?.requestSync();
     return { event };
   });
 
@@ -233,7 +237,21 @@ export async function createApp(
       } : {}),
     });
     if (result.status === "event_unavailable") return reply.code(409).send(result);
+    if (result.status === "checked_in") clubSheetSync?.requestSync();
     return reply.code(result.status === "checked_in" ? 201 : 200).send(result);
+  });
+
+  app.get("/api/developer/club/sheet", async (request) => {
+    await requireDeveloperAccess(request, db);
+    return clubSheetSync?.getStatus() ?? { configured: false };
+  });
+
+  app.post("/api/developer/club/sheet/sync", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    await requireDeveloperAccess(request, db);
+    if (!clubSheetSync) return reply.code(503).send({ error: "club_sheet_sync_not_configured" });
+    return clubSheetSync.syncNow();
   });
 
   app.delete("/api/developer/club/members/:id", async (request, reply) => {
@@ -241,6 +259,7 @@ export async function createApp(
     requireClubFeature(config, db);
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     if (!await db.deleteClubMember(id)) return reply.code(404).send({ error: "club_member_not_found" });
+    clubSheetSync?.requestSync();
     return { deleted: true };
   });
 

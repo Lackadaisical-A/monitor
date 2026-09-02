@@ -56,9 +56,6 @@ jobs:
           KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
 
           printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
-          CERTIFICATE_SERIAL="$(openssl pkcs12 -in "$CERTIFICATE_PATH" -passin env:P12_PASSWORD -clcerts -nokeys 2>/dev/null | openssl x509 -noout -serial | cut -d= -f2)"
-          test -n "$CERTIFICATE_SERIAL"
-          printf 'ASC_CERTIFICATE_SERIAL=%s\n' "$CERTIFICATE_SERIAL" >> "$GITHUB_ENV"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -67,6 +64,10 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+          CERTIFICATE_SERIAL="$(security find-certificate -a -p "$KEYCHAIN_PATH" | openssl x509 -noout -serial | cut -d= -f2)"
+          test -n "$CERTIFICATE_SERIAL"
+          printf 'ASC_CERTIFICATE_SERIAL=%s\n' "$CERTIFICATE_SERIAL" >> "$GITHUB_ENV"
 
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           printf '%s' "$ASC_PRIVATE_KEY" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"

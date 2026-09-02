@@ -51,7 +51,7 @@ xcodebuild -exportArchive -archivePath DerivedData/CatalystWatch.xcarchive \
 
 `ExportOptions.plist` creates a local IPA; `UploadOptions.plist` validates and uploads the archive to App Store Connect.
 
-When the local Xcode version does not satisfy Apple's current upload requirement, `.github/workflows/app-store.yml` can perform a manual release on GitHub's `macos-26` runner. It requires these encrypted repository secrets: `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `BUILD_PROVISION_PROFILE_BASE64`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_PRIVATE_KEY`. The workflow only runs when manually dispatched and increments the build number from the GitHub run number.
+When the local Xcode version does not satisfy Apple's current upload requirement, `.github/workflows/app-store.yml` can perform a manual release on GitHub's `macos-26` runner. It requires these encrypted repository secrets: `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_PRIVATE_KEY`. The App Store Connect key must be allowed to manage Certificates, Identifiers & Profiles. The workflow enables NFC tag reading, creates or reuses the matching distribution profile, verifies the signed entitlement, and then uploads. It only runs when manually dispatched and uses the supplied build number or the GitHub run number.
 
 ## Critical Alerts
 

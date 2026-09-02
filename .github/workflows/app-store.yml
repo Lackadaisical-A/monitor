@@ -22,10 +22,11 @@ jobs:
     env:
       BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
       P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-      BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      ASC_BUNDLE_ID: com.yingcui.CatalystWatch
+      ASC_PROFILE_NAME: Catalyst Watch App Store NFC
       IOS_BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
     steps:
       - name: Checkout
@@ -33,6 +34,15 @@ jobs:
 
       - name: Select Xcode 26.6
         run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -42,12 +52,13 @@ jobs:
         run: |
           set -euo pipefail
           CERTIFICATE_PATH="$RUNNER_TEMP/distribution.p12"
-          PROFILE_PATH="$RUNNER_TEMP/CatalystWatch.mobileprovision"
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
 
           printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
-          printf '%s' "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          CERTIFICATE_SERIAL="$(openssl pkcs12 -in "$CERTIFICATE_PATH" -passin env:P12_PASSWORD -clcerts -nokeys 2>/dev/null | openssl x509 -noout -serial | cut -d= -f2)"
+          test -n "$CERTIFICATE_SERIAL"
+          printf 'ASC_CERTIFICATE_SERIAL=%s\n' "$CERTIFICATE_SERIAL" >> "$GITHUB_ENV"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -57,17 +68,29 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -d user -s "$KEYCHAIN_PATH"
 
-          PROFILE_UUID="$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)"
-          PROFILE_DIRECTORY="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
-          mkdir -p "$PROFILE_DIRECTORY"
-          cp "$PROFILE_PATH" "$PROFILE_DIRECTORY/$PROFILE_UUID.mobileprovision"
-
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           printf '%s' "$ASC_PRIVATE_KEY" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
 
       - name: Generate Xcode project
         run: xcodegen generate --spec ios/project.yml
+
+      - name: Provision NFC distribution profile
+        run: |
+          set -euo pipefail
+          PROFILE_PATH="$RUNNER_TEMP/CatalystWatchNFC.mobileprovision"
+          PROFILE_METADATA="$RUNNER_TEMP/CatalystWatchNFC.json"
+          ASC_PROFILE_PATH="$PROFILE_PATH" node scripts/apple-provision-profile.mjs | tee "$PROFILE_METADATA"
+
+          PROFILE_UUID="$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)"
+          PROFILE_DIRECTORY="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIRECTORY"
+          cp "$PROFILE_PATH" "$PROFILE_DIRECTORY/$PROFILE_UUID.mobileprovision"
+
+          EXPORT_OPTIONS="$RUNNER_TEMP/ExportOptions.plist"
+          cp ios/ExportOptions.plist "$EXPORT_OPTIONS"
+          /usr/libexec/PlistBuddy -c "Set :provisioningProfiles:$ASC_BUNDLE_ID $ASC_PROFILE_NAME" "$EXPORT_OPTIONS"
+          printf 'ASC_EXPORT_OPTIONS=%s\n' "$EXPORT_OPTIONS" >> "$GITHUB_ENV"
 
       - name: Archive
         run: |
@@ -79,6 +102,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/CatalystWatch.xcarchive" \
             CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            PROVISIONING_PROFILE_SPECIFIER="$ASC_PROFILE_NAME" \
             clean archive
 
       - name: Verify bundle version
@@ -88,13 +112,24 @@ jobs:
           ACTUAL_BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PLIST")"
           test "$ACTUAL_BUILD_NUMBER" = "$IOS_BUILD_NUMBER"
 
+      - name: Verify NFC signing entitlement
+        run: |
+          set -euo pipefail
+          APP_PATH="$RUNNER_TEMP/CatalystWatch.xcarchive/Products/Applications/BiotechSignal.app"
+          SIGNED_ENTITLEMENTS="$RUNNER_TEMP/signed-entitlements.plist"
+          PROFILE_PLIST="$RUNNER_TEMP/embedded-profile.plist"
+          codesign -d --entitlements :- "$APP_PATH" > "$SIGNED_ENTITLEMENTS" 2>/dev/null
+          security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$PROFILE_PLIST"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.nfc.readersession.formats:0' "$SIGNED_ENTITLEMENTS")" = TAG
+          test "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.nfc.readersession.formats:0' "$PROFILE_PLIST")" = TAG
+
       - name: Export IPA
         run: |
           set -euo pipefail
           xcodebuild \
             -exportArchive \
             -archivePath "$RUNNER_TEMP/CatalystWatch.xcarchive" \
-            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportOptionsPlist "$ASC_EXPORT_OPTIONS" \
             -exportPath "$RUNNER_TEMP/export"
 
       - name: Validate and upload

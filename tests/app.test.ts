@@ -122,6 +122,126 @@ describe("HTTP app", () => {
     await app.close();
   });
 
+  it("restricts club attendance to developers and registers a card without storing its raw identifier", async () => {
+    const clubDataKey = "club-test-key-that-is-at-least-thirty-two-characters";
+    db = new SignalDatabase(":memory:", clubDataKey);
+    const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
+    const appConfig = config();
+    appConfig.club.dataKey = clubDataKey;
+    const app = await createApp(appConfig, db, pipeline, verifier());
+    await bootstrap(app);
+
+    const forbidden = await app.inject({
+      method: "GET",
+      url: "/api/developer/club",
+      headers: clientHeaders(),
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    await app.inject({
+      method: "POST",
+      url: "/api/entitlements/developer",
+      headers: clientHeaders(),
+      payload: { credential: "developer-token-that-is-long-and-private" },
+    });
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/developer/club/events",
+      headers: clientHeaders(),
+      payload: { title: "General meeting" },
+    });
+    expect(created.statusCode).toBe(201);
+    const eventId = created.json().event.id as string;
+    const card = { technology: "mifare", identifier: "04A1B2C3D4E5F6" };
+
+    const firstScan = await app.inject({
+      method: "POST",
+      url: "/api/developer/club/check-ins",
+      headers: clientHeaders(),
+      payload: { eventId, card },
+    });
+    expect(firstScan.statusCode).toBe(200);
+    expect(firstScan.json()).toMatchObject({ status: "registration_required", member: null });
+
+    const registered = await app.inject({
+      method: "POST",
+      url: "/api/developer/club/check-ins",
+      headers: clientHeaders(),
+      payload: {
+        eventId,
+        card,
+        registration: {
+          name: "Scarlet Tester",
+          age: 20,
+          contactType: "instagram",
+          contact: "@scarlet_tester",
+          grade: "junior",
+          consent: true,
+        },
+      },
+    });
+    expect(registered.statusCode).toBe(201);
+    expect(registered.json()).toMatchObject({
+      status: "checked_in",
+      member: { name: "Scarlet Tester", age: 20, cardHint: expect.any(String) },
+    });
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/api/developer/club/check-ins",
+      headers: clientHeaders(),
+      payload: { eventId, card },
+    });
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json().status).toBe("already_checked_in");
+
+    const dashboard = await app.inject({
+      method: "GET",
+      url: "/api/developer/club",
+      headers: clientHeaders(),
+    });
+    expect(dashboard.json().activeEvent).toMatchObject({
+      id: eventId,
+      checkInCount: 1,
+      checkIns: [{ member: { name: "Scarlet Tester" } }],
+    });
+    const closed = await app.inject({
+      method: "POST",
+      url: `/api/developer/club/events/${eventId}/close`,
+      headers: clientHeaders(),
+    });
+    expect(closed.statusCode).toBe(200);
+    const history = await app.inject({
+      method: "GET",
+      url: `/api/developer/club/events/${eventId}`,
+      headers: clientHeaders(),
+    });
+    expect(history.json().event).toMatchObject({
+      id: eventId,
+      endedAt: expect.any(String),
+      checkInCount: 1,
+      checkIns: [{ member: { name: "Scarlet Tester" } }],
+    });
+    const persisted = JSON.stringify(db.sqlite.prepare("SELECT * FROM club_members").get());
+    expect(persisted).not.toContain(card.identifier.toLowerCase());
+    expect(persisted).not.toContain("Scarlet Tester");
+    expect(persisted).not.toContain("@scarlet_tester");
+
+    const memberId = registered.json().member.id as string;
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: `/api/developer/club/members/${memberId}`,
+      headers: clientHeaders(),
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect((await app.inject({
+      method: "GET",
+      url: `/api/developer/club/events/${eventId}`,
+      headers: clientHeaders(),
+    })).json().event.checkInCount).toBe(0);
+    await app.close();
+  });
+
   it("grants Pro after a server-verified StoreKit transaction", async () => {
     db = new SignalDatabase(":memory:");
     const pipeline = { run: async () => scanSummary() } as unknown as MonitorPipeline;
@@ -405,6 +525,7 @@ function config(): AppConfig {
       ],
       appleRootCaDirectory: resolve("config/apple"),
     },
+    club: { dataKey: "club-test-key-that-is-at-least-thirty-two-characters" },
     openaiApiKey: "",
     openaiModel: "test-model",
     alpaca: { scope: "disabled", keyId: "", secretKey: "", feed: "iex", newsEnabled: true },

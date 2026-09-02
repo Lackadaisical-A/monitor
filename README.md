@@ -28,6 +28,7 @@ It does **not** claim that any announcement will definitely move a stock. Market
 - Per-installation iPhone authentication, StoreKit 2 subscriptions, and server-side App Store JWS verification.
 - Per-installation company watchlists, All/Following feed modes, and company/event/priority-specific Pro alert routing on web and iPhone.
 - A responsive catalyst timeline that combines explicit company guidance, ClinicalTrials.gov schedule dates, completed alerts, frozen expectation snapshots, and realized outcome calibration.
+- A developer-only iPhone NFC attendance tool with encrypted member profiles, one-way card fingerprints, event rosters, duplicate prevention, and profile deletion.
 
 ## Free, Pro, and developer access
 
@@ -162,8 +163,9 @@ Server-side APNs setup:
 2. Create an APNs authentication key and download its `.p8` file once.
 3. Set `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_BUNDLE_ID`, and either `APNS_PRIVATE_KEY_PATH` or the inline `APNS_PRIVATE_KEY` secret on the server.
 4. Set a long random `DEVELOPER_PAIRING_TOKEN` if the developer installation needs Pro without purchasing its own subscription.
-5. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
-6. Debug device builds use the APNs sandbox; archived builds use production.
+5. Set a random `CLUB_DATA_KEY` of at least 32 characters before using developer club check-in.
+6. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
+7. Debug device builds use the APNs sandbox; archived builds use production.
 
 The iPhone app creates a random installation credential in Keychain. Free devices may register an APNs token, but the alert service only targets an active App Store Pro or developer installation. App Store transactions and server notifications are verified with Apple's official server library before access changes.
 
@@ -180,12 +182,21 @@ Create a Render Blueprint from this repository and provide the prompted secrets:
 - `OPENAI_API_KEY`
 - `DASHBOARD_TOKEN`
 - `DEVELOPER_PAIRING_TOKEN`
+- `CLUB_DATA_KEY` (a random value of at least 32 characters)
 - `SEC_USER_AGENT` in the form `Catalyst Watch contact@example.com`
 - `APNS_PRIVATE_KEY` containing the complete `.p8` key, including its `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines
 
 The launch Blueprint sets `ALERT_DRY_RUN=false`; only authenticated Pro or developer devices with notification permission are eligible. For a new deployment, start with `true`, confirm `/api/health`, inspect real classifications, pair a physical iPhone, and then switch to `false`. Render redeploys the service after an environment change.
 
 The Blueprint also configures the App Store bundle ID, Apple app ID, product IDs, and bundled Apple root certificates used for signed-transaction verification. Configure App Store Server Notifications V2 to send production and sandbox notifications to `https://YOUR-SERVICE.onrender.com/api/app-store/notifications`.
+
+### Developer club check-in
+
+The native iPhone app exposes **Settings > Developer tools > Club check-in** only after that installation has developer access. Create an attendance event, scan a supported contactless card, and collect a member's name, age, phone number or Instagram handle, and grade on the first scan. Later scans check the member into the active event without asking for the profile again. A member can be deleted from the member detail screen, which also removes that member's attendance records.
+
+The phone sends the tag identifier over HTTPS. The server immediately replaces it with a keyed HMAC fingerprint and never persists the raw identifier; profile fields are encrypted at rest with AES-256-GCM. Back up `CLUB_DATA_KEY` securely. Losing or rotating it makes existing card fingerprints and profiles unusable.
+
+This is an attendance convenience, not university identity verification or building access. It does not write to or alter a card. NFC support and stable identifiers vary by card technology, so verify the intended cards on a physical iPhone before relying on the workflow. Obtain informed consent, limit developer access, define a retention period, and confirm any club or university requirements before collecting member details.
 
 ### “Wake me up” limitation
 
@@ -238,6 +249,12 @@ npm start          Run compiled server
 - `POST /api/scan` — manually trigger a scan; dashboard, Pro, or developer access required.
 - `POST /api/admin/requeue-failed` — dashboard-only bounded recovery for the newest permanently failed analyses.
 - `POST /api/devices` — register/update an APNs token for an authenticated installation.
+- `GET /api/developer/club` — developer-only active event, attendance roster, and recent event summary.
+- `GET /api/developer/club/events/:id` — developer-only historical event roster.
+- `POST /api/developer/club/events` — developer-only creation of a new active attendance event.
+- `POST /api/developer/club/events/:id/close` — developer-only event closure.
+- `POST /api/developer/club/check-ins` — developer-only card lookup, first-scan registration, and event check-in.
+- `DELETE /api/developer/club/members/:id` — developer-only profile and attendance deletion.
 
 ## Production gaps to address before relying on money-sensitive alerts
 

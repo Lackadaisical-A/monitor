@@ -14,6 +14,7 @@ const EnvSchema = z.object({
   DASHBOARD_TOKEN: z.string().default(""),
   DEVICE_PAIRING_TOKEN: z.string().default(""),
   DEVELOPER_PAIRING_TOKEN: z.string().default(""),
+  CLUB_DATA_KEY: z.union([z.literal(""), z.string().min(32)]).default(""),
   FREE_FEED_DELAY_MINUTES: z.coerce.number().int().min(5).max(1_440).default(30),
   APP_STORE_BUNDLE_ID: z.string().default("com.yingcui.CatalystWatch"),
   APP_STORE_APP_ID: z.coerce.number().int().positive().default(6803988538),
@@ -141,6 +142,9 @@ export interface AppConfig {
     productIds: string[];
     appleRootCaDirectory: string;
   };
+  club: {
+    dataKey: string;
+  };
   openaiApiKey: string;
   openaiModel: string;
   alpaca: {
@@ -215,6 +219,9 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
       appAppleId: env.APP_STORE_APP_ID,
       productIds: env.APP_STORE_PRODUCT_IDS.split(",").map((value) => value.trim()).filter(Boolean),
       appleRootCaDirectory: resolve(env.APPLE_ROOT_CA_DIR),
+    },
+    club: {
+      dataKey: env.CLUB_DATA_KEY,
     },
     openaiApiKey: env.OPENAI_API_KEY,
     openaiModel: env.OPENAI_MODEL,

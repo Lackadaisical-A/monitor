@@ -264,6 +264,91 @@ struct DeviceRegistration: Encodable {
     let attentionSoundsSupported: Bool
 }
 
+struct ClubDashboardResponse: Decodable {
+    let activeEvent: ClubEventDetail?
+    let recentEvents: [ClubEventSummary]
+}
+
+struct ClubEventSummary: Decodable, Identifiable {
+    let id: String
+    let title: String
+    let startedAt: String
+    let endedAt: String?
+    let checkInCount: Int
+    let createdAt: String
+}
+
+struct ClubEventDetail: Decodable, Identifiable {
+    let id: String
+    let title: String
+    let startedAt: String
+    let endedAt: String?
+    let checkInCount: Int
+    let createdAt: String
+    let checkIns: [ClubCheckIn]
+}
+
+struct ClubMember: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let age: Int
+    let contactType: String
+    let contact: String
+    let grade: String
+    let cardHint: String
+    let tagTechnology: String
+    let consentedAt: String
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct ClubCheckIn: Decodable, Identifiable {
+    let id: String
+    let eventId: String
+    let memberId: String
+    let checkedInAt: String
+    let member: ClubMember
+}
+
+struct ClubEventResponse: Decodable {
+    let event: ClubEventDetail
+}
+
+struct ClubCheckInResponse: Decodable {
+    let status: String
+    let cardHint: String
+    let member: ClubMember?
+    let checkIn: ClubCheckIn?
+}
+
+struct ClubCardRequest: Encodable {
+    let technology: String
+    let identifier: String
+}
+
+struct ClubMemberRegistrationRequest: Encodable {
+    let name: String
+    let age: Int
+    let contactType: String
+    let contact: String
+    let grade: String
+    let consent: Bool
+}
+
+struct ClubCheckInRequest: Encodable {
+    let eventId: String
+    let card: ClubCardRequest
+    let registration: ClubMemberRegistrationRequest?
+}
+
+struct ClubEventCreateRequest: Encodable {
+    let title: String
+}
+
+struct ClubDeletionResponse: Decodable {
+    let deleted: Bool
+}
+
 struct StatusResponse: Decodable {
     let stats: MonitorStats
     let configuration: MonitorConfiguration

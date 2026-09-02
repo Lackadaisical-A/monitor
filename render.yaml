@@ -83,6 +83,8 @@ services:
         sync: false
       - key: DEVELOPER_PAIRING_TOKEN
         sync: false
+      - key: CLUB_DATA_KEY
+        sync: false
       - key: SEC_USER_AGENT
         sync: false
       - key: APNS_PRIVATE_KEY

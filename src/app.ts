@@ -14,6 +14,9 @@ import { AppStoreSubscriptionVerifier, type SubscriptionVerifier } from "./subsc
 import {
   CatalystEventTypeSchema,
   AlertPrioritySchema,
+  ClubCardTechnologySchema,
+  ClubContactTypeSchema,
+  ClubGradeSchema,
   FeedModeSchema,
   PushModeSchema,
   type CompanyCoverage,
@@ -56,6 +59,28 @@ const PreferencesUpdateSchema = z.object({
   pushMode: PushModeSchema,
   minimumAlertTier: AlertPrioritySchema.optional(),
   eventTypes: z.array(CatalystEventTypeSchema).min(1),
+});
+
+const ClubEventSchema = z.object({
+  title: z.string().trim().min(1).max(100),
+});
+
+const ClubMemberRegistrationSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  age: z.coerce.number().int().min(13).max(120),
+  contactType: ClubContactTypeSchema,
+  contact: z.string().trim().min(3).max(120),
+  grade: ClubGradeSchema,
+  consent: z.literal(true),
+});
+
+const ClubCheckInSchema = z.object({
+  eventId: z.string().uuid(),
+  card: z.object({
+    technology: ClubCardTechnologySchema,
+    identifier: z.string().trim().regex(/^(?:[a-fA-F0-9]{2}){2,64}$/),
+  }),
+  registration: ClubMemberRegistrationSchema.optional(),
 });
 
 const FREE_WATCHLIST_LIMIT = 10;
@@ -150,6 +175,73 @@ export async function createApp(
     }
     await db.activateDeveloperAccess(access.installationId);
     return entitlementResponse(config, await db.getInstallationAccess(access.installationId));
+  });
+
+  app.get("/api/developer/club", async (request) => {
+    await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    return db.getClubDashboard(12);
+  });
+
+  app.get("/api/developer/club/events/:id", async (request, reply) => {
+    await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const event = await db.getClubEvent(id);
+    if (!event) return reply.code(404).send({ error: "club_event_not_found" });
+    return { event };
+  });
+
+  app.post("/api/developer/club/events", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const access = await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const body = ClubEventSchema.parse(request.body);
+    const event = await db.createClubEvent(body.title, access.installationId);
+    return reply.code(201).send({ event });
+  });
+
+  app.post("/api/developer/club/events/:id/close", async (request, reply) => {
+    await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const event = await db.closeClubEvent(id);
+    if (!event) return reply.code(404).send({ error: "club_event_not_found" });
+    return { event };
+  });
+
+  app.post("/api/developer/club/check-ins", {
+    config: { rateLimit: { max: 90, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const access = await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const body = ClubCheckInSchema.parse(request.body);
+    const result = await db.checkInClubCard({
+      eventId: body.eventId,
+      cardIdentifier: body.card.identifier,
+      tagTechnology: body.card.technology,
+      installationId: access.installationId,
+      ...(body.registration ? {
+        profile: {
+          name: body.registration.name,
+          age: body.registration.age,
+          contactType: body.registration.contactType,
+          contact: body.registration.contact,
+          grade: body.registration.grade,
+        },
+      } : {}),
+    });
+    if (result.status === "event_unavailable") return reply.code(409).send(result);
+    return reply.code(result.status === "checked_in" ? 201 : 200).send(result);
+  });
+
+  app.delete("/api/developer/club/members/:id", async (request, reply) => {
+    await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    if (!await db.deleteClubMember(id)) return reply.code(404).send({ error: "club_member_not_found" });
+    return { deleted: true };
   });
 
   app.post("/api/app-store/notifications", async (request) => {
@@ -455,6 +547,28 @@ async function requireClientAccess(request: FastifyRequest, db: SignalStore): Pr
   const access = await db.getInstallationAccess(installationId);
   if (!access) throw httpError(401, "Installation is not registered");
   return access;
+}
+
+async function requireDeveloperAccess(request: FastifyRequest, db: SignalStore): Promise<InstallationAccess> {
+  const access = await requireClientAccess(request, db);
+  if (access.level !== "developer") throw httpError(403, "Developer access is required");
+  return access;
+}
+
+type ClubSignalStore = SignalStore & Required<Pick<SignalStore,
+  "createClubEvent" | "closeClubEvent" | "getClubEvent" | "getClubDashboard" | "checkInClubCard" | "deleteClubMember"
+>>;
+
+function requireClubFeature(config: AppConfig, db: SignalStore): asserts db is ClubSignalStore {
+  if (!config.club.dataKey
+    || !db.createClubEvent
+    || !db.closeClubEvent
+    || !db.getClubEvent
+    || !db.getClubDashboard
+    || !db.checkInClubCard
+    || !db.deleteClubMember) {
+    throw httpError(503, "Club attendance is not configured");
+  }
 }
 
 function isDashboardAuthorized(request: FastifyRequest, config: AppConfig): boolean {

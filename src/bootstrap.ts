@@ -10,7 +10,7 @@ import { createSources } from "./sources/index.js";
 
 export function bootstrap(logger: PipelineLogger) {
   const config = loadConfig();
-  const db = new SignalDatabase(config.databasePath);
+  const db = new SignalDatabase(config.databasePath, config.club.dataKey);
   for (const learned of db.listCompanyPrograms()) {
     const company = config.watchlist.find((candidate) => candidate.ticker === learned.ticker);
     if (company && !company.programs.some((program) => program.toLowerCase() === learned.program.toLowerCase())) {

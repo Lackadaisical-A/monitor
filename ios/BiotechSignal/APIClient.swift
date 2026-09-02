@@ -56,7 +56,43 @@ struct APIClient {
         try await request(path: "/api/scan", method: "POST")
     }
 
-    private func request<T: Decodable>(path: String, method: String = "GET", body: Data? = nil) async throws -> T {
+    func fetchClubDashboard() async throws -> ClubDashboardResponse {
+        try await request(path: "/api/developer/club")
+    }
+
+    func fetchClubEvent(id: String) async throws -> ClubEventResponse {
+        try await request(path: "/api/developer/club/events/\(id)")
+    }
+
+    func createClubEvent(title: String) async throws -> ClubEventResponse {
+        let body = try JSONEncoder().encode(ClubEventCreateRequest(title: title))
+        return try await request(path: "/api/developer/club/events", method: "POST", body: body)
+    }
+
+    func closeClubEvent(id: String) async throws -> ClubEventResponse {
+        try await request(path: "/api/developer/club/events/\(id)/close", method: "POST")
+    }
+
+    func checkInClubMember(_ checkIn: ClubCheckInRequest) async throws -> ClubCheckInResponse {
+        let body = try JSONEncoder().encode(checkIn)
+        return try await request(
+            path: "/api/developer/club/check-ins",
+            method: "POST",
+            body: body,
+            acceptedStatusCodes: [409]
+        )
+    }
+
+    func deleteClubMember(id: String) async throws -> ClubDeletionResponse {
+        try await request(path: "/api/developer/club/members/\(id)", method: "DELETE")
+    }
+
+    private func request<T: Decodable>(
+        path: String,
+        method: String = "GET",
+        body: Data? = nil,
+        acceptedStatusCodes: Set<Int> = []
+    ) async throws -> T {
         guard let base = URL(string: settings.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))),
               let url = URL(string: path, relativeTo: base) else { throw APIError.invalidServerURL }
         var request = URLRequest(url: url)
@@ -68,7 +104,7 @@ struct APIClient {
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else {
+        guard (200..<300).contains(http.statusCode) || acceptedStatusCodes.contains(http.statusCode) else {
             if http.statusCode == 401 { throw APIError.unauthorized }
             if http.statusCode == 403 { throw APIError.proRequired }
             throw APIError.server(http.statusCode)

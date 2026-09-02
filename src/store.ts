@@ -3,6 +3,10 @@ import type {
   AlertPriority,
   AnalysisRecord,
   CatalystEventType,
+  ClubCardCheckInInput,
+  ClubCardCheckInResult,
+  ClubDashboard,
+  ClubEventDetail,
   DeviceRegistration,
   FeedEntry,
   FeedMode,
@@ -87,6 +91,12 @@ export interface SignalStore {
   installationTokenMatches(installationId: string, clientTokenHash: string): Awaitable<boolean>;
   getInstallationAccess(installationId: string): Awaitable<InstallationAccess | null>;
   activateDeveloperAccess(installationId: string): Awaitable<void>;
+  createClubEvent?(title: string, installationId: string): Awaitable<ClubEventDetail>;
+  closeClubEvent?(eventId: string): Awaitable<ClubEventDetail | null>;
+  getClubEvent?(eventId: string): Awaitable<ClubEventDetail | null>;
+  getClubDashboard?(limit?: number): Awaitable<ClubDashboard>;
+  checkInClubCard?(input: ClubCardCheckInInput): Awaitable<ClubCardCheckInResult>;
+  deleteClubMember?(memberId: string): Awaitable<boolean>;
   applyStoreTransaction(entitlement: StoreTransactionEntitlement): Awaitable<number>;
   getInstallationPreferences(installationId: string): Awaitable<InstallationPreferences>;
   updateInstallationPreferences(input: {

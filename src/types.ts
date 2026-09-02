@@ -240,6 +240,79 @@ export interface InstallationAccess {
   source: "free" | "app_store" | "developer";
 }
 
+export const ClubContactTypeSchema = z.enum(["phone", "instagram"]);
+export type ClubContactType = z.infer<typeof ClubContactTypeSchema>;
+
+export const ClubGradeSchema = z.enum([
+  "first_year",
+  "sophomore",
+  "junior",
+  "senior",
+  "graduate",
+  "alumni",
+  "other",
+]);
+export type ClubGrade = z.infer<typeof ClubGradeSchema>;
+
+export const ClubCardTechnologySchema = z.enum(["mifare", "iso7816", "iso15693", "felica"]);
+export type ClubCardTechnology = z.infer<typeof ClubCardTechnologySchema>;
+
+export interface ClubMemberProfile {
+  name: string;
+  age: number;
+  contactType: ClubContactType;
+  contact: string;
+  grade: ClubGrade;
+}
+
+export interface ClubMember extends ClubMemberProfile {
+  id: string;
+  cardHint: string;
+  tagTechnology: ClubCardTechnology;
+  consentedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClubCheckIn {
+  id: string;
+  eventId: string;
+  memberId: string;
+  checkedInAt: string;
+  member: ClubMember;
+}
+
+export interface ClubEvent {
+  id: string;
+  title: string;
+  startedAt: string;
+  endedAt: string | null;
+  checkInCount: number;
+  createdAt: string;
+}
+
+export interface ClubEventDetail extends ClubEvent {
+  checkIns: ClubCheckIn[];
+}
+
+export interface ClubDashboard {
+  activeEvent: ClubEventDetail | null;
+  recentEvents: ClubEvent[];
+}
+
+export interface ClubCardCheckInInput {
+  eventId: string;
+  cardIdentifier: string;
+  tagTechnology: ClubCardTechnology;
+  profile?: ClubMemberProfile | undefined;
+  installationId: string;
+}
+
+export type ClubCardCheckInResult =
+  | { status: "registration_required"; cardHint: string; member: null; checkIn: null }
+  | { status: "checked_in" | "already_checked_in"; cardHint: string; member: ClubMember; checkIn: ClubCheckIn }
+  | { status: "event_unavailable"; cardHint: string; member: null; checkIn: null };
+
 export const FeedModeSchema = z.enum(["all", "watchlist"]);
 export type FeedMode = z.infer<typeof FeedModeSchema>;
 

@@ -63,6 +63,16 @@ struct SettingsView: View {
                 }
             }
 
+            if store.access.level == "developer" {
+                Section("Developer tools") {
+                    NavigationLink {
+                        ClubCheckInView()
+                    } label: {
+                        Label("Club check-in", systemImage: "person.badge.key")
+                    }
+                }
+            }
+
             Section("iPhone alerts") {
                 LabeledContent("Permission", value: store.notificationStatus)
                 LabeledContent("Sound", value: store.notificationSoundStatus)

@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import type {
@@ -7,6 +8,13 @@ import type {
   AlertTier,
   AnalysisRecord,
   CatalystEventType,
+  ClubCardCheckInInput,
+  ClubCardCheckInResult,
+  ClubCheckIn,
+  ClubDashboard,
+  ClubEvent,
+  ClubEventDetail,
+  ClubMember,
   DeviceRegistration,
   FeedEntry,
   FeedMode,
@@ -23,6 +31,7 @@ import type {
   TimelineEvent,
 } from "./types.js";
 import type { AlertInput, ItemFailureResult, SignalStore } from "./store.js";
+import { ClubDataProtector } from "./club.js";
 import { clinicalSurpriseScore, isSecCalendarMilestoneSentence } from "./timeline.js";
 import { normalizedHeadline } from "./utils.js";
 
@@ -154,6 +163,34 @@ interface PreferenceRow {
   updated_at: string;
 }
 
+interface ClubMemberRow {
+  id: string;
+  card_fingerprint: string;
+  card_hint: string;
+  tag_technology: ClubMember["tagTechnology"];
+  encrypted_profile: string;
+  consented_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ClubEventRow {
+  id: string;
+  title: string;
+  started_at: string;
+  ended_at: string | null;
+  created_by_installation_id: string;
+  created_at: string;
+  check_in_count: number;
+}
+
+interface ClubCheckInJoinedRow extends ClubMemberRow {
+  check_in_id: string;
+  event_id: string;
+  member_id: string;
+  checked_in_at: string;
+}
+
 const ALL_EVENT_TYPES: CatalystEventType[] = [
   "trial_topline",
   "trial_update",
@@ -169,10 +206,12 @@ const EVENT_TYPE_SET = new Set<string>(ALL_EVENT_TYPES);
 
 export class SignalDatabase implements SignalStore {
   readonly sqlite: Database.Database;
+  private readonly clubData: ClubDataProtector | null;
 
-  constructor(path: string) {
+  constructor(path: string, clubDataKey = "") {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     this.sqlite = new Database(path);
+    this.clubData = clubDataKey ? new ClubDataProtector(clubDataKey) : null;
     this.sqlite.pragma("journal_mode = WAL");
     this.sqlite.pragma("foreign_keys = ON");
     this.migrate();
@@ -936,6 +975,151 @@ export class SignalDatabase implements SignalStore {
     `).run(now, now, installationId);
   }
 
+  createClubEvent(title: string, installationId: string): ClubEventDetail {
+    this.requireClubData();
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    this.sqlite.transaction(() => {
+      this.sqlite.prepare(`
+        UPDATE club_events SET ended_at = ? WHERE ended_at IS NULL
+      `).run(now);
+      this.sqlite.prepare(`
+        INSERT INTO club_events (
+          id, title, started_at, ended_at, created_by_installation_id, created_at
+        ) VALUES (?, ?, ?, NULL, ?, ?)
+      `).run(id, title, now, installationId, now);
+    })();
+    const event = this.getClubEvent(id);
+    if (!event) throw new Error("Club event could not be created");
+    return event;
+  }
+
+  closeClubEvent(eventId: string): ClubEventDetail | null {
+    this.requireClubData();
+    const exists = this.sqlite.prepare("SELECT 1 FROM club_events WHERE id = ?").get(eventId);
+    if (!exists) return null;
+    this.sqlite.prepare(`
+      UPDATE club_events SET ended_at = COALESCE(ended_at, ?) WHERE id = ?
+    `).run(new Date().toISOString(), eventId);
+    return this.getClubEvent(eventId);
+  }
+
+  getClubEvent(eventId: string): ClubEventDetail | null {
+    this.requireClubData();
+    const eventRow = this.sqlite.prepare(`
+      SELECT e.*, COUNT(ci.id) AS check_in_count
+      FROM club_events e
+      LEFT JOIN club_checkins ci ON ci.event_id = e.id
+      WHERE e.id = ?
+      GROUP BY e.id
+    `).get(eventId) as ClubEventRow | undefined;
+    if (!eventRow) return null;
+    const checkInRows = this.sqlite.prepare(`
+      SELECT
+        ci.id AS check_in_id,
+        ci.event_id,
+        ci.member_id,
+        ci.checked_in_at,
+        cm.*
+      FROM club_checkins ci
+      INNER JOIN club_members cm ON cm.id = ci.member_id
+      WHERE ci.event_id = ?
+      ORDER BY ci.checked_in_at DESC
+    `).all(eventId) as ClubCheckInJoinedRow[];
+    return {
+      ...rowToClubEvent(eventRow),
+      checkIns: checkInRows.map((row) => this.rowToClubCheckIn(row)),
+    };
+  }
+
+  getClubDashboard(limit = 12): ClubDashboard {
+    this.requireClubData();
+    const activeRow = this.sqlite.prepare(`
+      SELECT e.*, COUNT(ci.id) AS check_in_count
+      FROM club_events e
+      LEFT JOIN club_checkins ci ON ci.event_id = e.id
+      WHERE e.ended_at IS NULL
+      GROUP BY e.id
+      ORDER BY e.started_at DESC
+      LIMIT 1
+    `).get() as ClubEventRow | undefined;
+    const recentRows = this.sqlite.prepare(`
+      SELECT e.*, COUNT(ci.id) AS check_in_count
+      FROM club_events e
+      LEFT JOIN club_checkins ci ON ci.event_id = e.id
+      WHERE e.ended_at IS NOT NULL
+      GROUP BY e.id
+      ORDER BY e.started_at DESC
+      LIMIT ?
+    `).all(limit) as ClubEventRow[];
+    return {
+      activeEvent: activeRow ? this.getClubEvent(activeRow.id) : null,
+      recentEvents: recentRows.map(rowToClubEvent),
+    };
+  }
+
+  checkInClubCard(input: ClubCardCheckInInput): ClubCardCheckInResult {
+    const clubData = this.requireClubData();
+    const cardFingerprint = clubData.fingerprint(input.cardIdentifier, input.tagTechnology);
+    const cardHint = cardFingerprint.slice(0, 8).toUpperCase();
+    return this.sqlite.transaction((): ClubCardCheckInResult => {
+      const event = this.sqlite.prepare(`
+        SELECT 1 FROM club_events WHERE id = ? AND ended_at IS NULL
+      `).get(input.eventId);
+      if (!event) return { status: "event_unavailable", cardHint, member: null, checkIn: null };
+
+      let memberRow = this.sqlite.prepare(`
+        SELECT * FROM club_members WHERE card_fingerprint = ?
+      `).get(cardFingerprint) as ClubMemberRow | undefined;
+      if (!memberRow && !input.profile) {
+        return { status: "registration_required", cardHint, member: null, checkIn: null };
+      }
+      if (!memberRow && input.profile) {
+        const now = new Date().toISOString();
+        const memberId = randomUUID();
+        this.sqlite.prepare(`
+          INSERT INTO club_members (
+            id, card_fingerprint, card_hint, tag_technology, encrypted_profile,
+            consented_at, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          memberId,
+          cardFingerprint,
+          cardHint,
+          input.tagTechnology,
+          clubData.seal(input.profile),
+          now,
+          now,
+          now,
+        );
+        memberRow = this.sqlite.prepare("SELECT * FROM club_members WHERE id = ?")
+          .get(memberId) as ClubMemberRow;
+      }
+      if (!memberRow) throw new Error("Club member could not be registered");
+
+      const checkInId = randomUUID();
+      const checkedInAt = new Date().toISOString();
+      const inserted = this.sqlite.prepare(`
+        INSERT OR IGNORE INTO club_checkins (
+          id, event_id, member_id, checked_in_at, created_by_installation_id
+        ) VALUES (?, ?, ?, ?, ?)
+      `).run(checkInId, input.eventId, memberRow.id, checkedInAt, input.installationId).changes > 0;
+      const checkIn = this.getClubCheckIn(input.eventId, memberRow.id);
+      if (!checkIn) throw new Error("Club check-in could not be recorded");
+      return {
+        status: inserted ? "checked_in" : "already_checked_in",
+        cardHint,
+        member: this.rowToClubMember(memberRow),
+        checkIn,
+      };
+    })();
+  }
+
+  deleteClubMember(memberId: string): boolean {
+    this.requireClubData();
+    return this.sqlite.prepare("DELETE FROM club_members WHERE id = ?").run(memberId).changes > 0;
+  }
+
   applyStoreTransaction(entitlement: StoreTransactionEntitlement): number {
     const now = new Date().toISOString();
     const active = !entitlement.revoked && Date.parse(entitlement.expiresAt) > Date.now();
@@ -1234,6 +1418,49 @@ export class SignalDatabase implements SignalStore {
     };
   }
 
+  private getClubCheckIn(eventId: string, memberId: string): ClubCheckIn | null {
+    const row = this.sqlite.prepare(`
+      SELECT
+        ci.id AS check_in_id,
+        ci.event_id,
+        ci.member_id,
+        ci.checked_in_at,
+        cm.*
+      FROM club_checkins ci
+      INNER JOIN club_members cm ON cm.id = ci.member_id
+      WHERE ci.event_id = ? AND ci.member_id = ?
+    `).get(eventId, memberId) as ClubCheckInJoinedRow | undefined;
+    return row ? this.rowToClubCheckIn(row) : null;
+  }
+
+  private rowToClubCheckIn(row: ClubCheckInJoinedRow): ClubCheckIn {
+    return {
+      id: row.check_in_id,
+      eventId: row.event_id,
+      memberId: row.member_id,
+      checkedInAt: row.checked_in_at,
+      member: this.rowToClubMember(row),
+    };
+  }
+
+  private rowToClubMember(row: ClubMemberRow): ClubMember {
+    const profile = this.requireClubData().open(row.encrypted_profile);
+    return {
+      id: row.id,
+      ...profile,
+      cardHint: row.card_hint,
+      tagTechnology: row.tag_technology,
+      consentedAt: row.consented_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private requireClubData(): ClubDataProtector {
+    if (!this.clubData) throw new Error("Club attendance is not configured");
+    return this.clubData;
+  }
+
   private migrate(): void {
     this.sqlite.exec(`
       CREATE TABLE IF NOT EXISTS items (
@@ -1320,6 +1547,39 @@ export class SignalDatabase implements SignalStore {
       );
       CREATE INDEX IF NOT EXISTS installations_original_transaction_idx
         ON installations(original_transaction_id);
+
+      CREATE TABLE IF NOT EXISTS club_members (
+        id TEXT PRIMARY KEY,
+        card_fingerprint TEXT NOT NULL UNIQUE,
+        card_hint TEXT NOT NULL,
+        tag_technology TEXT NOT NULL,
+        encrypted_profile TEXT NOT NULL,
+        consented_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS club_events (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        created_by_installation_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS club_events_one_active_idx
+        ON club_events((1)) WHERE ended_at IS NULL;
+
+      CREATE TABLE IF NOT EXISTS club_checkins (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL REFERENCES club_events(id) ON DELETE CASCADE,
+        member_id TEXT NOT NULL REFERENCES club_members(id) ON DELETE CASCADE,
+        checked_in_at TEXT NOT NULL,
+        created_by_installation_id TEXT NOT NULL,
+        UNIQUE(event_id, member_id)
+      );
+      CREATE INDEX IF NOT EXISTS club_checkins_event_idx
+        ON club_checkins(event_id, checked_in_at DESC);
 
       CREATE TABLE IF NOT EXISTS installation_preferences (
         installation_id TEXT PRIMARY KEY REFERENCES installations(installation_id) ON DELETE CASCADE,
@@ -1516,6 +1776,17 @@ function rowToItem(row: ItemRow): NormalizedItem {
     ...(row.provenance ? { provenance: row.provenance } : {}),
     ...(row.independence_key ? { independenceKey: row.independence_key } : {}),
     raw: JSON.parse(row.raw_json) as unknown,
+  };
+}
+
+function rowToClubEvent(row: ClubEventRow): ClubEvent {
+  return {
+    id: row.id,
+    title: row.title,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    checkInCount: row.check_in_count,
+    createdAt: row.created_at,
   };
 }
 

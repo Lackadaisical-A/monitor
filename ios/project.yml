@@ -32,6 +32,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         CatalystWatchServerURL: https://catalyst-watch.onrender.com
         LSApplicationCategoryType: public.app-category.finance
+        NFCReaderUsageDescription: Catalyst Watch uses NFC only in the developer club check-in tool to associate a consented attendance profile with a member card.
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -39,6 +40,8 @@ targets:
       path: BiotechSignal/BiotechSignal.entitlements
       properties:
         aps-environment: $(APS_ENVIRONMENT)
+        com.apple.developer.nfc.readersession.formats:
+          - TAG
         com.apple.developer.usernotifications.time-sensitive: true
     settings:
       base:
@@ -58,6 +61,8 @@ targets:
         com.apple.InAppPurchase:
           enabled: 1
         com.apple.Push:
+          enabled: 1
+        com.apple.NearFieldCommunicationTagReading:
           enabled: 1
 schemes:
   BiotechSignal:

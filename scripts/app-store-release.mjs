@@ -614,8 +614,12 @@ async function submitForReview(version, group, subscriptions) {
     throw new Error(`Subscriptions not ready: ${unready.map((item) => `${item.attributes.productId}=${item.attributes.state}`).join(", ")}`);
   }
 
-  const reviewSubmissions = await all(`/v1/apps/${config.appId}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=IOS&limit=200`);
-  const submission = reviewSubmissions[0] ?? (await api("/v1/reviewSubmissions", {
+  const reviewSubmissions = await all(`/v1/apps/${config.appId}/reviewSubmissions?limit=200`);
+  const submission = reviewSubmissions.find((item) => (
+    item.attributes?.platform === "IOS" && item.attributes?.state === "UNRESOLVED_ISSUES"
+  )) ?? reviewSubmissions.find((item) => (
+    item.attributes?.platform === "IOS" && item.attributes?.state === "READY_FOR_REVIEW"
+  )) ?? (await api("/v1/reviewSubmissions", {
     method: "POST",
     body: {
       data: {
@@ -634,7 +638,28 @@ async function submitForReview(version, group, subscriptions) {
     targets.push({ relationship: "subscriptionVersion", type: "subscriptionVersions", id: latestVersion(versions).id });
   }
 
-  const existingItems = await all(reviewItemsPath(submission.id));
+  let existingItems = await all(reviewItemsPath(submission.id));
+  const targetIds = new Set(targets.map((target) => target.id));
+  for (const item of existingItems.filter((candidate) => candidate.attributes?.state === "REJECTED")) {
+    const relatedIds = Object.values(item.relationships ?? {})
+      .map((relationship) => relationship?.data?.id)
+      .filter(Boolean);
+    if (!relatedIds.some((id) => targetIds.has(id))) {
+      throw new Error(`Rejected review item ${item.id} does not match this release and was not resolved`);
+    }
+    await api(`/v1/reviewSubmissionItems/${item.id}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "reviewSubmissionItems",
+          id: item.id,
+          attributes: { resolved: true },
+        },
+      },
+    });
+  }
+
+  existingItems = await all(reviewItemsPath(submission.id));
   const existingTargetIds = new Set(existingItems.flatMap((item) => (
     Object.values(item.relationships ?? {}).map((relationship) => relationship?.data?.id).filter(Boolean)
   )));
@@ -659,7 +684,8 @@ async function submitForReview(version, group, subscriptions) {
   }
 
   const items = await all(reviewItemsPath(submission.id));
-  const blocked = items.filter((item) => item.attributes?.state !== "READY_FOR_REVIEW");
+  const submitReadyStates = new Set(["READY_FOR_REVIEW", "ACCEPTED", "APPROVED", "REMOVED"]);
+  const blocked = items.filter((item) => !submitReadyStates.has(item.attributes?.state));
   if (blocked.length) throw new Error(`Review items are not ready: ${blocked.map((item) => `${item.id}=${item.attributes?.state}`).join(", ")}`);
   await api(`/v1/reviewSubmissions/${submission.id}`, {
     method: "PATCH",

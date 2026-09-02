@@ -18,7 +18,7 @@ const bundleIds = await all(`/v1/bundleIds?${new URLSearchParams({
 const bundleId = bundleIds.find((candidate) => candidate.attributes?.identifier === bundleIdentifier);
 if (!bundleId) throw new Error(`Bundle ID ${bundleIdentifier} was not found`);
 
-const capabilities = await all(`/v1/bundleIds/${bundleId.id}/bundleIdCapabilities?limit=200`);
+const capabilities = await all(`/v1/bundleIds/${bundleId.id}/bundleIdCapabilities`);
 let nfcCapability = capabilities.find((candidate) => (
   candidate.attributes?.capabilityType === "NFC_TAG_READING"
 ));

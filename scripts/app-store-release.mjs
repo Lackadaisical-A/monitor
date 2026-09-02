@@ -440,10 +440,18 @@ async function ensureReviewScreenshot(subscription) {
     || (
       screenshot?.attributes?.fileName === basename(config.screenshotPath)
       && Number(screenshot?.attributes?.fileSize) === bytes.length
-    );
+  );
   if (state === "COMPLETE" && matchesCurrentFile) return;
   if (screenshot) {
-    await api(`/v1/subscriptionAppStoreReviewScreenshots/${screenshot.id}`, { method: "DELETE" });
+    try {
+      await api(`/v1/subscriptionAppStoreReviewScreenshots/${screenshot.id}`, { method: "DELETE" });
+    } catch (error) {
+      if (error.status === 409 && error.message.includes("MEDIA_ASSET_DELETE_NOT_ALLOWED")) {
+        console.warn(`Apple has locked the accepted review screenshot for ${subscription.attributes.productId}; preserving it`);
+        return;
+      }
+      throw error;
+    }
   }
 
   const reservation = await api("/v1/subscriptionAppStoreReviewScreenshots", {

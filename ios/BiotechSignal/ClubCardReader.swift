@@ -9,6 +9,7 @@ struct ClubCardScan: Identifiable, Sendable {
 
 enum ClubCardReaderError: LocalizedError {
     case unavailable
+    case unauthorizedBuild
     case busy
     case cancelled
     case unsupported
@@ -17,6 +18,7 @@ enum ClubCardReaderError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailable: "NFC card reading is unavailable on this iPhone."
+        case .unauthorizedBuild: "NFC is not authorized for this app build. Install the latest Catalyst Watch build from TestFlight and try again."
         case .busy: "An NFC scan is already active."
         case .cancelled: nil
         case .unsupported: "This card does not expose a supported NFC identifier."
@@ -44,8 +46,9 @@ final class ClubCardReader: NSObject, NFCTagReaderSessionDelegate {
             self.continuation = continuation
             lock.unlock()
 
+            // FeliCa polling requires an explicit system-code allowlist in Info.plist.
             guard let session = NFCTagReaderSession(
-                pollingOption: [.iso14443, .iso15693, .iso18092],
+                pollingOption: [.iso14443, .iso15693],
                 delegate: self,
                 queue: nil
             ) else {
@@ -63,12 +66,19 @@ final class ClubCardReader: NSObject, NFCTagReaderSessionDelegate {
     func tagReaderSessionDidBecomeActive(_ session: NFCTagReaderSession) {}
 
     func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
-        if let readerError = error as? NFCReaderError,
-           readerError.code == .readerSessionInvalidationErrorUserCanceled {
-            finish(.failure(ClubCardReaderError.cancelled))
-        } else {
-            finish(.failure(ClubCardReaderError.connection(error.localizedDescription)))
+        if let readerError = error as? NFCReaderError {
+            switch readerError.code {
+            case .readerSessionInvalidationErrorUserCanceled:
+                finish(.failure(ClubCardReaderError.cancelled))
+                return
+            case .readerErrorSecurityViolation:
+                finish(.failure(ClubCardReaderError.unauthorizedBuild))
+                return
+            default:
+                break
+            }
         }
+        finish(.failure(ClubCardReaderError.connection(error.localizedDescription)))
     }
 
     func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {

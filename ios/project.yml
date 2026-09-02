@@ -32,7 +32,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         CatalystWatchServerURL: https://catalyst-watch.onrender.com
         LSApplicationCategoryType: public.app-category.finance
-        NFCReaderUsageDescription: Catalyst Watch uses NFC only in the developer club check-in tool to associate a consented attendance profile with a member card.
+        NFCReaderUsageDescription: Catalyst Watch uses NFC for club check-in to associate a consented attendance profile with a member card.
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

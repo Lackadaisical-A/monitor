@@ -63,9 +63,9 @@ struct SubscriptionView: View {
                         } label: {
                             HStack {
                                 if store.purchaseInProgress { ProgressView().tint(.black) }
-                                Text(store.purchaseInProgress ? "Processing…" : "Continue")
+                                Text(store.purchaseInProgress ? "Processing…" : "Subscribe")
                                 Spacer()
-                                if let selectedProduct { Text(selectedProduct.displayPrice) }
+                                if let selectedPriceAndPeriod { Text(selectedPriceAndPeriod) }
                             }
                             .font(.headline)
                             .foregroundStyle(.black)
@@ -84,13 +84,13 @@ struct SubscriptionView: View {
                         Button("Restore purchases") { Task { await store.restorePurchases() } }
                             .disabled(store.purchaseInProgress)
                         HStack(spacing: 14) {
-                            Link("Terms", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
-                            Link("Privacy", destination: URL(string: "https://lackadaisical-a.github.io/monitor/privacy.html")!)
+                            Link("Terms of Use (EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                            Link("Privacy Policy", destination: URL(string: "https://lackadaisical-a.github.io/monitor/privacy.html")!)
                         }
                         .font(.caption)
-                        Text("Subscriptions renew automatically unless canceled at least 24 hours before the current period ends. Manage or cancel in your App Store account.")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        Text(subscriptionDisclosure)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
@@ -121,6 +121,20 @@ struct SubscriptionView: View {
         store.products.first { $0.id == selectedProductId }
     }
 
+    private var selectedPriceAndPeriod: String? {
+        if store.screenshotMode {
+            return selectedProductId == MonitorStore.yearlyProductId ? "$79.99 / year" : "$9.99 / month"
+        }
+        guard let selectedProduct else { return nil }
+        return "\(selectedProduct.displayPrice) / \(billingPeriodLabel(for: selectedProduct))"
+    }
+
+    private var subscriptionDisclosure: String {
+        let price = selectedPriceAndPeriod.map { "\($0). " } ?? ""
+        return price
+            + "Payment is charged to your Apple Account at confirmation. The subscription automatically renews unless canceled at least 24 hours before the current period ends. Your account is charged for renewal within 24 hours before the period ends. Manage or cancel in your App Store account."
+    }
+
     @ViewBuilder
     private var screenshotPlans: some View {
         VStack(spacing: 10) {
@@ -128,22 +142,24 @@ struct SubscriptionView: View {
                 id: MonitorStore.yearlyProductId,
                 name: "Catalyst Watch Pro Annual",
                 description: "Full watchlist, filtered alerts, real-time signals, and scans.",
-                price: "$79.99"
+                price: "$79.99",
+                period: "year"
             )
             screenshotProductButton(
                 id: MonitorStore.monthlyProductId,
                 name: "Catalyst Watch Pro Monthly",
                 description: "Full watchlist, filtered alerts, real-time signals, and scans.",
-                price: "$9.99"
+                price: "$9.99",
+                period: "month"
             )
         }
 
         Button {
         } label: {
             HStack {
-                Text("Continue")
+                Text("Subscribe")
                 Spacer()
-                Text(selectedProductId == MonitorStore.yearlyProductId ? "$79.99" : "$9.99")
+                Text(selectedProductId == MonitorStore.yearlyProductId ? "$79.99 / year" : "$9.99 / month")
             }
             .font(.headline)
             .foregroundStyle(.black)
@@ -157,7 +173,8 @@ struct SubscriptionView: View {
         id: String,
         name: String,
         description: String,
-        price: String
+        price: String,
+        period: String
     ) -> some View {
         Button {
             selectedProductId = id
@@ -175,7 +192,11 @@ struct SubscriptionView: View {
                     Text(description).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer()
-                Text(price).font(.headline)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price).font(.headline)
+                    Text("per \(period)").font(.caption).foregroundStyle(.secondary)
+                }
+                .fixedSize(horizontal: true, vertical: false)
             }
             .padding(14)
             .frame(maxWidth: .infinity, minHeight: 70)
@@ -205,7 +226,13 @@ struct SubscriptionView: View {
                     Text(product.description).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer()
-                Text(product.displayPrice).font(.headline)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(product.displayPrice).font(.headline)
+                    Text("per \(billingPeriodLabel(for: product))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .fixedSize(horizontal: true, vertical: false)
             }
             .padding(14)
             .frame(maxWidth: .infinity, minHeight: 70)
@@ -216,6 +243,19 @@ struct SubscriptionView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private func billingPeriodLabel(for product: Product) -> String {
+        guard let period = product.subscription?.subscriptionPeriod else { return "billing period" }
+        let unit: String
+        switch period.unit {
+        case .day: unit = "day"
+        case .week: unit = "week"
+        case .month: unit = "month"
+        case .year: unit = "year"
+        @unknown default: unit = "period"
+        }
+        return period.value == 1 ? unit : "\(period.value) \(unit)s"
     }
 
     private func comparisonRow(_ label: String, free: String, pro: String) -> some View {

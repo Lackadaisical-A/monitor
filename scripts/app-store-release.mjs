@@ -5,6 +5,10 @@ import { importPKCS8, SignJWT } from "jose";
 
 const API_BASE = "https://api.appstoreconnect.apple.com";
 const PRIVACY_POLICY_URL = "https://lackadaisical-a.github.io/monitor/privacy.html";
+const TERMS_OF_USE_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
+const REVIEW_NOTE_MARKER = "Guideline 3.1.2 response (September 2, 2026)";
+const REVIEW_NOTE = `${REVIEW_NOTE_MARKER}:
+The App Store description now includes functional Privacy Policy and Terms of Use (EULA) links. In the app, open Settings > Upgrade to Pro. The paywall shows the monthly and annual subscription titles, their App Store prices, Restore Purchases, the auto-renewal and cancellation terms, and functional Terms of Use and Privacy Policy links. No account is required.`;
 const EU_TERRITORIES = new Set([
   "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN",
   "FRA", "DEU", "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX",
@@ -61,7 +65,7 @@ const build = action === "inspect" ? await findBuild() : await waitForBuild();
 const { group, subscriptions } = await getSubscriptions();
 
 if (action !== "inspect") {
-  await configureAppMetadata(appInfo);
+  await configureAppMetadata(appVersion, appInfo);
   await assignBuild(appVersion.id, build.id);
   for (const subscription of subscriptions) {
     await enforceSubscriptionAvailability(subscription);
@@ -199,7 +203,7 @@ async function getSubscriptions() {
   throw new Error(`Could not find all subscription products: ${config.productIds.join(", ")}`);
 }
 
-async function configureAppMetadata(info) {
+async function configureAppMetadata(version, info) {
   await api(`/v1/apps/${config.appId}`, {
     method: "PATCH",
     body: {
@@ -238,7 +242,62 @@ async function configureAppMetadata(info) {
     });
   }
 
+  await ensureAppVersionLegalMetadata(version);
+  await ensureAppReviewNotes(version);
+
   await ensureFreeAppPrice();
+}
+
+async function ensureAppVersionLegalMetadata(version) {
+  const localizations = await all(`/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations?limit=200`);
+  if (!localizations.length) throw new Error("App Store version localization was not found");
+  for (const localization of localizations) {
+    const current = localization.attributes?.description?.trim() ?? "";
+    const additions = [
+      current.includes(PRIVACY_POLICY_URL) ? null : `Privacy Policy: ${PRIVACY_POLICY_URL}`,
+      current.includes(TERMS_OF_USE_URL) ? null : `Terms of Use (EULA): ${TERMS_OF_USE_URL}`,
+    ].filter(Boolean);
+    if (!additions.length) continue;
+    const description = [current, additions.join("\n")].filter(Boolean).join("\n\n");
+    if (description.length > 4_000) {
+      throw new Error(`App Store description for ${localization.attributes?.locale ?? localization.id} cannot fit required legal links`);
+    }
+    await api(`/v1/appStoreVersionLocalizations/${localization.id}`, {
+      method: "PATCH",
+      body: {
+        data: {
+          type: "appStoreVersionLocalizations",
+          id: localization.id,
+          attributes: { description },
+        },
+      },
+    });
+  }
+}
+
+async function ensureAppReviewNotes(version) {
+  const detail = (await optional(`/v1/appStoreVersions/${version.id}/appStoreReviewDetail`))?.data ?? null;
+  if (!detail) {
+    console.warn("App Review detail was not found; skipping the Guideline 3.1.2 reviewer note");
+    return;
+  }
+  const current = detail.attributes?.notes?.trim() ?? "";
+  if (current.includes(REVIEW_NOTE_MARKER)) return;
+  const notes = [current, REVIEW_NOTE].filter(Boolean).join("\n\n");
+  if (notes.length > 4_000) {
+    console.warn("App Review notes are too long to append the Guideline 3.1.2 response; existing notes were preserved");
+    return;
+  }
+  await api(`/v1/appStoreReviewDetails/${detail.id}`, {
+    method: "PATCH",
+    body: {
+      data: {
+        type: "appStoreReviewDetails",
+        id: detail.id,
+        attributes: { notes },
+      },
+    },
+  });
 }
 
 async function ensureFreeAppPrice() {
@@ -374,13 +433,19 @@ async function enforceSubscriptionAvailability(subscription) {
 async function ensureReviewScreenshot(subscription) {
   const relationshipPath = `/v1/subscriptions/${subscription.id}/appStoreReviewScreenshot`;
   let screenshot = (await optional(relationshipPath))?.data ?? null;
+  const bytes = await readFile(config.screenshotPath);
+  const checksum = createHash("md5").update(bytes).digest("hex");
   const state = screenshot?.attributes?.assetDeliveryState?.state;
-  if (state === "COMPLETE") return;
+  const matchesCurrentFile = screenshot?.attributes?.sourceFileChecksum === checksum
+    || (
+      screenshot?.attributes?.fileName === basename(config.screenshotPath)
+      && Number(screenshot?.attributes?.fileSize) === bytes.length
+    );
+  if (state === "COMPLETE" && matchesCurrentFile) return;
   if (screenshot) {
     await api(`/v1/subscriptionAppStoreReviewScreenshots/${screenshot.id}`, { method: "DELETE" });
   }
 
-  const bytes = await readFile(config.screenshotPath);
   const reservation = await api("/v1/subscriptionAppStoreReviewScreenshots", {
     method: "POST",
     body: {
@@ -407,7 +472,7 @@ async function ensureReviewScreenshot(subscription) {
       data: {
         type: "subscriptionAppStoreReviewScreenshots",
         id: screenshot.id,
-        attributes: { uploaded: true, sourceFileChecksum: createHash("md5").update(bytes).digest("hex") },
+        attributes: { uploaded: true, sourceFileChecksum: checksum },
       },
     },
   });
@@ -425,9 +490,11 @@ async function ensureReviewScreenshot(subscription) {
 
 async function inspectRelease(version, info, build, group, subscriptions) {
   const assignedBuild = (await optional(`/v1/appStoreVersions/${version.id}/build`))?.data ?? null;
+  const reviewDetail = (await optional(`/v1/appStoreVersions/${version.id}/appStoreReviewDetail`))?.data ?? null;
   const app = (await api(`/v1/apps/${config.appId}?fields[apps]=name,bundleId,contentRightsDeclaration`)).data;
   const ageRating = (await api(`/v1/appInfos/${info.id}/ageRatingDeclaration`)).data;
   const infoLocalizations = await all(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`);
+  const versionLocalizations = await all(`/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations?limit=200`);
   const commerce = await inspectAppCommerce();
   const testFlight = await inspectTestFlight(build);
   const subscriptionReports = [];
@@ -473,6 +540,18 @@ async function inspectRelease(version, info, build, group, subscriptions) {
     appInfo: { id: info.id, ...info.attributes },
     ageRating: { id: ageRating.id, ...ageRating.attributes },
     appInfoLocalizations: infoLocalizations.map((localization) => ({ id: localization.id, ...localization.attributes })),
+    appStoreVersionLocalizations: versionLocalizations.map((localization) => ({
+      id: localization.id,
+      locale: localization.attributes?.locale,
+      descriptionLength: localization.attributes?.description?.length ?? 0,
+      hasPrivacyPolicyLink: localization.attributes?.description?.includes(PRIVACY_POLICY_URL) ?? false,
+      hasTermsOfUseLink: localization.attributes?.description?.includes(TERMS_OF_USE_URL) ?? false,
+    })),
+    appReviewDetail: reviewDetail ? {
+      id: reviewDetail.id,
+      notesLength: reviewDetail.attributes?.notes?.length ?? 0,
+      hasSubscriptionComplianceNote: reviewDetail.attributes?.notes?.includes(REVIEW_NOTE_MARKER) ?? false,
+    } : null,
     appCommerce: commerce,
     testFlight,
     appVersion: { id: version.id, ...version.attributes },

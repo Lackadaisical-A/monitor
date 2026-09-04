@@ -95,6 +95,19 @@ final class ClubCheckInModel: ObservableObject {
         }
     }
 
+    func checkInWithoutCard(_ request: ClubManualCheckInRequest, settings: ServerSettings) async -> Bool {
+        guard dashboard?.activeEvent?.id == request.eventId, !isSaving else { return false }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let result = try await APIClient(settings: settings).checkInClubMemberManually(request)
+            return await handle(result, settings: settings, operatorMode: true)
+        } catch {
+            message = ClubOperatorMessage(title: "Could not check in member", body: error.localizedDescription)
+            return false
+        }
+    }
+
     func delete(member: ClubMember, settings: ServerSettings) async -> Bool {
         guard !isSaving else { return false }
         isSaving = true
@@ -109,10 +122,11 @@ final class ClubCheckInModel: ObservableObject {
         }
     }
 
-    private func handle(_ result: ClubCheckInResponse, settings: ServerSettings, operatorMode: Bool) async {
+    @discardableResult
+    private func handle(_ result: ClubCheckInResponse, settings: ServerSettings, operatorMode: Bool) async -> Bool {
         switch result.status {
         case "registration_required":
-            return
+            return false
         case "checked_in":
             pendingCard = nil
             message = ClubOperatorMessage(
@@ -120,6 +134,7 @@ final class ClubCheckInModel: ObservableObject {
                 body: result.member?.name ?? "Your attendance was recorded."
             )
             await reload(settings: settings, operatorMode: operatorMode)
+            return true
         case "already_checked_in":
             pendingCard = nil
             message = ClubOperatorMessage(
@@ -127,10 +142,18 @@ final class ClubCheckInModel: ObservableObject {
                 body: result.member?.name ?? "Your attendance was already recorded."
             )
             await reload(settings: settings, operatorMode: operatorMode)
+            return true
+        case "member_not_found":
+            message = ClubOperatorMessage(
+                title: "Member not found",
+                body: "Refresh the member search and try again."
+            )
+            return false
         default:
             pendingCard = nil
             message = ClubOperatorMessage(title: "Event unavailable", body: "Start an active event and scan again.")
             await reload(settings: settings, operatorMode: operatorMode)
+            return false
         }
     }
 
@@ -153,6 +176,7 @@ struct ClubCheckInView: View {
     @EnvironmentObject private var store: MonitorStore
     @StateObject private var model = ClubCheckInModel()
     @State private var showingNewEvent = false
+    @State private var showingManualCheckIn = false
     @State private var showingCloseConfirmation = false
 
     var body: some View {
@@ -251,6 +275,12 @@ struct ClubCheckInView: View {
             ClubMemberRegistrationView(card: card, model: model)
                 .environmentObject(store)
         }
+        .sheet(isPresented: $showingManualCheckIn) {
+            if let event = model.dashboard?.activeEvent {
+                ClubManualCheckInView(event: event, model: model)
+                    .environmentObject(store)
+            }
+        }
         .alert(item: $model.message) { message in
             Alert(
                 title: Text(message.title),
@@ -289,6 +319,12 @@ struct ClubCheckInView: View {
             }
             .disabled(model.isScanning || model.isSaving)
             if store.access.level == "developer" {
+                Button {
+                    showingManualCheckIn = true
+                } label: {
+                    Label("Sign in without card", systemImage: "person.crop.circle.badge.checkmark")
+                }
+                .disabled(model.isScanning || model.isSaving)
                 Button(role: .destructive) {
                     showingCloseConfirmation = true
                 } label: {
@@ -360,6 +396,284 @@ private struct NewClubEventView: View {
     }
 }
 
+private enum ClubManualCheckInMode: String, CaseIterable, Identifiable {
+    case existing = "Existing"
+    case newMember = "New"
+
+    var id: Self { self }
+}
+
+private struct ClubManualCheckInView: View {
+    @EnvironmentObject private var store: MonitorStore
+    @Environment(\.dismiss) private var dismiss
+    let event: ClubEventDetail
+    @ObservedObject var model: ClubCheckInModel
+    @State private var mode = ClubManualCheckInMode.existing
+    @State private var searchText = ""
+    @State private var members: [ClubMember] = []
+    @State private var selectedMemberId: String?
+    @State private var isSearching = false
+    @State private var searchError: String?
+    @State private var name = ""
+    @State private var age = ""
+    @State private var contactType = "phone"
+    @State private var contact = ""
+    @State private var grade = "first_year"
+    @State private var consent = false
+
+    private var checkedInMemberIds: Set<String> {
+        Set(event.checkIns.map(\.memberId))
+    }
+
+    private var registration: ClubMemberRegistrationRequest? {
+        clubRegistrationRequest(
+            name: name,
+            age: age,
+            contactType: contactType,
+            contact: contact,
+            grade: grade,
+            consent: consent
+        )
+    }
+
+    private var canSubmit: Bool {
+        switch mode {
+        case .existing:
+            guard let selectedMemberId else { return false }
+            return !checkedInMemberIds.contains(selectedMemberId)
+        case .newMember:
+            return registration != nil
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Member type", selection: $mode) {
+                        ForEach(ClubManualCheckInMode.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                if mode == .existing {
+                    existingMemberSections
+                } else {
+                    ClubMemberRegistrationFields(
+                        name: $name,
+                        age: $age,
+                        contactType: $contactType,
+                        contact: $contact,
+                        grade: $grade,
+                        consent: $consent,
+                        footer: "Age and contact information are encrypted and are not copied to Google Sheets. No card identifier is collected for this profile."
+                    )
+                }
+            }
+            .navigationTitle("Sign In Without Card")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(model.isSaving)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(model.isSaving)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Check In") {
+                        Task { await submit() }
+                    }
+                    .disabled(!canSubmit || model.isSaving)
+                }
+            }
+            .task(id: mode == .existing ? searchText : nil) {
+                guard mode == .existing else { return }
+                await searchMembers()
+            }
+            .onChange(of: mode) { _, newMode in
+                guard newMode == .newMember,
+                      name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                name = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var existingMemberSections: some View {
+        Section("Find existing member") {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Name, phone, or Instagram", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+        }
+
+        Section("Members") {
+            if isSearching && members.isEmpty {
+                HStack { Spacer(); ProgressView(); Spacer() }
+            } else if let searchError {
+                Label(searchError, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+            } else if members.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button {
+                        name = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        mode = .newMember
+                    } label: {
+                        Label("Register new member", systemImage: "person.badge.plus")
+                    }
+                }
+            } else {
+                ForEach(members) { member in
+                    memberRow(member)
+                }
+            }
+        }
+    }
+
+    private func memberRow(_ member: ClubMember) -> some View {
+        let isCheckedIn = checkedInMemberIds.contains(member.id)
+        let isSelected = selectedMemberId == member.id
+        return Button {
+            selectedMemberId = member.id
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(member.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("\(gradeLabel(member.grade)) | Age \(member.age)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(member.contact)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if isCheckedIn {
+                    Text("Checked in")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                } else if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.tint)
+                        .accessibilityLabel("Selected")
+                } else {
+                    Image(systemName: "circle")
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isCheckedIn)
+    }
+
+    private func searchMembers() async {
+        if !searchText.isEmpty {
+            do {
+                try await Task.sleep(nanoseconds: 250_000_000)
+            } catch {
+                return
+            }
+        }
+        guard !Task.isCancelled else { return }
+        isSearching = true
+        defer { isSearching = false }
+        do {
+            let response = try await APIClient(settings: store.settings).searchClubMembers(query: searchText)
+            guard !Task.isCancelled else { return }
+            members = response.members
+            searchError = nil
+            if let selectedMemberId, !members.contains(where: { $0.id == selectedMemberId }) {
+                self.selectedMemberId = nil
+            }
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            members = []
+            searchError = error.localizedDescription
+        }
+    }
+
+    private func submit() async {
+        let request: ClubManualCheckInRequest
+        switch mode {
+        case .existing:
+            guard let selectedMemberId else { return }
+            request = .existing(eventId: event.id, memberId: selectedMemberId)
+        case .newMember:
+            guard let registration else { return }
+            request = .new(eventId: event.id, registration: registration)
+        }
+        if await model.checkInWithoutCard(request, settings: store.settings) {
+            dismiss()
+        }
+    }
+}
+
+private struct ClubMemberRegistrationFields: View {
+    @Binding var name: String
+    @Binding var age: String
+    @Binding var contactType: String
+    @Binding var contact: String
+    @Binding var grade: String
+    @Binding var consent: Bool
+    let footer: String
+
+    var body: some View {
+        Group {
+            Section("Member") {
+                TextField("Full name", text: $name)
+                    .textContentType(.name)
+                    .textInputAutocapitalization(.words)
+                TextField("Age", text: $age)
+                    .keyboardType(.numberPad)
+                Picker("Grade", selection: $grade) {
+                    ForEach(clubGrades, id: \.value) { option in
+                        Text(option.label).tag(option.value)
+                    }
+                }
+            }
+            Section("Contact") {
+                Picker("Contact method", selection: $contactType) {
+                    Text("Phone").tag("phone")
+                    Text("Instagram").tag("instagram")
+                }
+                .pickerStyle(.segmented)
+                TextField(contactType == "phone" ? "Phone number" : "Instagram handle", text: $contact)
+                    .keyboardType(contactType == "phone" ? .phonePad : .default)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            Section {
+                Toggle("I consent to storing this profile and listing my name and attendance in the club's private Google Sheet.", isOn: $consent)
+            } footer: {
+                Text(footer)
+            }
+        }
+    }
+}
+
 private struct ClubMemberRegistrationView: View {
     @EnvironmentObject private var store: MonitorStore
     @Environment(\.dismiss) private var dismiss
@@ -372,37 +686,29 @@ private struct ClubMemberRegistrationView: View {
     @State private var grade = "first_year"
     @State private var consent = false
 
+    private var registration: ClubMemberRegistrationRequest? {
+        clubRegistrationRequest(
+            name: name,
+            age: age,
+            contactType: contactType,
+            contact: contact,
+            grade: grade,
+            consent: consent
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Member") {
-                    TextField("Full name", text: $name)
-                        .textContentType(.name)
-                        .textInputAutocapitalization(.words)
-                    TextField("Age", text: $age)
-                        .keyboardType(.numberPad)
-                    Picker("Grade", selection: $grade) {
-                        ForEach(clubGrades, id: \.value) { option in
-                            Text(option.label).tag(option.value)
-                        }
-                    }
-                }
-                Section("Contact") {
-                    Picker("Contact method", selection: $contactType) {
-                        Text("Phone").tag("phone")
-                        Text("Instagram").tag("instagram")
-                    }
-                    .pickerStyle(.segmented)
-                    TextField(contactType == "phone" ? "Phone number" : "Instagram handle", text: $contact)
-                        .keyboardType(contactType == "phone" ? .phonePad : .default)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                Section {
-                    Toggle("I consent to storing this profile and listing my name and attendance in the club's private Google Sheet.", isOn: $consent)
-                } footer: {
-                    Text("Age, contact information, and card data are not copied to Google Sheets. The card identifier is converted to a one-way service fingerprint and is not stored in raw form.")
-                }
+                ClubMemberRegistrationFields(
+                    name: $name,
+                    age: $age,
+                    contactType: $contactType,
+                    contact: $contact,
+                    grade: $grade,
+                    consent: $consent,
+                    footer: "Age, contact information, and card data are not copied to Google Sheets. The card identifier is converted to a one-way service fingerprint and is not stored in raw form."
+                )
             }
             .navigationTitle("New Member")
             .navigationBarTitleDisplayMode(.inline)
@@ -413,34 +719,20 @@ private struct ClubMemberRegistrationView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Check In") {
-                        guard let numericAge = Int(age) else { return }
+                        guard let registration else { return }
                         Task {
                             await model.register(
                                 card: card,
-                                registration: ClubMemberRegistrationRequest(
-                                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                                    age: numericAge,
-                                    contactType: contactType,
-                                    contact: contact.trimmingCharacters(in: .whitespacesAndNewlines),
-                                    grade: grade,
-                                    consent: true
-                                ),
+                                registration: registration,
                                 settings: store.settings,
                                 operatorMode: store.access.level == "developer"
                             )
                         }
                     }
-                    .disabled(!registrationIsValid || model.isSaving)
+                    .disabled(registration == nil || model.isSaving)
                 }
             }
         }
-    }
-
-    private var registrationIsValid: Bool {
-        guard let numericAge = Int(age), (13...120).contains(numericAge) else { return false }
-        return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && contact.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3
-            && consent
     }
 }
 
@@ -533,9 +825,13 @@ private struct ClubMemberDetailView: View {
                 LabeledContent("Grade", value: gradeLabel(member.grade))
                 LabeledContent(member.contactType == "phone" ? "Phone" : "Instagram", value: member.contact)
             }
-            Section("Card") {
-                LabeledContent("Fingerprint", value: member.cardHint)
-                LabeledContent("Technology", value: member.tagTechnology.uppercased())
+            Section(member.tagTechnology == "manual" ? "Sign-in" : "Card") {
+                if member.tagTechnology == "manual" {
+                    LabeledContent("Method", value: "No ID card")
+                } else {
+                    LabeledContent("Fingerprint", value: member.cardHint)
+                    LabeledContent("Technology", value: member.tagTechnology.uppercased())
+                }
                 LabeledContent("Consent", value: clubDate(member.consentedAt))
             }
             Section {
@@ -560,6 +856,31 @@ private struct ClubMemberDetailView: View {
             }
         }
     }
+}
+
+private func clubRegistrationRequest(
+    name: String,
+    age: String,
+    contactType: String,
+    contact: String,
+    grade: String,
+    consent: Bool
+) -> ClubMemberRegistrationRequest? {
+    let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedContact = contact.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let numericAge = Int(age),
+          (13...120).contains(numericAge),
+          !normalizedName.isEmpty,
+          normalizedContact.count >= 3,
+          consent else { return nil }
+    return ClubMemberRegistrationRequest(
+        name: normalizedName,
+        age: numericAge,
+        contactType: contactType,
+        contact: normalizedContact,
+        grade: grade,
+        consent: true
+    )
 }
 
 private let clubGrades = [

@@ -15,6 +15,8 @@ import type {
   ClubDashboard,
   ClubEvent,
   ClubEventDetail,
+  ClubManualCheckInInput,
+  ClubManualCheckInResult,
   ClubMember,
   DeviceRegistration,
   FeedEntry,
@@ -1177,6 +1179,88 @@ export class SignalDatabase implements SignalStore {
     })();
   }
 
+  searchClubMembers(query: string, limit = 20): ClubMember[] {
+    this.requireClubData();
+    const boundedLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+    const normalizedQuery = normalizeClubSearch(query);
+    const compactQuery = normalizedQuery.replaceAll(" ", "");
+    const terms = normalizedQuery.split(" ").filter(Boolean);
+    const rows = this.sqlite.prepare(`
+      SELECT * FROM club_members
+      ORDER BY created_at DESC, id DESC
+    `).all() as ClubMemberRow[];
+    return rows
+      .map((row) => this.rowToClubMember(row))
+      .filter((member) => {
+        if (!normalizedQuery) return true;
+        const text = normalizeClubSearch([
+          member.name,
+          member.contact,
+          member.grade.replaceAll("_", " "),
+        ].join(" "));
+        const compactText = text.replaceAll(" ", "");
+        return terms.every((term) => text.includes(term))
+          || (compactQuery.length >= 3 && compactText.includes(compactQuery));
+      })
+      .sort((left, right) => left.name.localeCompare(right.name, "en", { sensitivity: "base" }))
+      .slice(0, boundedLimit);
+  }
+
+  checkInClubMember(input: ClubManualCheckInInput): ClubManualCheckInResult {
+    const clubData = this.requireClubData();
+    return this.sqlite.transaction((): ClubManualCheckInResult => {
+      const event = this.sqlite.prepare(`
+        SELECT 1 FROM club_events WHERE id = ? AND ended_at IS NULL
+      `).get(input.eventId);
+      if (!event) return { status: "event_unavailable", cardHint: "", member: null, checkIn: null };
+
+      let memberRow: ClubMemberRow | undefined;
+      if (input.memberId) {
+        memberRow = this.sqlite.prepare("SELECT * FROM club_members WHERE id = ?")
+          .get(input.memberId) as ClubMemberRow | undefined;
+        if (!memberRow) return { status: "member_not_found", cardHint: "", member: null, checkIn: null };
+      } else {
+        const profile = input.profile;
+        if (!profile) throw new Error("A club member profile is required");
+        const now = new Date().toISOString();
+        const memberId = randomUUID();
+        this.sqlite.prepare(`
+          INSERT INTO club_members (
+            id, card_fingerprint, card_hint, tag_technology, encrypted_profile,
+            consented_at, created_at, updated_at
+          ) VALUES (?, ?, ?, 'manual', ?, ?, ?, ?)
+        `).run(
+          memberId,
+          clubData.manualFingerprint(memberId),
+          "NO CARD",
+          clubData.seal(profile),
+          now,
+          now,
+          now,
+        );
+        memberRow = this.sqlite.prepare("SELECT * FROM club_members WHERE id = ?")
+          .get(memberId) as ClubMemberRow;
+      }
+
+      const checkInId = randomUUID();
+      const checkedInAt = new Date().toISOString();
+      const inserted = this.sqlite.prepare(`
+        INSERT OR IGNORE INTO club_checkins (
+          id, event_id, member_id, checked_in_at, created_by_installation_id
+        ) VALUES (?, ?, ?, ?, ?)
+      `).run(checkInId, input.eventId, memberRow.id, checkedInAt, input.installationId).changes > 0;
+      const checkIn = this.getClubCheckIn(input.eventId, memberRow.id);
+      if (!checkIn) throw new Error("Club check-in could not be recorded");
+      const member = this.rowToClubMember(memberRow);
+      return {
+        status: inserted ? "checked_in" : "already_checked_in",
+        cardHint: member.cardHint,
+        member,
+        checkIn,
+      };
+    })();
+  }
+
   deleteClubMember(memberId: string): boolean {
     this.requireClubData();
     return this.sqlite.prepare("DELETE FROM club_members WHERE id = ?").run(memberId).changes > 0;
@@ -1852,6 +1936,14 @@ function rowToClubEvent(row: ClubEventRow): ClubEvent {
     checkInCount: row.check_in_count,
     createdAt: row.created_at,
   };
+}
+
+function normalizeClubSearch(value: string): string {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function rowToAnalysis(row: AnalysisRow): AnalysisRecord {

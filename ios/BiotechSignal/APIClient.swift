@@ -79,6 +79,17 @@ struct APIClient {
         try await request(path: "/api/developer/club/events/\(id)/close", method: "POST")
     }
 
+    func searchClubMembers(query: String, limit: Int = 30) async throws -> ClubMemberSearchResponse {
+        var components = URLComponents()
+        components.path = "/api/developer/club/members"
+        components.queryItems = [
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        guard let path = components.string else { throw APIError.invalidServerURL }
+        return try await request(path: path)
+    }
+
     func checkInClubMember(_ checkIn: ClubCheckInRequest, operatorMode: Bool) async throws -> ClubCheckInResponse {
         let body = try JSONEncoder().encode(checkIn)
         let path = operatorMode ? "/api/developer/club/check-ins" : "/api/club/check-ins"
@@ -87,6 +98,16 @@ struct APIClient {
             method: "POST",
             body: body,
             acceptedStatusCodes: [409]
+        )
+    }
+
+    func checkInClubMemberManually(_ checkIn: ClubManualCheckInRequest) async throws -> ClubCheckInResponse {
+        let body = try JSONEncoder().encode(checkIn)
+        return try await request(
+            path: "/api/developer/club/check-ins/manual",
+            method: "POST",
+            body: body,
+            acceptedStatusCodes: [404, 409]
         )
     }
 

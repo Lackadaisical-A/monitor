@@ -257,6 +257,7 @@ export type ClubGrade = z.infer<typeof ClubGradeSchema>;
 
 export const ClubCardTechnologySchema = z.enum(["mifare", "iso7816", "iso15693", "felica"]);
 export type ClubCardTechnology = z.infer<typeof ClubCardTechnologySchema>;
+export type ClubMemberTechnology = ClubCardTechnology | "manual";
 
 export interface ClubMemberProfile {
   name: string;
@@ -269,7 +270,7 @@ export interface ClubMemberProfile {
 export interface ClubMember extends ClubMemberProfile {
   id: string;
   cardHint: string;
-  tagTechnology: ClubCardTechnology;
+  tagTechnology: ClubMemberTechnology;
   consentedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -331,6 +332,18 @@ export type ClubCardCheckInResult =
   | { status: "registration_required"; cardHint: string; member: null; checkIn: null }
   | { status: "checked_in" | "already_checked_in"; cardHint: string; member: ClubMember; checkIn: ClubCheckIn }
   | { status: "event_unavailable"; cardHint: string; member: null; checkIn: null };
+
+export type ClubManualCheckInInput = {
+  eventId: string;
+  installationId: string;
+} & (
+  | { memberId: string; profile?: never }
+  | { memberId?: never; profile: ClubMemberProfile }
+);
+
+export type ClubManualCheckInResult =
+  | { status: "checked_in" | "already_checked_in"; cardHint: string; member: ClubMember; checkIn: ClubCheckIn }
+  | { status: "event_unavailable" | "member_not_found"; cardHint: string; member: null; checkIn: null };
 
 export const FeedModeSchema = z.enum(["all", "watchlist"]);
 export type FeedMode = z.infer<typeof FeedModeSchema>;

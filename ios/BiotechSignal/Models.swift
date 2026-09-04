@@ -323,6 +323,10 @@ struct ClubCheckInResponse: Decodable {
     let checkIn: ClubCheckIn?
 }
 
+struct ClubMemberSearchResponse: Decodable {
+    let members: [ClubMember]
+}
+
 struct ClubCardRequest: Encodable {
     let technology: String
     let identifier: String
@@ -341,6 +345,31 @@ struct ClubCheckInRequest: Encodable {
     let eventId: String
     let card: ClubCardRequest
     let registration: ClubMemberRegistrationRequest?
+}
+
+struct ClubManualCheckInRequest: Encodable {
+    let kind: String
+    let eventId: String
+    let memberId: String?
+    let registration: ClubMemberRegistrationRequest?
+
+    static func existing(eventId: String, memberId: String) -> ClubManualCheckInRequest {
+        ClubManualCheckInRequest(
+            kind: "existing",
+            eventId: eventId,
+            memberId: memberId,
+            registration: nil
+        )
+    }
+
+    static func new(eventId: String, registration: ClubMemberRegistrationRequest) -> ClubManualCheckInRequest {
+        ClubManualCheckInRequest(
+            kind: "new",
+            eventId: eventId,
+            memberId: nil,
+            registration: registration
+        )
+    }
 }
 
 struct ClubEventCreateRequest: Encodable {

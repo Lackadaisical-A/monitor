@@ -9,6 +9,9 @@ import type {
   ClubDashboard,
   ClubEvent,
   ClubEventDetail,
+  ClubManualCheckInInput,
+  ClubManualCheckInResult,
+  ClubMember,
   DeviceRegistration,
   FeedEntry,
   FeedMode,
@@ -101,6 +104,8 @@ export interface SignalStore {
   getClubDashboard?(limit?: number): Awaitable<ClubDashboard>;
   getClubAttendanceSnapshot?(): Awaitable<ClubAttendanceSnapshot>;
   checkInClubCard?(input: ClubCardCheckInInput): Awaitable<ClubCardCheckInResult>;
+  searchClubMembers?(query: string, limit?: number): Awaitable<ClubMember[]>;
+  checkInClubMember?(input: ClubManualCheckInInput): Awaitable<ClubManualCheckInResult>;
   deleteClubMember?(memberId: string): Awaitable<boolean>;
   applyStoreTransaction(entitlement: StoreTransactionEntitlement): Awaitable<number>;
   getInstallationPreferences(installationId: string): Awaitable<InstallationPreferences>;

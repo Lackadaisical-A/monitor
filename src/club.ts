@@ -30,6 +30,14 @@ export class ClubDataProtector {
       .digest("hex");
   }
 
+  manualFingerprint(memberId: string): string {
+    return createHmac("sha256", this.cardKey)
+      .update("manual", "utf8")
+      .update(Buffer.from([0]))
+      .update(memberId, "utf8")
+      .digest("hex");
+  }
+
   seal(profile: ClubMemberProfile): string {
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", this.profileKey, iv);

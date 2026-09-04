@@ -84,6 +84,24 @@ const ClubCheckInSchema = z.object({
   registration: ClubMemberRegistrationSchema.optional(),
 });
 
+const ClubMemberSearchSchema = z.object({
+  query: z.string().trim().max(120).default(""),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+const ClubManualCheckInSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("existing"),
+    eventId: z.string().uuid(),
+    memberId: z.string().uuid(),
+  }),
+  z.object({
+    kind: z.literal("new"),
+    eventId: z.string().uuid(),
+    registration: ClubMemberRegistrationSchema,
+  }),
+]);
+
 const FREE_WATCHLIST_LIMIT = 10;
 
 export async function createApp(
@@ -230,6 +248,13 @@ export async function createApp(
     return db.getClubDashboard(12);
   });
 
+  app.get("/api/developer/club/members", async (request) => {
+    await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const { query, limit } = ClubMemberSearchSchema.parse(request.query);
+    return { members: await db.searchClubMembers(query, limit) };
+  });
+
   app.get("/api/developer/club/events/:id", async (request, reply) => {
     await requireDeveloperAccess(request, db);
     requireClubFeature(config, db);
@@ -282,6 +307,33 @@ export async function createApp(
     const access = await requireDeveloperAccess(request, db);
     const result = await recordClubCheckIn(request, access.installationId);
     if (result.status === "event_unavailable") return reply.code(409).send(result);
+    if (result.status === "checked_in") clubSheetSync?.requestSync();
+    return reply.code(result.status === "checked_in" ? 201 : 200).send(result);
+  });
+
+  app.post("/api/developer/club/check-ins/manual", {
+    config: { rateLimit: { max: 90, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const access = await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const body = ClubManualCheckInSchema.parse(request.body);
+    const result = await db.checkInClubMember(body.kind === "existing" ? {
+      eventId: body.eventId,
+      installationId: access.installationId,
+      memberId: body.memberId,
+    } : {
+      eventId: body.eventId,
+      installationId: access.installationId,
+      profile: {
+        name: body.registration.name,
+        age: body.registration.age,
+        contactType: body.registration.contactType,
+        contact: body.registration.contact,
+        grade: body.registration.grade,
+      },
+    });
+    if (result.status === "event_unavailable") return reply.code(409).send(result);
+    if (result.status === "member_not_found") return reply.code(404).send(result);
     if (result.status === "checked_in") clubSheetSync?.requestSync();
     return reply.code(result.status === "checked_in" ? 201 : 200).send(result);
   });
@@ -626,7 +678,7 @@ async function requireClubAccess(request: FastifyRequest, db: SignalStore): Prom
 }
 
 type ClubSignalStore = SignalStore & Required<Pick<SignalStore,
-  "createClubEvent" | "closeClubEvent" | "getClubEvent" | "getActiveClubEvent" | "getClubDashboard" | "checkInClubCard" | "deleteClubMember"
+  "createClubEvent" | "closeClubEvent" | "getClubEvent" | "getActiveClubEvent" | "getClubDashboard" | "checkInClubCard" | "searchClubMembers" | "checkInClubMember" | "deleteClubMember"
 >>;
 
 function requireClubFeature(config: AppConfig, db: SignalStore): asserts db is ClubSignalStore {
@@ -637,6 +689,8 @@ function requireClubFeature(config: AppConfig, db: SignalStore): asserts db is C
     || !db.getActiveClubEvent
     || !db.getClubDashboard
     || !db.checkInClubCard
+    || !db.searchClubMembers
+    || !db.checkInClubMember
     || !db.deleteClubMember) {
     throw httpError(503, "Club attendance is not configured");
   }

@@ -171,6 +171,11 @@ describe("HTTP app", () => {
       url: "/api/developer/club",
       headers: clientHeaders(),
     })).statusCode).toBe(403);
+    expect((await app.inject({
+      method: "GET",
+      url: "/api/developer/club/members?query=private",
+      headers: clientHeaders(),
+    })).statusCode).toBe(403);
 
     const event = db.createClubEvent("Member meeting", installationId);
     const dashboard = await app.inject({
@@ -226,6 +231,12 @@ describe("HTTP app", () => {
       method: "GET",
       url: `/api/developer/club/events/${event.id}`,
       headers: clientHeaders(),
+    })).statusCode).toBe(403);
+    expect((await app.inject({
+      method: "POST",
+      url: "/api/developer/club/check-ins/manual",
+      headers: clientHeaders(),
+      payload: { kind: "existing", eventId: event.id, memberId: "7670e974-dd4d-4e5e-949f-220d1210dbd4" },
     })).statusCode).toBe(403);
     await app.close();
   });
@@ -303,6 +314,80 @@ describe("HTTP app", () => {
     expect(duplicate.statusCode).toBe(200);
     expect(duplicate.json().status).toBe("already_checked_in");
 
+    const search = await app.inject({
+      method: "GET",
+      url: "/api/developer/club/members?query=scarlet",
+      headers: clientHeaders(),
+    });
+    expect(search.statusCode).toBe(200);
+    expect(search.json().members).toEqual([
+      expect.objectContaining({ name: "Scarlet Tester", contact: "@scarlet_tester" }),
+    ]);
+
+    const existingManualCheckIn = await app.inject({
+      method: "POST",
+      url: "/api/developer/club/check-ins/manual",
+      headers: clientHeaders(),
+      payload: {
+        kind: "existing",
+        eventId,
+        memberId: registered.json().member.id,
+      },
+    });
+    expect(existingManualCheckIn.statusCode).toBe(200);
+    expect(existingManualCheckIn.json().status).toBe("already_checked_in");
+
+    const missingMember = await app.inject({
+      method: "POST",
+      url: "/api/developer/club/check-ins/manual",
+      headers: clientHeaders(),
+      payload: {
+        kind: "existing",
+        eventId,
+        memberId: "8ad2cb35-27a1-4e73-a2d8-47617b223f72",
+      },
+    });
+    expect(missingMember.statusCode).toBe(404);
+    expect(missingMember.json().status).toBe("member_not_found");
+
+    const manualRegistration = await app.inject({
+      method: "POST",
+      url: "/api/developer/club/check-ins/manual",
+      headers: clientHeaders(),
+      payload: {
+        kind: "new",
+        eventId,
+        registration: {
+          name: "Cardless Member",
+          age: 21,
+          contactType: "phone",
+          contact: "(732) 555-0199",
+          grade: "senior",
+          consent: true,
+        },
+      },
+    });
+    expect(manualRegistration.statusCode).toBe(201);
+    expect(manualRegistration.json()).toMatchObject({
+      status: "checked_in",
+      member: {
+        name: "Cardless Member",
+        contact: "(732) 555-0199",
+        cardHint: "NO CARD",
+        tagTechnology: "manual",
+      },
+    });
+
+    const phoneSearch = await app.inject({
+      method: "GET",
+      url: "/api/developer/club/members?query=7325550199",
+      headers: clientHeaders(),
+    });
+    expect(phoneSearch.statusCode).toBe(200);
+    expect(phoneSearch.json().members).toEqual([
+      expect.objectContaining({ name: "Cardless Member" }),
+    ]);
+
     const dashboard = await app.inject({
       method: "GET",
       url: "/api/developer/club",
@@ -310,9 +395,11 @@ describe("HTTP app", () => {
     });
     expect(dashboard.json().activeEvent).toMatchObject({
       id: eventId,
-      checkInCount: 1,
-      checkIns: [{ member: { name: "Scarlet Tester" } }],
+      checkInCount: 2,
     });
+    expect(dashboard.json().activeEvent.checkIns.map(
+      (entry: { member: { name: string } }) => entry.member.name,
+    )).toEqual(expect.arrayContaining(["Scarlet Tester", "Cardless Member"]));
     const closed = await app.inject({
       method: "POST",
       url: `/api/developer/club/events/${eventId}/close`,
@@ -327,15 +414,22 @@ describe("HTTP app", () => {
     expect(history.json().event).toMatchObject({
       id: eventId,
       endedAt: expect.any(String),
-      checkInCount: 1,
-      checkIns: [{ member: { name: "Scarlet Tester" } }],
+      checkInCount: 2,
     });
-    const persisted = JSON.stringify(db.sqlite.prepare("SELECT * FROM club_members").get());
+    const persisted = JSON.stringify(db.sqlite.prepare("SELECT * FROM club_members").all());
     expect(persisted).not.toContain(card.identifier.toLowerCase());
     expect(persisted).not.toContain("Scarlet Tester");
     expect(persisted).not.toContain("@scarlet_tester");
+    expect(persisted).not.toContain("Cardless Member");
+    expect(persisted).not.toContain("(732) 555-0199");
 
     const memberId = registered.json().member.id as string;
+    const manualMemberId = manualRegistration.json().member.id as string;
+    expect((await app.inject({
+      method: "DELETE",
+      url: `/api/developer/club/members/${manualMemberId}`,
+      headers: clientHeaders(),
+    })).statusCode).toBe(200);
     const deleted = await app.inject({
       method: "DELETE",
       url: `/api/developer/club/members/${memberId}`,

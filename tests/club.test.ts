@@ -15,6 +15,17 @@ describe("ClubDataProtector", () => {
     expect(first).not.toContain("04a1b2c3d4e5f6");
   });
 
+  it("creates opaque identifiers for members registered without a card", () => {
+    const protector = new ClubDataProtector(secret);
+    const memberId = "c1cd341a-4806-4e69-a9ae-5922405af5d8";
+    const fingerprint = protector.manualFingerprint(memberId);
+
+    expect(fingerprint).toBe(protector.manualFingerprint(memberId));
+    expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(fingerprint).not.toContain(memberId);
+    expect(protector.manualFingerprint("fca721e8-58c9-44db-8b1e-2f649ae80896")).not.toBe(fingerprint);
+  });
+
   it("encrypts and authenticates member profiles", () => {
     const protector = new ClubDataProtector(secret);
     const profile = {

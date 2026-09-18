@@ -170,7 +170,7 @@ Server-side APNs setup:
 8. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
 9. Debug device builds use the APNs sandbox; archived builds use production.
 
-The attendance sheet is rebuilt after each club mutation and every five minutes. Attendee names are rows and dated meetings are columns. `PRESENT` is green, `ABSENT` becomes red only after a meeting closes, and `PENDING` or `N/A` is black. Contact details, ages, card identifiers, and card fingerprints are never exported.
+The attendance sheet is rebuilt after each club mutation and every five minutes. Attendee names are rows, with Phone and Instagram columns before the dated meeting columns. Each member's chosen contact method fills the corresponding column. `PRESENT` is green, `ABSENT` becomes red only after a meeting closes, and `PENDING` or `N/A` is black. Age is no longer collected or shown. Card identifiers and card fingerprints are never exported.
 
 The iPhone app creates a random installation credential in Keychain. Free devices may register an APNs token, but the alert service only targets an active App Store Pro or developer installation. App Store transactions and server notifications are verified with Apple's official server library before access changes.
 

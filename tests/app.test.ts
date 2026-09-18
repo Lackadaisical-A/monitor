@@ -218,6 +218,8 @@ describe("HTTP app", () => {
       checkInCount: 1,
       checkIns: [{ member: { name: "Private Member", contact: "@private_member" } }],
     });
+    // Older clients may still send age; it must not enter the saved profile.
+    expect(db.getClubEvent(event.id)?.checkIns[0]?.member).not.toHaveProperty("age");
     const memberDashboard = await app.inject({
       method: "GET",
       url: "/api/club",
@@ -291,7 +293,6 @@ describe("HTTP app", () => {
         card,
         registration: {
           name: "Scarlet Tester",
-          age: 20,
           contactType: "instagram",
           contact: "@scarlet_tester",
           grade: "junior",
@@ -302,8 +303,9 @@ describe("HTTP app", () => {
     expect(registered.statusCode).toBe(201);
     expect(registered.json()).toMatchObject({
       status: "checked_in",
-      member: { name: "Scarlet Tester", age: 20, cardHint: expect.any(String) },
+      member: { name: "Scarlet Tester", cardHint: expect.any(String) },
     });
+    expect(registered.json().member).not.toHaveProperty("age");
 
     const duplicate = await app.inject({
       method: "POST",
@@ -359,7 +361,6 @@ describe("HTTP app", () => {
         eventId,
         registration: {
           name: "Cardless Member",
-          age: 21,
           contactType: "phone",
           contact: "(732) 555-0199",
           grade: "senior",
@@ -377,6 +378,25 @@ describe("HTTP app", () => {
         tagTechnology: "manual",
       },
     });
+    expect(manualRegistration.json().member).not.toHaveProperty("age");
+
+    const attendanceSnapshot = db.getClubAttendanceSnapshot();
+    expect(attendanceSnapshot.members).toEqual(expect.arrayContaining([
+      {
+        id: registered.json().member.id,
+        name: "Scarlet Tester",
+        contactType: "instagram",
+        contact: "@scarlet_tester",
+        createdAt: expect.any(String),
+      },
+      {
+        id: manualRegistration.json().member.id,
+        name: "Cardless Member",
+        contactType: "phone",
+        contact: "(732) 555-0199",
+        createdAt: expect.any(String),
+      },
+    ]));
 
     const phoneSearch = await app.inject({
       method: "GET",

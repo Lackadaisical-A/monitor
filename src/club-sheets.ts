@@ -7,6 +7,7 @@ import type { ClubAttendanceSnapshot } from "./types.js";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_API_BASE = "https://sheets.googleapis.com/v4";
+const MEMBER_COLUMNS = ["ATTENDEE", "PHONE", "INSTAGRAM"];
 
 type ClubSheetsConfig = AppConfig["club"]["sheets"];
 type AttendanceStatus = "PRESENT" | "ABSENT" | "PENDING" | "N/A";
@@ -67,13 +68,15 @@ export function buildClubAttendanceMatrix(
     year: "numeric",
   });
   const values: string[][] = [[
-    "ATTENDEE",
+    ...MEMBER_COLUMNS,
     ...meetings.map((meeting) => `${dateFormatter.format(new Date(meeting.startedAt))}\n${meeting.title}`),
   ]];
 
   for (const member of members) {
     values.push([
       member.name,
+      member.contactType === "phone" ? member.contact : "",
+      member.contactType === "instagram" ? member.contact : "",
       ...meetings.map((meeting): AttendanceStatus => {
         if (checkIns.has(`${meeting.id}:${member.id}`)) return "PRESENT";
         if (!meeting.endedAt) return "PENDING";
@@ -336,6 +339,13 @@ function formatRequests(sheetId: number, rowCount: number, columnCount: number):
     },
     {
       updateDimensionProperties: {
+        range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: MEMBER_COLUMNS.length },
+        properties: { pixelSize: 220 },
+        fields: "pixelSize",
+      },
+    },
+    {
+      updateDimensionProperties: {
         range: { sheetId, dimension: "ROWS", startIndex: 0, endIndex: 1 },
         properties: { pixelSize: 58 },
         fields: "pixelSize",
@@ -345,6 +355,18 @@ function formatRequests(sheetId: number, rowCount: number, columnCount: number):
 
   if (rowCount > 1) {
     requests.push(
+      {
+        repeatCell: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 1, endColumnIndex: MEMBER_COLUMNS.length },
+          cell: {
+            userEnteredFormat: {
+              horizontalAlignment: "LEFT",
+              numberFormat: { type: "TEXT" },
+            },
+          },
+          fields: "userEnteredFormat.horizontalAlignment,userEnteredFormat.numberFormat",
+        },
+      },
       {
         repeatCell: {
           range: { sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: 1 },
@@ -371,17 +393,17 @@ function formatRequests(sheetId: number, rowCount: number, columnCount: number):
       },
     );
   }
-  if (columnCount > 1) {
+  if (columnCount > MEMBER_COLUMNS.length) {
     requests.push({
       updateDimensionProperties: {
-        range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: columnCount },
+        range: { sheetId, dimension: "COLUMNS", startIndex: MEMBER_COLUMNS.length, endIndex: columnCount },
         properties: { pixelSize: 140 },
         fields: "pixelSize",
       },
     });
   }
-  if (rowCount > 1 && columnCount > 1) {
-    const statusRange = { sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 1, endColumnIndex: columnCount };
+  if (rowCount > 1 && columnCount > MEMBER_COLUMNS.length) {
+    const statusRange = { sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: MEMBER_COLUMNS.length, endColumnIndex: columnCount };
     requests.push(
       conditionalFormat(statusRange, "PRESENT", "34A853"),
       conditionalFormat(statusRange, "ABSENT", "EA4335"),

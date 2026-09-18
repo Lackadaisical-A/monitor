@@ -68,7 +68,6 @@ const ClubEventSchema = z.object({
 
 const ClubMemberRegistrationSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  age: z.coerce.number().int().min(13).max(120),
   contactType: ClubContactTypeSchema,
   contact: z.string().trim().min(3).max(120),
   grade: ClubGradeSchema,
@@ -220,7 +219,6 @@ export async function createApp(
       ...(body.registration ? {
         profile: {
           name: body.registration.name,
-          age: body.registration.age,
           contactType: body.registration.contactType,
           contact: body.registration.contact,
           grade: body.registration.grade,
@@ -326,7 +324,6 @@ export async function createApp(
       installationId: access.installationId,
       profile: {
         name: body.registration.name,
-        age: body.registration.age,
         contactType: body.registration.contactType,
         contact: body.registration.contact,
         grade: body.registration.grade,

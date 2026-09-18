@@ -30,7 +30,6 @@ describe("ClubDataProtector", () => {
     const protector = new ClubDataProtector(secret);
     const profile = {
       name: "Scarlet Tester",
-      age: 20,
       contactType: "instagram" as const,
       contact: "@scarlet_tester",
       grade: "junior" as const,
@@ -41,5 +40,18 @@ describe("ClubDataProtector", () => {
     expect(sealed).not.toContain(profile.contact);
     expect(protector.open(sealed)).toEqual(profile);
     expect(() => protector.open(`${sealed.slice(0, -1)}A`)).toThrow();
+  });
+
+  it("reads legacy encrypted profiles without returning their retired age field", () => {
+    const protector = new ClubDataProtector(secret);
+    const profile = {
+      name: "Existing Member",
+      contactType: "phone" as const,
+      contact: "+1 732 555 0199",
+      grade: "senior" as const,
+    };
+    const legacyProfile = { ...profile, age: 21 };
+
+    expect(protector.open(protector.seal(legacyProfile))).toEqual(profile);
   });
 });

@@ -1110,7 +1110,13 @@ export class SignalDatabase implements SignalStore {
     return {
       members: memberRows.map((row) => {
         const member = this.rowToClubMember(row);
-        return { id: member.id, name: member.name, createdAt: member.createdAt };
+        return {
+          id: member.id,
+          name: member.name,
+          contactType: member.contactType,
+          contact: member.contact,
+          createdAt: member.createdAt,
+        };
       }),
       meetings: eventRows.map((row) => ({
         id: row.id,

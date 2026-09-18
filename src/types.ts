@@ -261,7 +261,6 @@ export type ClubMemberTechnology = ClubCardTechnology | "manual";
 
 export interface ClubMemberProfile {
   name: string;
-  age: number;
   contactType: ClubContactType;
   contact: string;
   grade: ClubGrade;
@@ -306,6 +305,8 @@ export interface ClubAttendanceSnapshot {
   members: Array<{
     id: string;
     name: string;
+    contactType: ClubContactType;
+    contact: string;
     createdAt: string;
   }>;
   meetings: Array<{

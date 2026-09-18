@@ -11,20 +11,39 @@ afterEach(() => {
 });
 
 describe("Google Sheets club attendance matrix", () => {
-  it("puts attendees in rows and meetings in dated columns", () => {
+  it("puts each attendee's contact information before their dated attendance columns", () => {
     const matrix = buildClubAttendanceMatrix(snapshot(), "America/New_York");
 
     expect(matrix).toMatchObject({ memberCount: 2, meetingCount: 3 });
     expect(matrix.values).toEqual([
       [
         "ATTENDEE",
+        "PHONE",
+        "INSTAGRAM",
         "Jan 10, 2026\nKickoff",
         "Jan 17, 2026\nWorkshop",
         "Jan 24, 2026\nCurrent meeting",
       ],
-      ["Alice", "PRESENT", "ABSENT", "PENDING"],
-      ["Bob", "N/A", "PRESENT", "PRESENT"],
+      ["Alice", "+1 (732) 555-0199", "", "PRESENT", "ABSENT", "PENDING"],
+      ["Bob", "", "@bob", "N/A", "PRESENT", "PRESENT"],
     ]);
+  });
+
+  it("keeps contact columns when there are no meetings or members", () => {
+    expect(buildClubAttendanceMatrix({ ...snapshot(), meetings: [], checkIns: [] }, "America/New_York")).toEqual({
+      memberCount: 2,
+      meetingCount: 0,
+      values: [
+        ["ATTENDEE", "PHONE", "INSTAGRAM"],
+        ["Alice", "+1 (732) 555-0199", ""],
+        ["Bob", "", "@bob"],
+      ],
+    });
+    expect(buildClubAttendanceMatrix({ members: [], meetings: [], checkIns: [] }, "America/New_York")).toEqual({
+      memberCount: 0,
+      meetingCount: 0,
+      values: [["ATTENDEE", "PHONE", "INSTAGRAM"]],
+    });
   });
 
   it("exports no member, event, or card identifiers", () => {
@@ -74,10 +93,11 @@ describe("Google Sheets club attendance matrix", () => {
     expect(status).toMatchObject({ lastError: null, memberCount: 2, meetingCount: 3 });
     const valuesCall = calls.find(({ url, init }) => url.includes("valueInputOption=RAW") && init?.method === "PUT");
     expect(JSON.parse(String(valuesCall?.init?.body))).toMatchObject({
+      range: "'Attendance'!A1:F3",
       values: [
-        ["ATTENDEE", "Jan 10, 2026\nKickoff", "Jan 17, 2026\nWorkshop", "Jan 24, 2026\nCurrent meeting"],
-        ["Alice", "PRESENT", "ABSENT", "PENDING"],
-        ["Bob", "N/A", "PRESENT", "PRESENT"],
+        ["ATTENDEE", "PHONE", "INSTAGRAM", "Jan 10, 2026\nKickoff", "Jan 17, 2026\nWorkshop", "Jan 24, 2026\nCurrent meeting"],
+        ["Alice", "+1 (732) 555-0199", "", "PRESENT", "ABSENT", "PENDING"],
+        ["Bob", "", "@bob", "N/A", "PRESENT", "PRESENT"],
       ],
     });
     const batchBodies = calls
@@ -87,7 +107,24 @@ describe("Google Sheets club attendance matrix", () => {
       expect.objectContaining({ deleteConditionalFormatRule: { sheetId: 0, index: 0 } }),
       expect.objectContaining({ updateSheetProperties: expect.any(Object) }),
     ]));
-    expect(batchBodies[1]?.requests.filter((request) => "addConditionalFormatRule" in request)).toHaveLength(4);
+    const statusRules = batchBodies[1]?.requests.filter((request) => "addConditionalFormatRule" in request);
+    expect(statusRules).toHaveLength(4);
+    for (const request of statusRules ?? []) {
+      expect(request).toMatchObject({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 3, startColumnIndex: 3, endColumnIndex: 6 }],
+          },
+        },
+      });
+    }
+    expect(batchBodies[1]?.requests).toContainEqual({
+      repeatCell: {
+        range: { sheetId: 0, startRowIndex: 1, endRowIndex: 3, startColumnIndex: 1, endColumnIndex: 3 },
+        cell: { userEnteredFormat: { horizontalAlignment: "LEFT", numberFormat: { type: "TEXT" } } },
+        fields: "userEnteredFormat.horizontalAlignment,userEnteredFormat.numberFormat",
+      },
+    });
   });
 });
 
@@ -98,8 +135,8 @@ function jsonResponse(value: unknown): Response {
 function snapshot(): ClubAttendanceSnapshot {
   return {
     members: [
-      { id: "member-bob", name: "Bob", createdAt: "2026-01-12T15:00:00.000Z" },
-      { id: "member-alice", name: "Alice", createdAt: "2026-01-01T15:00:00.000Z" },
+      { id: "member-bob", name: "Bob", contactType: "instagram", contact: "@bob", createdAt: "2026-01-12T15:00:00.000Z" },
+      { id: "member-alice", name: "Alice", contactType: "phone", contact: "+1 (732) 555-0199", createdAt: "2026-01-01T15:00:00.000Z" },
     ],
     meetings: [
       {

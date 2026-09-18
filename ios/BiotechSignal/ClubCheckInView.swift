@@ -415,7 +415,6 @@ private struct ClubManualCheckInView: View {
     @State private var isSearching = false
     @State private var searchError: String?
     @State private var name = ""
-    @State private var age = ""
     @State private var contactType = "phone"
     @State private var contact = ""
     @State private var grade = "first_year"
@@ -428,7 +427,6 @@ private struct ClubManualCheckInView: View {
     private var registration: ClubMemberRegistrationRequest? {
         clubRegistrationRequest(
             name: name,
-            age: age,
             contactType: contactType,
             contact: contact,
             grade: grade,
@@ -463,12 +461,11 @@ private struct ClubManualCheckInView: View {
                 } else {
                     ClubMemberRegistrationFields(
                         name: $name,
-                        age: $age,
                         contactType: $contactType,
                         contact: $contact,
                         grade: $grade,
                         consent: $consent,
-                        footer: "Age and contact information are encrypted and are not copied to Google Sheets. No card identifier is collected for this profile."
+                        footer: "Your profile is encrypted on the server. Your name, contact information, and attendance are copied to the club's private Google Sheet. No card identifier is collected for this profile."
                     )
                 }
             }
@@ -556,7 +553,7 @@ private struct ClubManualCheckInView: View {
                     Text(member.name)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                    Text("\(gradeLabel(member.grade)) | Age \(member.age)")
+                    Text(gradeLabel(member.grade))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(member.contact)
@@ -633,7 +630,6 @@ private struct ClubManualCheckInView: View {
 
 private struct ClubMemberRegistrationFields: View {
     @Binding var name: String
-    @Binding var age: String
     @Binding var contactType: String
     @Binding var contact: String
     @Binding var grade: String
@@ -646,8 +642,6 @@ private struct ClubMemberRegistrationFields: View {
                 TextField("Full name", text: $name)
                     .textContentType(.name)
                     .textInputAutocapitalization(.words)
-                TextField("Age", text: $age)
-                    .keyboardType(.numberPad)
                 Picker("Grade", selection: $grade) {
                     ForEach(clubGrades, id: \.value) { option in
                         Text(option.label).tag(option.value)
@@ -666,7 +660,7 @@ private struct ClubMemberRegistrationFields: View {
                     .autocorrectionDisabled()
             }
             Section {
-                Toggle("I consent to storing this profile and listing my name and attendance in the club's private Google Sheet.", isOn: $consent)
+                Toggle("I consent to storing this profile and listing my name, contact information, and attendance in the club's private Google Sheet.", isOn: $consent)
             } footer: {
                 Text(footer)
             }
@@ -680,7 +674,6 @@ private struct ClubMemberRegistrationView: View {
     let card: ClubCardScan
     @ObservedObject var model: ClubCheckInModel
     @State private var name = ""
-    @State private var age = ""
     @State private var contactType = "phone"
     @State private var contact = ""
     @State private var grade = "first_year"
@@ -689,7 +682,6 @@ private struct ClubMemberRegistrationView: View {
     private var registration: ClubMemberRegistrationRequest? {
         clubRegistrationRequest(
             name: name,
-            age: age,
             contactType: contactType,
             contact: contact,
             grade: grade,
@@ -702,12 +694,11 @@ private struct ClubMemberRegistrationView: View {
             Form {
                 ClubMemberRegistrationFields(
                     name: $name,
-                    age: $age,
                     contactType: $contactType,
                     contact: $contact,
                     grade: $grade,
                     consent: $consent,
-                    footer: "Age, contact information, and card data are not copied to Google Sheets. The card identifier is converted to a one-way service fingerprint and is not stored in raw form."
+                    footer: "Your profile is encrypted on the server. Your name, contact information, and attendance are copied to the club's private Google Sheet. Card data is not copied to the sheet. The card identifier is converted to a one-way service fingerprint and is not stored in raw form."
                 )
             }
             .navigationTitle("New Member")
@@ -821,7 +812,6 @@ private struct ClubMemberDetailView: View {
         Form {
             Section("Profile") {
                 LabeledContent("Name", value: member.name)
-                LabeledContent("Age", value: "\(member.age)")
                 LabeledContent("Grade", value: gradeLabel(member.grade))
                 LabeledContent(member.contactType == "phone" ? "Phone" : "Instagram", value: member.contact)
             }
@@ -860,7 +850,6 @@ private struct ClubMemberDetailView: View {
 
 private func clubRegistrationRequest(
     name: String,
-    age: String,
     contactType: String,
     contact: String,
     grade: String,
@@ -868,14 +857,11 @@ private func clubRegistrationRequest(
 ) -> ClubMemberRegistrationRequest? {
     let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
     let normalizedContact = contact.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let numericAge = Int(age),
-          (13...120).contains(numericAge),
-          !normalizedName.isEmpty,
+    guard !normalizedName.isEmpty,
           normalizedContact.count >= 3,
           consent else { return nil }
     return ClubMemberRegistrationRequest(
         name: normalizedName,
-        age: numericAge,
         contactType: contactType,
         contact: normalizedContact,
         grade: grade,

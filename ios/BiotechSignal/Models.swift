@@ -293,7 +293,6 @@ struct ClubEventDetail: Decodable, Identifiable {
 struct ClubMember: Decodable, Identifiable {
     let id: String
     let name: String
-    let age: Int
     let contactType: String
     let contact: String
     let grade: String
@@ -334,7 +333,6 @@ struct ClubCardRequest: Encodable {
 
 struct ClubMemberRegistrationRequest: Encodable {
     let name: String
-    let age: Int
     let contactType: String
     let contact: String
     let grade: String

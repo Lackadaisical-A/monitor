@@ -62,6 +62,14 @@ export class ClubDataProtector {
       decipher.update(Buffer.from(encryptedValue, "base64url")),
       decipher.final(),
     ]).toString("utf8");
-    return JSON.parse(cleartext) as ClubMemberProfile;
+    // Older encrypted profiles can contain retired fields such as age.
+    // Return only the fields used by the current app and sheet export.
+    const profile = JSON.parse(cleartext) as ClubMemberProfile;
+    return {
+      name: profile.name,
+      contactType: profile.contactType,
+      contact: profile.contact,
+      grade: profile.grade,
+    };
   }
 }

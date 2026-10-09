@@ -23,6 +23,7 @@ import {
   type CompanyCoverage,
   type FeedEntry,
   type InstallationAccess,
+  type StockMovement,
   type TimelineEvent,
   type WatchCompany,
 } from "./types.js";
@@ -598,7 +599,21 @@ async function attachMarketMovements(
       }] : [];
     });
     if (!candidates.length) return publicEntries.map((entry) => ({ ...entry, marketMovement: null }));
-    const movements = await marketData.getMovements(candidates);
+    // Price enrichment is optional. Let the provider finish warming its cache
+    // in the background instead of holding the entire mobile refresh open.
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let movements: Map<string, StockMovement>;
+    try {
+      movements = await Promise.race([
+        marketData.getMovements(candidates),
+        new Promise<Map<string, StockMovement>>((resolve) => {
+          timeout = setTimeout(() => resolve(new Map()), 2_000);
+          timeout.unref();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
     return publicEntries.map((entry) => ({ ...entry, marketMovement: movements.get(entry.item.id) ?? null }));
   } catch (error) {
     logger.warn({ err: error }, "Market movement enrichment failed");

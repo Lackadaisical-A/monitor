@@ -88,6 +88,37 @@ describe("SignalDatabase", () => {
     expect(feed[0]?.item.id).toBe(primary.id);
   });
 
+  it("preserves corroboration and delivered alerts when limiting and grouping the feed", () => {
+    db = new SignalDatabase(":memory:");
+    const publishedAt = new Date(Date.now() - 60_000).toISOString();
+    const base = { ...signalItem("lead", "MRNA"), publishedAt, companyHint: "Moderna" };
+    db.insertItems([
+      base,
+      { ...base, id: "both-match", externalId: "both-match", headline: "Other coverage" },
+      { ...base, id: "company-only", externalId: "company-only", tickerHint: null, headline: "Company coverage" },
+      { ...base, id: "ticker-only", externalId: "ticker-only", companyHint: null, headline: "Ticker coverage" },
+      { ...base, id: "old", externalId: "old", headline: "Older event", publishedAt: new Date(Date.now() - 72 * 60 * 60_000).toISOString() },
+      { ...base, id: "unrelated", externalId: "unrelated", companyHint: null, tickerHint: null, headline: "Other" },
+    ]);
+    db.saveAlert({ id: "sent", itemId: "lead", ticker: "MRNA", eventType: "trial_update",
+      tier: "high", eventKey: "event", status: "sent" });
+    db.saveAlert({ id: "failed", itemId: "company-only", ticker: "MRNA", eventType: "trial_update",
+      tier: "high", eventKey: "event", status: "failed" });
+    let entries = db.listFeed();
+    expect(entries.find((entry) => entry.item.id === "lead")).toMatchObject({ corroborationCount: 3, alertedAt: expect.any(String) });
+    expect(entries.find((entry) => entry.item.id === "company-only")?.alertedAt).toBeNull();
+    for (const id of ["lead", "both-match"]) {
+      db.saveAnalysis({ itemId: id, model: "test", method: "openai", assessment: assessment(),
+        policyScore: 90, alertTier: "urgent", policyReasons: [], createdAt: publishedAt, eventKey: "shared-event" });
+    }
+    entries = db.listFeed(1);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.analysis?.eventKey).toBe("shared-event");
+    expect(entries[0]?.corroborationCount).toBe(1);
+    expect(db.listFeed(30, new Date(Date.now() - 48 * 60 * 60_000).toISOString()).map((entry) => entry.item.id)).toEqual(["old"]);
+    expect(db.listFeed(30, null, [])).toEqual([]);
+  });
+
   it("only returns APNs devices with active Pro or developer access", () => {
     db = new SignalDatabase(":memory:");
     const freeId = "0e2d25f4-9c6d-4303-a39f-e90db6a47fa1";

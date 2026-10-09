@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import type { AppConfig } from "../src/config.js";
 import { SignalDatabase } from "../src/db.js";
@@ -14,6 +14,7 @@ const clientToken = "a".repeat(64);
 let db: SignalDatabase | null = null;
 
 afterEach(() => {
+  vi.useRealTimers();
   db?.close();
   db = null;
 });
@@ -654,6 +655,34 @@ describe("HTTP app", () => {
       basis: "pre_announcement_price",
     });
     expect(JSON.stringify(feed.json())).not.toMatch(/secret|api.?key/i);
+    await app.close();
+  });
+
+  it("returns the feed when optional market data stalls and handles a late failure", async () => {
+    db = new SignalDatabase(":memory:");
+    db.insertItem(item("slow-market", Date.now() - 60 * 60_000));
+    db.saveAnalysis(analysis("slow-market"));
+    const appConfig = config();
+    appConfig.alpaca.scope = "all";
+    let rejectLookup!: (error: Error) => void;
+    const getMovements = vi.fn(() => new Promise<Map<string, never>>((_resolve, reject) => {
+      rejectLookup = reject;
+    }));
+    const app = await createApp(appConfig, db,
+      { run: async () => scanSummary() } as unknown as MonitorPipeline,
+      verifier(), { configured: true, feed: "iex", getMovements });
+    await bootstrap(app);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const pending = app.inject({ method: "GET", url: "/api/feed", headers: clientHeaders() }).then((value) => value);
+    await vi.waitFor(() => expect(getMovements).toHaveBeenCalledOnce());
+    expect((await app.inject({ method: "GET", url: "/api/health" })).statusCode).toBe(200);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const feed = await pending;
+    expect(feed.statusCode).toBe(200);
+    expect(feed.json().entries[0]).toMatchObject({ item: { id: "slow-market" }, marketMovement: null });
+    rejectLookup(new Error("provider unavailable"));
+    await vi.advanceTimersByTimeAsync(0);
+    vi.useRealTimers();
     await app.close();
   });
 

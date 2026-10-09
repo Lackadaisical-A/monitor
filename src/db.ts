@@ -854,26 +854,34 @@ export class SignalDatabase implements SignalStore {
         )
       )`
       : "";
+    // Select a bounded set of IDs before loading article bodies or running
+    // correlated metadata lookups. Sorting the full joined rows stalls the
+    // synchronous SQLite connection (and therefore HTTP health checks).
     const rows = this.sqlite.prepare(`
+      WITH candidates AS MATERIALIZED (
+        SELECT i.id
+        FROM items i
+        LEFT JOIN analyses a ON a.item_id = i.id
+        WHERE i.status <> 'skipped'
+          AND (? IS NULL OR i.published_at <= ?)
+          ${tickerClause}
+        ORDER BY
+          CASE
+            WHEN a.alert_tier = 'urgent' AND julianday(i.published_at) >= julianday('now', '-7 days') THEN 0
+            ELSE 1
+          END,
+          i.published_at DESC,
+          i.discovered_at DESC
+        LIMIT ?
+      )
       SELECT
         i.*,
         a.item_id, a.model, a.method, a.assessment_json, a.policy_score,
         a.alert_tier, a.policy_reasons_json, a.created_at, a.event_key,
-        a.event_anchor_at, a.analysis_version,
-        CASE WHEN a.event_key IS NOT NULL THEN
-          (SELECT COUNT(*) FROM analyses ca WHERE ca.event_key = a.event_key AND ca.item_id <> i.id)
-        ELSE
-          (SELECT COUNT(*) FROM items c
-            WHERE c.id <> i.id AND c.published_at >= datetime(i.published_at, '-24 hours')
-              AND ((i.ticker_hint IS NOT NULL AND c.ticker_hint = i.ticker_hint)
-                OR (i.company_hint IS NOT NULL AND c.company_hint = i.company_hint)))
-        END AS corroboration_count,
-        (SELECT MAX(sent_at) FROM alerts al WHERE al.item_id = i.id AND al.status IN ('sent', 'dry_run')) AS alerted_at
-      FROM items i
+        a.event_anchor_at, a.analysis_version
+      FROM candidates candidate
+      INNER JOIN items i ON i.id = candidate.id
       LEFT JOIN analyses a ON a.item_id = i.id
-      WHERE i.status <> 'skipped'
-        AND (? IS NULL OR i.published_at <= ?)
-        ${tickerClause}
       ORDER BY
         CASE
           WHEN a.alert_tier = 'urgent' AND julianday(i.published_at) >= julianday('now', '-7 days') THEN 0
@@ -881,20 +889,19 @@ export class SignalDatabase implements SignalStore {
         END,
         i.published_at DESC,
         i.discovered_at DESC
-      LIMIT ?
     `).all(
       publishedBefore,
       publishedBefore,
       ...(normalizedTickers ?? []),
       ...(normalizedTickers ?? []),
       Math.min(limit * 8, 2_000),
-    ) as Array<ItemRow & Partial<AnalysisRow> & { corroboration_count: number; alerted_at: string | null }>;
+    ) as Array<ItemRow & Partial<AnalysisRow>>;
 
     const entries = rows.map((row) => ({
       item: rowToItem(row),
       analysis: row.assessment_json ? rowToAnalysis(row as ItemRow & AnalysisRow) : null,
-      corroborationCount: row.corroboration_count,
-      alertedAt: row.alerted_at,
+      corroborationCount: 0,
+      alertedAt: null,
     }));
     const grouped = new Map<string, FeedEntry>();
     for (const entry of entries) {
@@ -903,7 +910,28 @@ export class SignalDatabase implements SignalStore {
       const existing = grouped.get(key);
       if (!existing || isBetterEventRepresentative(entry, existing)) grouped.set(key, entry);
     }
-    return [...grouped.values()].sort(compareFeedEntries).slice(0, limit);
+    // Metadata does not affect grouping or ordering; only fetch it for the
+    // entries actually returned, using the event, ticker, company and alert indexes.
+    const eventCount = this.sqlite.prepare(`
+      SELECT COUNT(*) AS count FROM analyses WHERE event_key = ? AND item_id <> ?
+    `);
+    const hintCount = this.sqlite.prepare(`
+      SELECT COUNT(*) AS count FROM items
+      WHERE id <> ? AND published_at >= datetime(?, '-24 hours')
+        AND (ticker_hint = ? OR company_hint = ?)
+    `);
+    const lastAlert = this.sqlite.prepare(`
+      SELECT MAX(sent_at) AS sent_at FROM alerts
+      WHERE item_id = ? AND status IN ('sent', 'dry_run')
+    `);
+    return [...grouped.values()].sort(compareFeedEntries).slice(0, limit).map((entry) => ({
+      ...entry,
+      corroborationCount: ((entry.analysis?.eventKey != null
+        ? eventCount.get(entry.analysis.eventKey, entry.item.id)
+        : hintCount.get(entry.item.id, entry.item.publishedAt, entry.item.tickerHint, entry.item.companyHint)
+      ) as { count: number }).count,
+      alertedAt: (lastAlert.get(entry.item.id) as { sent_at: string | null }).sent_at,
+    }));
   }
 
   getAnalysis(itemId: string): AnalysisRecord | null {
@@ -1642,6 +1670,9 @@ export class SignalDatabase implements SignalStore {
       CREATE INDEX IF NOT EXISTS items_source_id_idx ON items(source_id);
       CREATE INDEX IF NOT EXISTS items_published_idx ON items(published_at DESC);
       CREATE INDEX IF NOT EXISTS items_ticker_idx ON items(ticker_hint, published_at DESC);
+      CREATE INDEX IF NOT EXISTS items_company_idx ON items(company_hint, published_at DESC);
+      CREATE INDEX IF NOT EXISTS items_feed_idx
+        ON items(published_at DESC, discovered_at DESC, id, status, ticker_hint, company_hint);
 
       CREATE TABLE IF NOT EXISTS analyses (
         item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
@@ -1766,6 +1797,7 @@ export class SignalDatabase implements SignalStore {
         sent_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS alerts_cooldown_idx ON alerts(ticker, event_type, sent_at DESC);
+      CREATE INDEX IF NOT EXISTS alerts_item_idx ON alerts(item_id, status, sent_at DESC);
 
       CREATE TABLE IF NOT EXISTS outcome_audits (
         event_key TEXT PRIMARY KEY,
@@ -1852,6 +1884,7 @@ export class SignalDatabase implements SignalStore {
     this.ensureColumn("outcome_audits", "calibration_version", "INTEGER NOT NULL DEFAULT 1");
     this.sqlite.exec(`
       CREATE INDEX IF NOT EXISTS analyses_event_idx ON analyses(event_key, alert_tier);
+      CREATE INDEX IF NOT EXISTS analyses_feed_idx ON analyses(item_id, alert_tier);
       CREATE INDEX IF NOT EXISTS alerts_event_idx ON alerts(event_key, sent_at DESC);
       DELETE FROM timeline_events
       WHERE item_id IN (SELECT id FROM items WHERE source_id = 'sec-calendar-backfill-v1');

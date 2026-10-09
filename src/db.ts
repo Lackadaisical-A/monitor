@@ -1883,6 +1883,7 @@ export class SignalDatabase implements SignalStore {
     this.ensureColumn("outcome_audits", "abnormal_direction_correct", "INTEGER");
     this.ensureColumn("outcome_audits", "calibration_version", "INTEGER NOT NULL DEFAULT 1");
     this.sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS items_status_retry_idx ON items(status, next_attempt_at);
       CREATE INDEX IF NOT EXISTS analyses_event_idx ON analyses(event_key, alert_tier);
       CREATE INDEX IF NOT EXISTS analyses_feed_idx ON analyses(item_id, alert_tier);
       CREATE INDEX IF NOT EXISTS alerts_event_idx ON alerts(event_key, sent_at DESC);

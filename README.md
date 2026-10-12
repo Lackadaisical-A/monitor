@@ -1,5 +1,55 @@
 # Catalyst Watch
 
+## Current deployment: buyback monitoring and club attendance
+
+Catalyst AI monitoring is retired by default (`CATALYST_MONITOR_ENABLED=false`).
+Its polling, analysis, policy refresh and manual scan endpoint are disabled. The
+existing iPhone app, installation credentials, club API, encrypted club database,
+Google Sheets synchronization, and App Store callback contracts are preserved.
+No club keys, database paths, or stored attendance are migrated or rotated.
+
+The mobile-friendly research dashboard is `/buyback.html`. It uses the existing
+developer installation access or dashboard bearer token. `/api/buyback/health`
+provides an unauthenticated, minimal freshness check; detailed events require
+developer access. A feed outage reports 503 there without making the independent
+attendance service fail its `/api/health` check.
+
+`buyback/worker.py` runs as a supervised child of the existing Render web service,
+using the existing Alpaca market-data environment variables. It collects broad
+news every minute, evaluates the pinned buyback classifier and daily feature
+rules, and records SIP telemetry. There are no AI calls or broker/order endpoints
+in this worker. It does not execute the local paper strategy or claim fills.
+The monitored exit date is the fifth session including the entry session.
+
+The four files under `buyback/frozen` are unchanged copies of the original rule
+and quote-observer modules, verified against `engine-manifest.json`. The new cloud
+capture has its own start timestamp and first-receipt records. Startup backfill
+and late discoveries cannot become prospective evidence; revisions and raw scan
+receipts are retained. Price requests start no earlier than July 13, 2026.
+Canonical news versions are stored once in SQLite; scan receipts hold response
+page hashes, article counts and metadata without duplicating the full polling
+overlap. Feature-bar receipts keep their complete payloads.
+
+All buyback state is stored separately under `/app/data/buyback`, on the existing
+persistent disk. It includes `capture.sqlite`, `status.json`, raw scan receipts,
+and SIP state/audits. The attendance database stays `/app/data/biotech-signal.db`.
+Collection pauses below 128 MiB free disk space to leave room for attendance.
+Back up SQLite with its online backup API, not by copying an active database file
+without its journal. Keep the existing club encryption key with any backup.
+
+Deploy on the existing service and disk; the blueprint does not add paid services
+or change the compute plan. Stop the old local SIP supervisor immediately before
+cloud stream startup to avoid the provider's concurrent connection limit. Verify
+news capture, SIP authentication, worker memory and attendance after cutover.
+If deployment fails, restore the previous commit and resume the local collector.
+The full historical research archive and paper executor remain local.
+
+Validation: `npm test`, `npm run typecheck`, `npm run build`, and
+`python -m unittest discover -s buyback -p test_worker.py`. The Docker image bundles
+the pinned Python dependencies; locally set `BUYBACK_PYTHON` to a Python environment
+with `buyback/requirements.txt` installed, or disable `BUYBACK_MONITOR_ENABLED`
+when working only on attendance.
+
 Catalyst Watch is an evidence-gated biotech-news monitor with four parts:
 
 1. Official API/RSS ingestion for company investor-relations feeds, SEC EDGAR, ClinicalTrials.gov, X, Reddit, and biotech trade outlets.

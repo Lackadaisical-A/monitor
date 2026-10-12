@@ -1,9 +1,9 @@
-const CACHE_NAME = "catalyst-watch-shell-v13";
+const CACHE_NAME = "catalyst-watch-shell-v14";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
   "/styles.css?v=12",
-  "/app.js?v=13",
+  "/app.js?v=14",
   "/favicon.svg",
   "/site.webmanifest",
 ];

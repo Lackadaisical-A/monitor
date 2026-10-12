@@ -110,6 +110,7 @@ export class MonitorPipeline {
   }
 
   async requeueOutdatedAnalyses(days = 7, limit = 250): Promise<number> {
+    if (this.config.catalystEnabled === false) return 0;
     if (!this.db.requeueOutdatedAnalyses) return 0;
     const since = new Date(Date.now() - days * 24 * 60 * 60_000).toISOString();
     const count = await this.db.requeueOutdatedAnalyses(CURRENT_ANALYSIS_VERSION, since, limit);
@@ -118,6 +119,7 @@ export class MonitorPipeline {
   }
 
   async reconcileStoredPolicies(limit = 1_000): Promise<PolicyReconciliationSummary> {
+    if (this.config.catalystEnabled === false) return { checkedCount: 0, updatedCount: 0, errorCount: 0 };
     let checkedCount = 0;
     let updatedCount = 0;
     let errorCount = 0;
@@ -159,6 +161,13 @@ export class MonitorPipeline {
 
   async run(): Promise<ScanSummary> {
     const startedAt = new Date().toISOString();
+    if (this.config.catalystEnabled === false) {
+      return {
+        startedAt, finishedAt: startedAt, sourceCount: 0, fetchedCount: 0,
+        insertedCount: 0, analyzedCount: 0, skippedCount: 0, errorCount: 0,
+        highCount: 0, urgentCount: 0, outcomeAuditedCount: 0, alreadyRunning: false,
+      };
+    }
     const poll = await this.pollSources(startedAt);
     const processed = await this.drainPending();
     this.lastOutcomeAudit = this.outcomeAuditor ? await this.outcomeAuditor.run() : null;

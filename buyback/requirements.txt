@@ -1,0 +1,7 @@
+pandas==3.0.2
+numpy==2.4.4
+exchange-calendars==4.13.2
+requests==2.33.1
+websockets==16.0
+python-dotenv==1.2.2
+tzdata==2026.1

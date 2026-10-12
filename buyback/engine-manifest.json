@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "source": "Frozen local buyback rules and read-only SIP telemetry; no account data",
+  "files": {
+    "live_cash_buyback_drift_shadow_runner.py": "1655a9afa70b80af435cf921d438f30fa3928b86ee0972827a8f21852d7cc214",
+    "live_cash_buyback_sip_execution_observer.py": "e8c84f187d0ce6b61034ce550a07da9c42210e0e1d6b6f5ec77cf53d89473dc4",
+    "AlphaResearch_20260709/challenger/stock_alpha_program/sip_quote_condition_rules.py": "4fca240e4d1f3ee614c9ed2701757d081e07a97356111376fcd45f7889ac02c7",
+    "AlphaResearch_20260709/challenger/stock_alpha_program/sip_trade_condition_rules.py": "3dcd5059a9ed159147f37bd235a244fec952fb28aee085ca81a125df2dd2596f"
+  }
+}

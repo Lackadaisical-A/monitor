@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { ClubAttendanceSheetSync } from "./club-sheets.js";
+import type { BuybackStatusProvider } from "./buyback.js";
 import type { AppConfig } from "./config.js";
 import { AlpacaMarketDataService, type MarketDataProvider } from "./market-data/alpaca.js";
 import { summarizeOutcomes } from "./outcomes.js";
@@ -111,6 +112,7 @@ export async function createApp(
   subscriptionVerifier: SubscriptionVerifier = new AppStoreSubscriptionVerifier(config.entitlements),
   marketDataProvider?: MarketDataProvider,
   clubSheetSync?: ClubAttendanceSheetSync | null,
+  buyback?: BuybackStatusProvider,
 ): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: config.logLevel },
@@ -131,6 +133,18 @@ export async function createApp(
   }
 
   app.get("/api/health", async () => ({ ok: true, time: new Date().toISOString() }));
+
+  app.get("/api/buyback/health", async (_request, reply) => {
+    const status = buyback ? await buyback.snapshot() : { enabled: false, healthy: false };
+    return reply.code(status.healthy ? 200 : 503).send({
+      enabled: status.enabled, healthy: status.healthy, mode: "read_only",
+      updatedAt: status.updatedAt ?? null,
+    });
+  });
+  app.get("/api/buyback/status", async (request) => {
+    if (!isDashboardAuthorized(request, config)) await requireDeveloperAccess(request, db);
+    return buyback ? buyback.snapshot() : { enabled: false, healthy: false, mode: "read_only", ordersEnabled: false };
+  });
 
   app.post("/api/installations", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
@@ -377,7 +391,10 @@ export async function createApp(
       sources,
       access,
       configuration: {
-        sourceCount: config.rssSources.length
+        catalystEnabled: config.catalystEnabled !== false,
+        buybackEnabled: config.buyback?.enabled ?? false,
+        buybackUrl: "/buyback.html",
+        sourceCount: config.catalystEnabled === false ? 0 : config.rssSources.length
           + config.quoteMediaSources.length
           + Number(config.alpaca.newsEnabled && Boolean(config.alpaca.keyId && config.alpaca.secretKey))
           + Number(Boolean(config.x.bearerToken))
@@ -387,8 +404,8 @@ export async function createApp(
           + Number(config.fdaAdcomEnabled),
         watchlistCount: config.watchlist.length,
         scanIntervalSeconds: config.scanIntervalSeconds,
-        analysisMode: config.openaiApiKey ? "OpenAI structured analysis" : "demo heuristic (urgent alerts blocked)",
-        model: config.openaiApiKey ? config.openaiModel : "heuristic-demo-v1",
+        analysisMode: config.catalystEnabled === false ? "Catalyst monitoring retired" : config.openaiApiKey ? "OpenAI structured analysis" : "demo heuristic (urgent alerts blocked)",
+        model: config.catalystEnabled === false ? "disabled" : config.openaiApiKey ? config.openaiModel : "heuristic-demo-v1",
         dryRun: config.alertPolicy.dryRun,
         apnsConfigured: Boolean(config.apns.teamId && config.apns.keyId && config.apns.bundleId
           && (config.apns.privateKey || config.apns.privateKeyPath)),
@@ -540,6 +557,7 @@ export async function createApp(
       const access = await requireClientAccess(request, db);
       if (!access.pro) throw httpError(403, "Catalyst Watch Pro is required to run a scan");
     }
+    if (config.catalystEnabled === false) throw httpError(410, "Catalyst monitoring is retired. Buyback monitoring runs automatically.");
     const result = await pipeline.run();
     return reply.code(result.alreadyRunning ? 202 : 200).send(result);
   });
@@ -548,6 +566,7 @@ export async function createApp(
     config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
   }, async (request) => {
     if (!isDashboardAuthorized(request, config)) throw httpError(401, "Dashboard credentials are required");
+    if (config.catalystEnabled === false) throw httpError(410, "Catalyst monitoring is retired");
     const body = z.object({
       limit: z.coerce.number().int().min(1).max(100).default(20),
     }).parse(request.body ?? {});

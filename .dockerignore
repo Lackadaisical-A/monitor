@@ -7,3 +7,5 @@ ios
 tests
 coverage
 *.log
+__pycache__
+*.py[cod]

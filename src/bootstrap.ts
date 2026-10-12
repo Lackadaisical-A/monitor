@@ -18,9 +18,9 @@ export function bootstrap(logger: PipelineLogger) {
       company.programs.push(learned.program);
     }
   }
-  const sources = createSources(config);
+  const sources = config.catalystEnabled === false ? [] : createSources(config);
   db.syncSourceDescriptors(sources.map((source) => source.descriptor));
-  const analyzer = config.openaiApiKey
+  const analyzer = config.catalystEnabled !== false && config.openaiApiKey
     ? new OpenAICatalystAnalyzer(config.openaiApiKey, config.openaiModel)
     : new HeuristicDemoAnalyzer();
   const alerts = new AlertService(config, db);

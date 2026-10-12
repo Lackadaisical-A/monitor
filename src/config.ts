@@ -8,6 +8,11 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   HOST: z.string().default("127.0.0.1"),
   DATABASE_PATH: z.string().default("./data/biotech-signal.db"),
+  CATALYST_MONITOR_ENABLED: booleanEnv(false),
+  BUYBACK_MONITOR_ENABLED: booleanEnv(true),
+  BUYBACK_STREAM_ENABLED: booleanEnv(true),
+  BUYBACK_DATA_DIR: z.string().default("./data/buyback"),
+  BUYBACK_PYTHON: z.string().default("python3"),
   SCAN_INTERVAL_SECONDS: z.coerce.number().int().min(30).default(60),
   SOURCE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(15_000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
@@ -134,6 +139,8 @@ export interface QuoteMediaSourceConfig {
 }
 
 export interface AppConfig {
+  catalystEnabled?: boolean;
+  buyback?: { enabled: boolean; streamEnabled: boolean; dataDir: string; python: string };
   port: number;
   host: string;
   databasePath: string;
@@ -222,6 +229,13 @@ export function loadConfig(envInput: NodeJS.ProcessEnv = process.env): AppConfig
   const rssSources = configuredSources.filter((source): source is RssSourceConfig => source.type === "rss");
   const quoteMediaSources = configuredSources.filter((source): source is QuoteMediaSourceConfig => source.type === "quote_media");
   return {
+    catalystEnabled: env.CATALYST_MONITOR_ENABLED,
+    buyback: {
+      enabled: env.BUYBACK_MONITOR_ENABLED,
+      streamEnabled: env.BUYBACK_STREAM_ENABLED,
+      dataDir: resolve(env.BUYBACK_DATA_DIR),
+      python: env.BUYBACK_PYTHON,
+    },
     port: env.PORT,
     host: env.HOST,
     databasePath: resolve(env.DATABASE_PATH),

@@ -9,4 +9,6 @@ ios/**/xcuserdata/
 ios/**/DerivedData/
 ios/*.xcodeproj/
 coverage/
+__pycache__/
+*.py[cod]
 functions/

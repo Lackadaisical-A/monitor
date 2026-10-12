@@ -270,7 +270,11 @@ async function refresh({ forceWatchlist }) {
     state.lastUpdatedAt = new Date().toISOString();
     persistCache();
     renderAll();
-    setConnection("online", "Live");
+    const retired = state.status.configuration.catalystEnabled === false;
+    const retirementNotice = document.querySelector("#retired-notice");
+    if (retirementNotice) retirementNotice.hidden = !retired;
+    elements.scanButton.disabled = retired;
+    setConnection("online", retired ? "Retired" : "Live");
   } catch (error) {
     setConnection("error", navigator.onLine ? "Unavailable" : "Offline");
     if (!state.entries.length) {

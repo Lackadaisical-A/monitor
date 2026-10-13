@@ -1,6 +1,6 @@
 # Catalyst Watch
 
-## Current deployment: buyback monitoring and club attendance
+## Current deployment: buyback execution and club attendance
 
 Catalyst AI monitoring is retired by default (`CATALYST_MONITOR_ENABLED=false`).
 Its polling, analysis, policy refresh and manual scan endpoint are disabled. The
@@ -17,12 +17,14 @@ attendance service fail its `/api/health` check.
 `buyback/worker.py` runs as a supervised child of the existing Render web service,
 using the existing Alpaca market-data environment variables. It collects broad
 news every minute, evaluates the pinned buyback classifier and daily feature
-rules, and records SIP telemetry. There are no AI calls or broker/order endpoints
-in this worker. It does not execute the local paper strategy or claim fills.
-The monitored exit date is the fifth session including the entry session.
+rules, and records SIP telemetry. Optional paper and owner-enabled live execution
+use the pinned five-session cash-stock strategy. Trading defaults to disabled,
+requires dedicated credentials, and journals order intents before submission.
+See [paper setup, live activation, limits and recovery](buyback/TRADING.md).
+The dashboard tracks actual broker fills and prorated subscription cost.
 
-The four files under `buyback/frozen` are unchanged copies of the original rule
-and quote-observer modules, verified against `engine-manifest.json`. The new cloud
+The five files under `buyback/frozen` are unchanged copies of the original rule,
+execution and quote-observer modules, verified against `engine-manifest.json`. The new cloud
 capture has its own start timestamp and first-receipt records. Startup backfill
 and late discoveries cannot become prospective evidence; revisions and raw scan
 receipts are retained. Price requests start no earlier than July 13, 2026.
@@ -42,10 +44,11 @@ or change the compute plan. Stop the old local SIP supervisor immediately before
 cloud stream startup to avoid the provider's concurrent connection limit. Verify
 news capture, SIP authentication, worker memory and attendance after cutover.
 If deployment fails, restore the previous commit and resume the local collector.
-The full historical research archive and paper executor remain local.
+The full historical research archive remains local. Stop/reconcile the local
+paper executor before enabling its cloud replacement; never run both together.
 
 Validation: `npm test`, `npm run typecheck`, `npm run build`, and
-`python -m unittest discover -s buyback -p test_worker.py`. The Docker image bundles
+`python -m unittest discover -s buyback -p "test_*.py"`. The Docker image bundles
 the pinned Python dependencies; locally set `BUYBACK_PYTHON` to a Python environment
 with `buyback/requirements.txt` installed, or disable `BUYBACK_MONITOR_ENABLED`
 when working only on attendance.

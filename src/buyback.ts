@@ -1,11 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { AppConfig } from "./config.js";
 import type { PipelineLogger } from "./pipeline.js";
 
 export interface BuybackStatusProvider {
   snapshot(): Promise<Record<string, unknown>>;
+  setEntriesPaused?(paused: boolean): Promise<void>;
 }
 
 /** Isolated from the club database and API lifecycle: a feed failure cannot stop check-in. */
@@ -58,11 +60,21 @@ export class BuybackMonitor implements BuybackStatusProvider {
     const age = typeof status.updatedAt === "string" ? (Date.now() - Date.parse(status.updatedAt)) / 1000 : Infinity;
     const healthy = enabled && Boolean(this.child) && age >= 0 && age < 180 && status.healthy === true;
     return {
-      ...status, enabled, healthy, mode: "read_only", ordersEnabled: false,
+      ...status, enabled, healthy, mode: status.mode ?? "read_only",
+      ordersEnabled: Boolean(this.child) && age >= 0 && age < 120 && status.ordersEnabled === true,
       catalystEnabled: this.config.catalystEnabled !== false,
       workerRunning: Boolean(this.child), workerError: this.lastError,
       restartCount: this.restartCount, heartbeatAgeSeconds: Number.isFinite(age) ? Math.round(age) : null,
     };
+  }
+
+  async setEntriesPaused(paused: boolean): Promise<void> {
+    const dir = this.config.buyback?.dataDir;
+    if (!dir) throw new Error("Buyback monitor is not configured");
+    await mkdir(dir, { recursive: true });
+    const temporary = resolve(dir, `.trading-control-${randomUUID()}.tmp`);
+    await writeFile(temporary, JSON.stringify({ entriesPaused: paused, updatedAt: new Date().toISOString() }), { mode: 0o600 });
+    await rename(temporary, resolve(dir, "trading-control.json"));
   }
 
   async stop(): Promise<void> {

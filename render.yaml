@@ -25,6 +25,12 @@ services:
         value: "true"
       - key: BUYBACK_DATA_DIR
         value: /app/data/buyback
+      - key: BUYBACK_TRADING_MODE
+        sync: false
+      - key: BUYBACK_CAPITAL
+        value: "3000"
+      - key: BUYBACK_MONTHLY_DATA_COST
+        value: "99"
       - key: OPENAI_MODEL
         value: gpt-5.6-luna
       - key: ALPACA_MARKET_DATA_SCOPE

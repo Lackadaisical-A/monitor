@@ -31,13 +31,42 @@ function render() {
   text("quote-state", `${s.quotes?.connection || "Starting"} · ${s.quotes?.sessions || 0} recorded sessions`);
   $("news-dot").className = `status-dot ${s.news && !s.newsError ? "ok" : "bad"}`;
   $("quote-dot").className = `status-dot ${s.quotes?.healthy ? "ok" : "bad"}`;
-  const errors = [s.workerError, s.newsError, s.featureError, s.storageError];
+  const errors = [s.workerError, s.newsError, s.featureError, s.storageError, s.trading?.error];
   if (s.quotes?.enabled && !s.quotes.healthy) errors.push(s.quotes.recentErrors?.at(-1)?.message || "Quote coverage has not yet been verified.");
   if (s.heartbeatAgeSeconds > 180 || !s.workerRunning) errors.push("The collector heartbeat is stale or its process is unavailable.");
   if (s.unrecoveredGapBefore) errors.push(`An older collection gap remains before ${localTime(s.unrecoveredGapBefore)}.`);
   $("error").hidden = !errors.some(Boolean);
   text("error", errors.filter(Boolean).join(" "));
   renderEvents();
+  renderTrading();
+}
+function dollars(value) { return value == null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value); }
+function percent(value) { return value == null ? "—" : `${Number(value).toFixed(2)}%`; }
+function renderTrading() {
+  const t = snapshot.trading || {}, p = snapshot.performance || {}, mode = t.mode || snapshot.mode || "read_only";
+  text("mode-badge", mode === "live" ? "LIVE · REAL MONEY" : mode === "paper" ? "PAPER · SIMULATED" : "READ ONLY");
+  text("trading-title", mode === "paper" ? "Paper trading" : mode === "live" ? "Live trading" : "Execution is off");
+  text("trading-state", t.error || (mode === "read_only" ? "Paper and live support are installed. Connect dedicated credentials to start execution." : t.entriesPaused ? "New entries are paused. Existing orders and scheduled exits remain managed." : t.newEntriesAllowed ? "Watching for the next qualifying signal. Orders and fills reconcile every 30 seconds." : "Waiting for healthy data before opening new positions. Existing exits remain managed."));
+  text("trading-limits", mode === "read_only" ? "Default allocation: $3,000 · One position · Whole shares · Cash only" : `${dollars(t.capitalCap)} maximum · ${dollars(t.availableCash)} available cash · One position · No leverage · ${t.otherPositions ?? 0} unrelated account positions`);
+  const active = t.activeTrade;
+  text("active-trade", active ? `${active.Ticker} · ${active.status.replaceAll("_", " ")} · ${active.strategy_qty || 0} filled shares · planned exit ${active.exit_date}` : "No active buyback position. Waiting for a qualifying announcement.");
+  text("live-state", mode === "live" ? "Real-money execution is enabled" : "Live trading is locked — owner activation required");
+  $("pause-entries").hidden = !["paper", "live"].includes(mode);
+  text("pause-entries", t.entriesPaused ? "Resume new entries" : "Pause new entries");
+  text("closed-trades", p.completedTrades || 0); text("win-rate", percent(p.winRate));
+  text("average-trade", percent(p.averageTrade)); text("average-dollars", p.averageTradeDollars == null ? "Waiting for a completed trade" : `${dollars(p.averageTradeDollars)} per completed trade`);
+  text("realized-pnl", dollars(p.grossRealizedPnl));
+  text("cost-note", p.monthlyDataCost == null ? "$99/month is a market-data subscription. Paper trading itself is free." : `Data plan: ${dollars(p.monthlyDataCost)}/month · ${percent(p.feeBreakEvenMonthlyPct)} of the strategy cap each month · Estimated cost since cloud execution began: ${dollars(p.allocatedDataCost)} · Realized P&L after that allocation: ${dollars(p.afterDataCost)}`);
+  text("performance-note", p.explanation || "Results will appear after execution is connected. No trades have been invented from historical prices.");
+  const tbody = $("trades"); tbody.replaceChildren();
+  const trades = [...(t.trades || [])].reverse(); $("trades-empty").hidden = trades.length > 0;
+  for (const trade of trades) {
+    const tr = document.createElement("tr");
+    for (const value of [`${trade.Ticker} · ${trade.entry_date}`, trade.status.replaceAll("_", " "), `${trade.strategy_qty || 0} @ ${dollars(trade.entry_filled_avg_price ? Number(trade.entry_filled_avg_price) : null)}`, trade.exit_date]) {
+      const cell = document.createElement("td"); cell.textContent = value; tr.append(cell);
+    }
+    tbody.append(tr);
+  }
 }
 function renderEvents() {
   const filter = $("filter").value;
@@ -77,5 +106,13 @@ $("pair-form").addEventListener("submit", async (event) => {
   catch (error) { text("access-error", error.message); }
 });
 $("refresh").addEventListener("click", refresh); $("filter").addEventListener("change", renderEvents);
+$("pause-entries").addEventListener("click", async () => {
+  $("pause-entries").disabled = true;
+  try {
+    const result = await api("/api/buyback/trading/control", { entriesPaused: !snapshot.trading?.entriesPaused });
+    text("control-result", result.message);
+  } catch (error) { text("control-result", error.message); }
+  finally { $("pause-entries").disabled = false; }
+});
 api("/api/installations", identity).then(refresh).catch(() => { text("health", "Unable to connect"); $("error").hidden = false; text("error", "Could not restore this browser's access. Check the connection and refresh."); });
 setInterval(() => { if (!document.hidden) void refresh(); }, 15000);

@@ -137,13 +137,23 @@ export async function createApp(
   app.get("/api/buyback/health", async (_request, reply) => {
     const status = buyback ? await buyback.snapshot() : { enabled: false, healthy: false };
     return reply.code(status.healthy ? 200 : 503).send({
-      enabled: status.enabled, healthy: status.healthy, mode: "read_only",
+      enabled: status.enabled, healthy: status.healthy, mode: status.mode ?? "read_only",
       updatedAt: status.updatedAt ?? null,
     });
   });
   app.get("/api/buyback/status", async (request) => {
     if (!isDashboardAuthorized(request, config)) await requireDeveloperAccess(request, db);
     return buyback ? buyback.snapshot() : { enabled: false, healthy: false, mode: "read_only", ordersEnabled: false };
+  });
+
+  app.post("/api/buyback/trading/control", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    if (!isDashboardAuthorized(request, config)) await requireDeveloperAccess(request, db);
+    const body = z.object({ entriesPaused: z.boolean() }).strict().parse(request.body);
+    if (!buyback?.setEntriesPaused) return reply.code(503).send({ error: "Execution controls unavailable" });
+    await buyback.setEntriesPaused(body.entriesPaused);
+    return { ...body, message: "Takes effect on the next execution cycle. Existing orders and exits remain managed." };
   });
 
   app.post("/api/installations", {

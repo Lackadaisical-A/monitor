@@ -20,6 +20,23 @@ let db: SignalDatabase | undefined;
 afterEach(() => { db?.close(); db = undefined; });
 
 describe("Catalyst retirement preserves attendance", () => {
+  it("protects trading controls and accepts only a pause flag", async () => {
+    db = new SignalDatabase(":memory:", dataKey);
+    const setEntriesPaused = vi.fn(async () => {});
+    const app = await createApp(config(), db, { run: vi.fn() } as unknown as MonitorPipeline, undefined, undefined, null,
+      { snapshot: async () => ({ enabled: true, healthy: true, mode: "paper", account: "private" }), setEntriesPaused });
+    const url = "/api/buyback/trading/control";
+    expect((await app.inject({ method: "POST", url, payload: { entriesPaused: true } })).statusCode).toBe(401);
+    const headers = { authorization: "Bearer test-dashboard" };
+    expect((await app.inject({ method: "POST", url, headers, payload: { entriesPaused: true, mode: "live" } })).statusCode).toBe(400);
+    expect(setEntriesPaused).not.toHaveBeenCalled();
+    expect((await app.inject({ method: "POST", url, headers, payload: { entriesPaused: true } })).statusCode).toBe(200);
+    expect(setEntriesPaused).toHaveBeenCalledWith(true);
+    const health = (await app.inject({ method: "GET", url: "/api/buyback/health" })).json();
+    expect(health.mode).toBe("paper");
+    expect(health).not.toHaveProperty("account");
+    await app.close();
+  });
   it("cannot poll sources, invoke AI, or audit outcomes when retired", async () => {
     const dependencies = new Proxy({}, { get: () => { throw new Error("Retired dependency was invoked"); } });
     const pipeline = new MonitorPipeline(config(), dependencies as never, [dependencies as never], dependencies as never, dependencies as never, dependencies as never, dependencies as never);

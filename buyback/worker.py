@@ -1,8 +1,8 @@
-"""Continuous, read-only buyback collection, isolated from attendance storage.
+"""Continuous buyback collection and optional execution, isolated from attendance.
 
 The original classifier, feature rules and SIP observer are byte-for-byte pinned.
 This service starts a new cloud capture record; it never claims old news was
-observed prospectively, and has no broker/order client or paper credentials.
+observed prospectively. Trading defaults to disabled; execution owns its journal.
 """
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ sys.path.insert(0, str(FROZEN))
 import live_cash_buyback_drift_shadow_runner as rule
 import live_cash_buyback_sip_execution_observer as sip
 import requests
+from execution import Trader
 
 UTC = timezone.utc
 HISTORY_FLOOR = date(2026, 7, 13)
@@ -294,9 +295,18 @@ def write_status(db, root, runtime, stream_enabled, engine_hash):
     news_ok = bool(runtime.get("news")) and not runtime.get("newsError")
     if news_ok:
         news_ok = (datetime.now(UTC) - rule.parse_utc(runtime["news"]["completedAt"])).total_seconds() < 180
-    healthy = news_ok and quote["healthy"] and not runtime.get("storageError") and not runtime.get("featureError")
+    collector_healthy = news_ok and quote["healthy"] and not runtime.get("storageError") and not runtime.get("featureError")
+    trading = dict(runtime.get("trading", {"mode": "read_only", "healthy": True, "ordersEnabled": False}))
+    if trading.get("mode") != "read_only":
+        updated = trading.get("updatedAt")
+        fresh = updated and 0 <= (datetime.now(UTC) - rule.parse_utc(updated)).total_seconds() < 120
+        if not fresh:
+            trading.update(healthy=False, ordersEnabled=False, newEntriesAllowed=False,
+                           error=trading.get("error") or "Execution heartbeat is stale")
+    healthy = collector_healthy and trading.get("healthy", False)
     snapshot = {
-        "schema": 1, "updatedAt": stamp(), "healthy": healthy, "mode": "read_only", "ordersEnabled": False,
+        "schema": 1, "updatedAt": stamp(), "healthy": healthy, "collectorHealthy": collector_healthy,
+        "mode": trading["mode"], "ordersEnabled": trading.get("ordersEnabled", False), "trading": trading,
         "captureStartedAt": meta["capture_started_at"], "engineManifest": engine_hash,
         "articleVersions": count, "candidateVersions": sum(reasons.values()), "classificationCounts": reasons,
         "events": events, "prospectiveEvents": db.execute("SELECT COUNT(*) FROM events WHERE eligible=1").fetchone()[0],
@@ -304,8 +314,8 @@ def write_status(db, root, runtime, stream_enabled, engine_hash):
         "news": runtime.get("news"), "newsError": runtime.get("newsError"),
         "featureError": runtime.get("featureError"), "storageError": runtime.get("storageError"),
         "quotes": quote, "unrecoveredGapBefore": meta.get("unrecovered_gap_before"),
-        "performance": {"completedTrades": 0, "winRate": None, "averageTrade": None,
-                        "explanation": "This service records signals and quotes. It does not submit orders or claim fills."},
+        "performance": trading.get("performance", {"completedTrades": 0, "winRate": None, "averageTrade": None,
+                        "explanation": "Connect paper execution to record broker-reported fills."}),
     }
     rule.atomic_json(root / "status.json", snapshot)
 
@@ -348,8 +358,17 @@ async def run(root, stream_enabled):
     db = open_database(root / "capture.sqlite")
     publish_parent(db, root)
     runtime = {}
-    stream, capture = None, None
-    next_scan = 0.0
+    try:
+        trader = Trader(root)
+        runtime["trading"] = trader.snapshot
+        if trader.mode != "read_only":
+            args.execution_state = [trader.path]
+    except Exception as exc:
+        trader = None
+        runtime["trading"] = {"mode": os.getenv("BUYBACK_TRADING_MODE", "read_only"), "healthy": False,
+                              "ordersEnabled": False, "liveLocked": True, "error": str(exc)[:300]}
+    stream, capture, execution = None, None, None
+    next_scan, next_trade = 0.0, 0.0
     try:
         while not stop.is_set():
             free = shutil.disk_usage(root).free
@@ -376,6 +395,22 @@ async def run(root, stream_enabled):
                 # Unexpected exits are surfaced and retried independently of attendance.
                 await asyncio.gather(stream, return_exceptions=True)
                 stream = None
+            if execution is not None and execution.done():
+                try:
+                    runtime["trading"] = execution.result()
+                except Exception as exc:
+                    runtime["trading"].update(healthy=False, ordersEnabled=False,
+                                              error=f"Execution cycle failed: {type(exc).__name__}")
+                execution = None
+            if trader and trader.mode != "read_only" and execution is None and clock.monotonic() >= next_trade:
+                parent = json.loads((root / "parent-state.json").read_text())
+                news_at = runtime.get("news", {}).get("completedAt")
+                feeds_ok = bool(news_at and (datetime.now(UTC) - rule.parse_utc(news_at)).total_seconds() < 180
+                    and quote_status(root, stream_enabled)["healthy"] and not any(runtime.get(k) for k in ("newsError", "featureError", "storageError")))
+                # A pending feature could outrank another signal for the same entry.
+                unsettled = any(e.get("status") == "qualified_news_pending_feature" and e.get("event_date") <= datetime.now(rule.ET).date().isoformat() for e in parent["events"].values())
+                execution = asyncio.create_task(asyncio.to_thread(trader.cycle, parent, feeds_ok and not unsettled))
+                next_trade = clock.monotonic() + 30
             write_status(db, root, runtime, stream_enabled, engine_hash)
             try:
                 await asyncio.wait_for(stop.wait(), timeout=5)
@@ -387,6 +422,8 @@ async def run(root, stream_enabled):
             await asyncio.gather(stream, return_exceptions=True)
         if capture:
             await capture
+        if execution:
+            await execution
         db.close()
 
 

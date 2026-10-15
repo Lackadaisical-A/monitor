@@ -111,6 +111,16 @@ struct APIClient {
         )
     }
 
+    func completeClubNetId(_ netId: String, card: ClubCardRequest) async throws -> ClubNetIdResponse {
+        let body = try JSONEncoder().encode(ClubCardNetIdRequest(card: card, netId: netId))
+        return try await request(path: "/api/club/net-id", method: "POST", body: body)
+    }
+
+    func completeClubNetId(_ netId: String, memberId: String) async throws -> ClubNetIdResponse {
+        let body = try JSONEncoder().encode(ClubNetIdRequest(netId: netId))
+        return try await request(path: "/api/developer/club/members/\(memberId)/net-id", method: "POST", body: body)
+    }
+
     func deleteClubMember(id: String) async throws -> ClubDeletionResponse {
         try await request(path: "/api/developer/club/members/\(id)", method: "DELETE")
     }

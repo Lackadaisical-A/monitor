@@ -42,6 +42,16 @@ describe("ClubDataProtector", () => {
     expect(() => protector.open(`${sealed.slice(0, -1)}A`)).toThrow();
   });
 
+  it("normalizes and encrypts a NetID alongside the member profile", () => {
+    const protector = new ClubDataProtector(secret);
+    const profile = { name: "Scarlet Tester", netId: " SC3275 ", contactType: "phone" as const,
+      contact: "7325550199", grade: "senior" as const };
+    const sealed = protector.seal(profile);
+    expect(sealed).not.toContain("sc3275");
+    expect(protector.open(sealed)).toEqual({ ...profile, netId: "sc3275" });
+    expect(() => protector.seal({ ...profile, netId: "sc3275@rutgers.edu" })).toThrow();
+  });
+
   it("reads legacy encrypted profiles without returning their retired age field", () => {
     const protector = new ClubDataProtector(secret);
     const profile = {

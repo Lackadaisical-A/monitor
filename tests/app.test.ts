@@ -211,6 +211,7 @@ describe("HTTP app", () => {
     expect(registered.statusCode).toBe(201);
     expect(registered.json()).toEqual({
       status: "checked_in",
+      netIdRequired: true,
       cardHint: "",
       member: null,
       checkIn: null,
@@ -241,6 +242,85 @@ describe("HTTP app", () => {
       headers: clientHeaders(),
       payload: { kind: "existing", eventId: event.id, memberId: "7670e974-dd4d-4e5e-949f-220d1210dbd4" },
     })).statusCode).toBe(403);
+    await app.close();
+  });
+
+  it("prompts legacy card members for NetID without exposing profiles or duplicating attendance", async () => {
+    const appConfig = config();
+    db = new SignalDatabase(":memory:", appConfig.club.dataKey);
+    const requestSync = vi.fn();
+    const app = await createApp(appConfig, db, { run: async () => scanSummary() } as unknown as MonitorPipeline,
+      verifier(), undefined, { requestSync, syncNow: vi.fn(), getStatus: vi.fn() });
+    await bootstrap(app);
+    const card = { technology: "mifare", identifier: "04a1b2c3d4e5f6" };
+    const payload = { card, netId: " SC3275 " };
+    expect((await app.inject({ method: "POST", url: "/api/club/net-id", payload })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url: "/api/club/net-id", payload, headers: clientHeaders() })).statusCode).toBe(403);
+    db.activateClubAccess(installationId);
+    const event = db.createClubEvent("Meeting", installationId);
+    const legacy = db.checkInClubCard({ eventId: event.id, cardIdentifier: card.identifier, tagTechnology: "mifare",
+      installationId, profile: { name: "Returning Member", contactType: "phone", contact: "7325550199", grade: "senior" } });
+    expect(legacy.status).toBe("checked_in");
+    const checkInId = legacy.checkIn!.id;
+    const memberId = legacy.member!.id;
+    const scan = () => app.inject({ method: "POST", url: "/api/club/check-ins", headers: clientHeaders(),
+      payload: { eventId: event.id, card } });
+    expect((await scan()).json()).toMatchObject({ status: "already_checked_in", netIdRequired: true,
+      member: null, checkIn: null, cardHint: "" });
+    expect((await app.inject({ method: "POST", url: `/api/developer/club/members/${memberId}/net-id`,
+      headers: clientHeaders(), payload: { netId: "sc3275" } })).statusCode).toBe(403);
+    for (const netId of ["", "sc3275@rutgers.edu", "sc 3275", "=SUM(A1)", "1invalid", "a".repeat(33)]) {
+      expect((await app.inject({ method: "POST", url: "/api/club/net-id", headers: clientHeaders(),
+        payload: { card, netId } })).statusCode).toBe(400);
+    }
+    db.closeClubEvent(event.id); // Completion must still work if the meeting closes while the form is open.
+    const saved = await app.inject({ method: "POST", url: "/api/club/net-id", headers: clientHeaders(), payload });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ ok: true });
+    expect(requestSync).toHaveBeenCalledOnce();
+    await app.inject({ method: "POST", url: "/api/club/net-id", headers: clientHeaders(), payload: { card, netId: "zz9999" } });
+    const member = db.searchClubMembers("SC3275")[0];
+    expect(member).toMatchObject({ id: memberId, name: "Returning Member", netId: "sc3275", contact: "7325550199" });
+    expect(db.getClubEvent(event.id)?.checkIns).toHaveLength(1);
+    expect(db.getClubEvent(event.id)?.checkIns[0]?.id).toBe(checkInId);
+    expect(JSON.stringify(db.sqlite.prepare("SELECT * FROM club_members").all())).not.toContain("sc3275");
+    expect(db.getClubAttendanceSnapshot().members[0]?.netId).toBe("sc3275");
+    const nextEvent = db.createClubEvent("Next meeting", installationId);
+    const next = await app.inject({ method: "POST", url: "/api/club/check-ins", headers: clientHeaders(),
+      payload: { eventId: nextEvent.id, card } });
+    expect(next.json()).toMatchObject({ status: "checked_in", netIdRequired: false, member: null });
+    await app.close();
+  });
+
+  it("accepts new-member NetIDs and completes legacy manual profiles with developer access", async () => {
+    const appConfig = config();
+    db = new SignalDatabase(":memory:", appConfig.club.dataKey);
+    const app = await createApp(appConfig, db, { run: async () => scanSummary() } as unknown as MonitorPipeline, verifier());
+    await bootstrap(app);
+    db.activateDeveloperAccess(installationId);
+    const event = db.createClubEvent("Meeting", installationId);
+    const registration = { name: "New Member", netId: " AB123 ", contactType: "instagram", contact: "@new", grade: "junior", consent: true };
+    const manual = await app.inject({ method: "POST", url: "/api/developer/club/check-ins/manual", headers: clientHeaders(),
+      payload: { kind: "new", eventId: event.id, registration } });
+    expect(manual.statusCode).toBe(201);
+    expect(manual.json()).toMatchObject({ netIdRequired: false, member: { netId: "ab123" } });
+    const card = await app.inject({ method: "POST", url: "/api/developer/club/check-ins", headers: clientHeaders(),
+      payload: { eventId: event.id, card: { technology: "mifare", identifier: "aabbccdd" }, registration } });
+    expect(card.json()).toMatchObject({ netIdRequired: false, member: { netId: "ab123" } });
+    const legacy = db.checkInClubMember({ eventId: event.id, installationId,
+      profile: { name: "Existing Member", contactType: "phone", contact: "7325550123", grade: "senior" } });
+    const memberId = legacy.member!.id;
+    const repeat = await app.inject({ method: "POST", url: "/api/developer/club/check-ins/manual", headers: clientHeaders(),
+      payload: { kind: "existing", eventId: event.id, memberId } });
+    expect(repeat.json()).toMatchObject({ status: "already_checked_in", netIdRequired: true });
+    const saved = await app.inject({ method: "POST", url: `/api/developer/club/members/${memberId}/net-id`,
+      headers: clientHeaders(), payload: { netId: "cd456" } });
+    expect(saved.statusCode).toBe(200);
+    const updated = db.checkInClubMember({ eventId: event.id, installationId, memberId });
+    expect(updated).toMatchObject({ status: "already_checked_in", netIdRequired: false, member: { netId: "cd456" } });
+    expect(db.getClubEvent(event.id)?.checkInCount).toBe(3);
+    expect((await app.inject({ method: "POST", url: `/api/developer/club/members/11111111-1111-4111-8111-111111111111/net-id`,
+      headers: clientHeaders(), payload: { netId: "cd456" } })).statusCode).toBe(404);
     await app.close();
   });
 

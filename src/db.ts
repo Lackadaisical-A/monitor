@@ -18,6 +18,7 @@ import type {
   ClubManualCheckInInput,
   ClubManualCheckInResult,
   ClubMember,
+  ClubNetIdTarget,
   DeviceRegistration,
   FeedEntry,
   FeedMode,
@@ -35,6 +36,7 @@ import type {
 } from "./types.js";
 import type { AlertInput, ItemFailureResult, SignalStore } from "./store.js";
 import { ClubDataProtector } from "./club.js";
+import { ClubNetIdSchema } from "./types.js";
 import { clinicalSurpriseScore, isSecCalendarMilestoneSentence } from "./timeline.js";
 import { normalizedHeadline } from "./utils.js";
 
@@ -1141,6 +1143,7 @@ export class SignalDatabase implements SignalStore {
         return {
           id: member.id,
           name: member.name,
+          ...(member.netId ? { netId: member.netId } : {}),
           contactType: member.contactType,
           contact: member.contact,
           createdAt: member.createdAt,
@@ -1204,10 +1207,12 @@ export class SignalDatabase implements SignalStore {
       `).run(checkInId, input.eventId, memberRow.id, checkedInAt, input.installationId).changes > 0;
       const checkIn = this.getClubCheckIn(input.eventId, memberRow.id);
       if (!checkIn) throw new Error("Club check-in could not be recorded");
+      const member = this.rowToClubMember(memberRow);
       return {
         status: inserted ? "checked_in" : "already_checked_in",
         cardHint,
-        member: this.rowToClubMember(memberRow),
+        member,
+        netIdRequired: !member.netId,
         checkIn,
       };
     })();
@@ -1229,6 +1234,7 @@ export class SignalDatabase implements SignalStore {
         if (!normalizedQuery) return true;
         const text = normalizeClubSearch([
           member.name,
+          member.netId ?? "",
           member.contact,
           member.grade.replaceAll("_", " "),
         ].join(" "));
@@ -1289,9 +1295,29 @@ export class SignalDatabase implements SignalStore {
       return {
         status: inserted ? "checked_in" : "already_checked_in",
         cardHint: member.cardHint,
+        netIdRequired: !member.netId,
         member,
         checkIn,
       };
+    })();
+  }
+
+  completeClubMemberNetId(target: ClubNetIdTarget, netId: string): boolean {
+    const clubData = this.requireClubData();
+    const normalized = ClubNetIdSchema.parse(netId);
+    return this.sqlite.transaction(() => {
+      const row = "memberId" in target
+        ? this.sqlite.prepare("SELECT * FROM club_members WHERE id = ?").get(target.memberId) as ClubMemberRow | undefined
+        : this.sqlite.prepare("SELECT * FROM club_members WHERE card_fingerprint = ?")
+          .get(clubData.fingerprint(target.cardIdentifier, target.tagTechnology)) as ClubMemberRow | undefined;
+      if (!row) return false;
+      const profile = clubData.open(row.encrypted_profile);
+      // A delayed or repeated prompt must not overwrite an already completed profile.
+      if (!profile.netId) {
+        this.sqlite.prepare("UPDATE club_members SET encrypted_profile = ?, updated_at = ? WHERE id = ?")
+          .run(clubData.seal({ ...profile, netId: normalized }), new Date().toISOString(), row.id);
+      }
+      return true;
     })();
   }
 

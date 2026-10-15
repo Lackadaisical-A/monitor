@@ -293,6 +293,7 @@ struct ClubEventDetail: Decodable, Identifiable {
 struct ClubMember: Decodable, Identifiable {
     let id: String
     let name: String
+    let netId: String?
     let contactType: String
     let contact: String
     let grade: String
@@ -317,6 +318,7 @@ struct ClubEventResponse: Decodable {
 
 struct ClubCheckInResponse: Decodable {
     let status: String
+    let netIdRequired: Bool?
     let cardHint: String
     let member: ClubMember?
     let checkIn: ClubCheckIn?
@@ -333,10 +335,24 @@ struct ClubCardRequest: Encodable {
 
 struct ClubMemberRegistrationRequest: Encodable {
     let name: String
+    let netId: String
     let contactType: String
     let contact: String
     let grade: String
     let consent: Bool
+}
+
+struct ClubNetIdRequest: Encodable {
+    let netId: String
+}
+
+struct ClubCardNetIdRequest: Encodable {
+    let card: ClubCardRequest
+    let netId: String
+}
+
+struct ClubNetIdResponse: Decodable {
+    let ok: Bool
 }
 
 struct ClubCheckInRequest: Encodable {

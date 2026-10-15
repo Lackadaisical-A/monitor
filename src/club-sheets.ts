@@ -7,7 +7,7 @@ import type { ClubAttendanceSnapshot } from "./types.js";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_API_BASE = "https://sheets.googleapis.com/v4";
-const MEMBER_COLUMNS = ["ATTENDEE", "PHONE", "INSTAGRAM"];
+const MEMBER_COLUMNS = ["ATTENDEE", "NETID", "PHONE", "INSTAGRAM"];
 
 type ClubSheetsConfig = AppConfig["club"]["sheets"];
 type AttendanceStatus = "PRESENT" | "ABSENT" | "PENDING" | "N/A";
@@ -75,6 +75,7 @@ export function buildClubAttendanceMatrix(
   for (const member of members) {
     values.push([
       member.name,
+      member.netId ?? "",
       member.contactType === "phone" ? member.contact : "",
       member.contactType === "instagram" ? member.contact : "",
       ...meetings.map((meeting): AttendanceStatus => {

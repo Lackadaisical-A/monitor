@@ -19,6 +19,7 @@ import {
   ClubCardTechnologySchema,
   ClubContactTypeSchema,
   ClubGradeSchema,
+  ClubNetIdSchema,
   FeedModeSchema,
   PushModeSchema,
   type CompanyCoverage,
@@ -69,6 +70,7 @@ const ClubEventSchema = z.object({
 });
 
 const ClubMemberRegistrationSchema = z.object({
+  netId: ClubNetIdSchema.optional(),
   name: z.string().trim().min(1).max(100),
   contactType: ClubContactTypeSchema,
   contact: z.string().trim().min(3).max(120),
@@ -244,6 +246,7 @@ export async function createApp(
       ...(body.registration ? {
         profile: {
           name: body.registration.name,
+          ...(body.registration.netId ? { netId: body.registration.netId } : {}),
           contactType: body.registration.contactType,
           contact: body.registration.contact,
           grade: body.registration.grade,
@@ -349,6 +352,7 @@ export async function createApp(
       installationId: access.installationId,
       profile: {
         name: body.registration.name,
+        ...(body.registration.netId ? { netId: body.registration.netId } : {}),
         contactType: body.registration.contactType,
         contact: body.registration.contact,
         grade: body.registration.grade,
@@ -358,6 +362,34 @@ export async function createApp(
     if (result.status === "member_not_found") return reply.code(404).send(result);
     if (result.status === "checked_in") clubSheetSync?.requestSync();
     return reply.code(result.status === "checked_in" ? 201 : 200).send(result);
+  });
+
+  app.post("/api/club/net-id", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    await requireClubAccess(request, db);
+    requireClubFeature(config, db);
+    const body = z.object({ card: ClubCheckInSchema.shape.card, netId: ClubNetIdSchema }).parse(request.body);
+    const found = await db.completeClubMemberNetId({
+      cardIdentifier: body.card.identifier, tagTechnology: body.card.technology,
+    }, body.netId);
+    if (!found) return reply.code(404).send({ error: "club_member_not_found" });
+    clubSheetSync?.requestSync();
+    return { ok: true };
+  });
+
+  app.post("/api/developer/club/members/:id/net-id", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    await requireDeveloperAccess(request, db);
+    requireClubFeature(config, db);
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const { netId } = z.object({ netId: ClubNetIdSchema }).parse(request.body);
+    if (!await db.completeClubMemberNetId({ memberId: id }, netId)) {
+      return reply.code(404).send({ error: "club_member_not_found" });
+    }
+    clubSheetSync?.requestSync();
+    return { ok: true };
   });
 
   app.get("/api/developer/club/sheet", async (request) => {
@@ -719,7 +751,7 @@ async function requireClubAccess(request: FastifyRequest, db: SignalStore): Prom
 }
 
 type ClubSignalStore = SignalStore & Required<Pick<SignalStore,
-  "createClubEvent" | "closeClubEvent" | "getClubEvent" | "getActiveClubEvent" | "getClubDashboard" | "checkInClubCard" | "searchClubMembers" | "checkInClubMember" | "deleteClubMember"
+  "createClubEvent" | "closeClubEvent" | "getClubEvent" | "getActiveClubEvent" | "getClubDashboard" | "checkInClubCard" | "searchClubMembers" | "checkInClubMember" | "completeClubMemberNetId" | "deleteClubMember"
 >>;
 
 function requireClubFeature(config: AppConfig, db: SignalStore): asserts db is ClubSignalStore {
@@ -732,6 +764,7 @@ function requireClubFeature(config: AppConfig, db: SignalStore): asserts db is C
     || !db.checkInClubCard
     || !db.searchClubMembers
     || !db.checkInClubMember
+    || !db.completeClubMemberNetId
     || !db.deleteClubMember) {
     throw httpError(503, "Club attendance is not configured");
   }

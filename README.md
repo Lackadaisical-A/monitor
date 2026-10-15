@@ -223,7 +223,7 @@ Server-side APNs setup:
 8. Keep `ALERT_DRY_RUN=true` while reviewing real classifications. Switch to `false` only after validating them.
 9. Debug device builds use the APNs sandbox; archived builds use production.
 
-The attendance sheet is rebuilt after each club mutation and every five minutes. Attendee names are rows, with Phone and Instagram columns before the dated meeting columns. Each member's chosen contact method fills the corresponding column. `PRESENT` is green, `ABSENT` becomes red only after a meeting closes, and `PENDING` or `N/A` is black. Age is no longer collected or shown. Card identifiers and card fingerprints are never exported.
+The attendance sheet is rebuilt after each club mutation and every five minutes. Attendee names are rows, with NetID, Phone, and Instagram columns before the dated meeting columns. Each member's chosen contact method fills the corresponding column. `PRESENT` is green, `ABSENT` becomes red only after a meeting closes, and `PENDING` or `N/A` is black. Age is no longer collected or shown. Card identifiers and card fingerprints are never exported.
 
 The iPhone app creates a random installation credential in Keychain. Free devices may register an APNs token, but the alert service only targets an active App Store Pro or developer installation. App Store transactions and server notifications are verified with Apple's official server library before access changes.
 
@@ -251,7 +251,7 @@ The Blueprint also configures the App Store bundle ID, Apple app ID, product IDs
 
 ### Club check-in
 
-Developer access can create and close events, view rosters and member profiles, and delete attendance records. A separate `CLUB_PAIRING_TOKEN` activates only self check-in while preserving the installation's Free or Pro news plan. Club-key installations can see the current event and scan a card, but API responses redact member profiles, card hints, attendance totals, recent events, and rosters. The first scan collects the member's consented profile; later scans check that card into the active event without asking again.
+Developer access can create and close events, view rosters and member profiles, and delete attendance records. A separate `CLUB_PAIRING_TOKEN` activates only self check-in while preserving the installation's Free or Pro news plan. Club-key installations can see the current event and scan a card, but API responses redact member profiles, card hints, attendance totals, recent events, and rosters. The first scan collects the member's consented profile; later scans check that card into the active event. New registrations in the updated iPhone app require a Rutgers NetID (for example, `sc3275`). Returning members without one see a completion prompt after check-in, including repeat check-ins. Saving fills the existing encrypted profile and updates the private sheet without adding another attendance record. Members who dismiss the prompt are asked again next time; older app versions remain compatible.
 
 Rotating `CLUB_PAIRING_TOKEN` prevents future activations with the old key. It does not revoke club access already stored for an installation.
 
@@ -313,6 +313,8 @@ npm start          Run compiled server
 - `POST /api/entitlements/club` — activate privacy-limited club access without changing the installation's Free or Pro plan.
 - `GET /api/club` — privacy-limited active event for club access, without counts, rosters, profiles, or history.
 - `POST /api/club/check-ins` — privacy-limited member registration and self check-in with profile and card details redacted from responses.
+- `POST /api/club/net-id` — fill a missing NetID using the scanned card; the response contains no profile data.
+- `POST /api/developer/club/members/:id/net-id` — developer-only completion for a member selected for manual check-in.
 - `GET /api/developer/club` — developer-only active event, attendance roster, and recent event summary.
 - `GET /api/developer/club/events/:id` — developer-only historical event roster.
 - `POST /api/developer/club/events` — developer-only creation of a new active attendance event.

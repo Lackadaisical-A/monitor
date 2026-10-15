@@ -12,6 +12,7 @@ import type {
   ClubManualCheckInInput,
   ClubManualCheckInResult,
   ClubMember,
+  ClubNetIdTarget,
   DeviceRegistration,
   FeedEntry,
   FeedMode,
@@ -106,6 +107,7 @@ export interface SignalStore {
   checkInClubCard?(input: ClubCardCheckInInput): Awaitable<ClubCardCheckInResult>;
   searchClubMembers?(query: string, limit?: number): Awaitable<ClubMember[]>;
   checkInClubMember?(input: ClubManualCheckInInput): Awaitable<ClubManualCheckInResult>;
+  completeClubMemberNetId?(target: ClubNetIdTarget, netId: string): Awaitable<boolean>;
   deleteClubMember?(memberId: string): Awaitable<boolean>;
   applyStoreTransaction(entitlement: StoreTransactionEntitlement): Awaitable<number>;
   getInstallationPreferences(installationId: string): Awaitable<InstallationPreferences>;

@@ -259,8 +259,19 @@ export const ClubCardTechnologySchema = z.enum(["mifare", "iso7816", "iso15693",
 export type ClubCardTechnology = z.infer<typeof ClubCardTechnologySchema>;
 export type ClubMemberTechnology = ClubCardTechnology | "manual";
 
+export const ClubNetIdSchema = z.string().trim().toLowerCase().regex(
+  /^[a-z][a-z0-9]{1,31}$/, "Enter your Rutgers NetID, such as sc3275, without an email domain",
+);
+
+export type ClubNetIdTarget = { memberId: string } | {
+  cardIdentifier: string;
+  tagTechnology: ClubCardTechnology;
+};
+
 export interface ClubMemberProfile {
   name: string;
+  // Absent on profiles created by older app versions.
+  netId?: string;
   contactType: ClubContactType;
   contact: string;
   grade: ClubGrade;
@@ -307,6 +318,7 @@ export interface ClubAttendanceSnapshot {
     name: string;
     contactType: ClubContactType;
     contact: string;
+    netId?: string;
     createdAt: string;
   }>;
   meetings: Array<{
@@ -331,7 +343,7 @@ export interface ClubCardCheckInInput {
 
 export type ClubCardCheckInResult =
   | { status: "registration_required"; cardHint: string; member: null; checkIn: null }
-  | { status: "checked_in" | "already_checked_in"; cardHint: string; member: ClubMember; checkIn: ClubCheckIn }
+  | { status: "checked_in" | "already_checked_in"; netIdRequired: boolean; cardHint: string; member: ClubMember; checkIn: ClubCheckIn }
   | { status: "event_unavailable"; cardHint: string; member: null; checkIn: null };
 
 export type ClubManualCheckInInput = {
@@ -343,7 +355,7 @@ export type ClubManualCheckInInput = {
 );
 
 export type ClubManualCheckInResult =
-  | { status: "checked_in" | "already_checked_in"; cardHint: string; member: ClubMember; checkIn: ClubCheckIn }
+  | { status: "checked_in" | "already_checked_in"; netIdRequired: boolean; cardHint: string; member: ClubMember; checkIn: ClubCheckIn }
   | { status: "event_unavailable" | "member_not_found"; cardHint: string; member: null; checkIn: null };
 
 export const FeedModeSchema = z.enum(["all", "watchlist"]);

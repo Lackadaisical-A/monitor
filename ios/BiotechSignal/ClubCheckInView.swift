@@ -7,6 +7,7 @@ final class ClubCheckInModel: ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var isSaving = false
     @Published var pendingCard: ClubCardScan?
+    @Published var pendingNetId: ClubNetIdPrompt?
     @Published var message: ClubOperatorMessage?
 
     func load(settings: ServerSettings, operatorMode: Bool) async {
@@ -53,7 +54,6 @@ final class ClubCheckInModel: ObservableObject {
         defer { isScanning = false }
         do {
             let card = try await ClubCardReader.shared.scan()
-            pendingCard = card
             let result = try await APIClient(settings: settings).checkInClubMember(
                 ClubCheckInRequest(
                     eventId: event.id,
@@ -62,7 +62,16 @@ final class ClubCheckInModel: ObservableObject {
                 ),
                 operatorMode: operatorMode
             )
-            await handle(result, settings: settings, operatorMode: operatorMode)
+            if result.status == "registration_required" {
+                pendingCard = card
+            } else {
+                await handle(result, settings: settings, operatorMode: operatorMode)
+                if result.netIdRequired == true {
+                    pendingNetId = ClubNetIdPrompt(target: .card(
+                        ClubCardRequest(technology: card.technology, identifier: card.identifier)
+                    ))
+                }
+            }
         } catch ClubCardReaderError.cancelled {
             pendingCard = nil
         } catch {
@@ -95,17 +104,30 @@ final class ClubCheckInModel: ObservableObject {
         }
     }
 
-    func checkInWithoutCard(_ request: ClubManualCheckInRequest, settings: ServerSettings) async -> Bool {
-        guard dashboard?.activeEvent?.id == request.eventId, !isSaving else { return false }
+    func checkInWithoutCard(_ request: ClubManualCheckInRequest, settings: ServerSettings) async -> ClubCheckInResponse? {
+        guard dashboard?.activeEvent?.id == request.eventId, !isSaving else { return nil }
         isSaving = true
         defer { isSaving = false }
         do {
             let result = try await APIClient(settings: settings).checkInClubMemberManually(request)
-            return await handle(result, settings: settings, operatorMode: true)
+            return await handle(result, settings: settings, operatorMode: true) ? result : nil
         } catch {
             message = ClubOperatorMessage(title: "Could not check in member", body: error.localizedDescription)
-            return false
+            return nil
         }
+    }
+
+    func completeNetId(_ netId: String, target: ClubNetIdTarget, settings: ServerSettings, operatorMode: Bool) async throws {
+        isSaving = true
+        defer { isSaving = false }
+        let client = APIClient(settings: settings)
+        let response: ClubNetIdResponse
+        switch target {
+        case .card(let card): response = try await client.completeClubNetId(netId, card: card)
+        case .member(let id): response = try await client.completeClubNetId(netId, memberId: id)
+        }
+        guard response.ok else { throw APIError.invalidResponse }
+        await reload(settings: settings, operatorMode: operatorMode)
     }
 
     func delete(member: ClubMember, settings: ServerSettings) async -> Bool {
@@ -127,20 +149,14 @@ final class ClubCheckInModel: ObservableObject {
         switch result.status {
         case "registration_required":
             return false
-        case "checked_in":
+        case "checked_in", "already_checked_in":
             pendingCard = nil
-            message = ClubOperatorMessage(
-                title: "Checked in",
-                body: result.member?.name ?? "Your attendance was recorded."
-            )
-            await reload(settings: settings, operatorMode: operatorMode)
-            return true
-        case "already_checked_in":
-            pendingCard = nil
-            message = ClubOperatorMessage(
-                title: "Already checked in",
-                body: result.member?.name ?? "Your attendance was already recorded."
-            )
+            if result.netIdRequired != true {
+                message = ClubOperatorMessage(
+                    title: result.status == "checked_in" ? "Checked in" : "Already checked in",
+                    body: result.member?.name ?? "Your attendance was recorded."
+                )
+            }
             await reload(settings: settings, operatorMode: operatorMode)
             return true
         case "member_not_found":
@@ -170,6 +186,16 @@ struct ClubOperatorMessage: Identifiable {
     let id = UUID()
     let title: String
     let body: String
+}
+
+enum ClubNetIdTarget {
+    case card(ClubCardRequest)
+    case member(String)
+}
+
+struct ClubNetIdPrompt: Identifiable {
+    let id = UUID()
+    let target: ClubNetIdTarget
 }
 
 struct ClubCheckInView: View {
@@ -273,6 +299,10 @@ struct ClubCheckInView: View {
         }
         .sheet(item: $model.pendingCard) { card in
             ClubMemberRegistrationView(card: card, model: model)
+                .environmentObject(store)
+        }
+        .sheet(item: $model.pendingNetId) { prompt in
+            ClubNetIdView(prompt: prompt, model: model)
                 .environmentObject(store)
         }
         .sheet(isPresented: $showingManualCheckIn) {
@@ -415,6 +445,8 @@ private struct ClubManualCheckInView: View {
     @State private var isSearching = false
     @State private var searchError: String?
     @State private var name = ""
+    @State private var netId = ""
+    @State private var pendingNetId: ClubNetIdPrompt?
     @State private var contactType = "phone"
     @State private var contact = ""
     @State private var grade = "first_year"
@@ -427,6 +459,7 @@ private struct ClubManualCheckInView: View {
     private var registration: ClubMemberRegistrationRequest? {
         clubRegistrationRequest(
             name: name,
+            netId: netId,
             contactType: contactType,
             contact: contact,
             grade: grade,
@@ -439,6 +472,7 @@ private struct ClubManualCheckInView: View {
         case .existing:
             guard let selectedMemberId else { return false }
             return !checkedInMemberIds.contains(selectedMemberId)
+                || members.first(where: { $0.id == selectedMemberId })?.netId == nil
         case .newMember:
             return registration != nil
         }
@@ -461,11 +495,12 @@ private struct ClubManualCheckInView: View {
                 } else {
                     ClubMemberRegistrationFields(
                         name: $name,
+                        netId: $netId,
                         contactType: $contactType,
                         contact: $contact,
                         grade: $grade,
                         consent: $consent,
-                        footer: "Your profile is encrypted on the server. Your name, contact information, and attendance are copied to the club's private Google Sheet. No card identifier is collected for this profile."
+                        footer: "Your profile is encrypted on the server. Your name, NetID, contact information, and attendance are copied to the club's private Google Sheet. No card identifier is collected for this profile."
                     )
                 }
             }
@@ -493,6 +528,10 @@ private struct ClubManualCheckInView: View {
                       name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                 name = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             }
+            .sheet(item: $pendingNetId, onDismiss: { dismiss() }) { prompt in
+                ClubNetIdView(prompt: prompt, model: model)
+                    .environmentObject(store)
+            }
         }
     }
 
@@ -502,7 +541,7 @@ private struct ClubManualCheckInView: View {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Name, phone, or Instagram", text: $searchText)
+                TextField("Name, NetID, phone, or Instagram", text: $searchText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 if !searchText.isEmpty {
@@ -560,6 +599,9 @@ private struct ClubManualCheckInView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                    if let netId = member.netId {
+                        Text(netId).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
                 }
                 Spacer(minLength: 8)
                 if isCheckedIn {
@@ -579,7 +621,7 @@ private struct ClubManualCheckInView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isCheckedIn)
+        .disabled(isCheckedIn && member.netId != nil)
     }
 
     private func searchMembers() async {
@@ -622,14 +664,93 @@ private struct ClubManualCheckInView: View {
             guard let registration else { return }
             request = .new(eventId: event.id, registration: registration)
         }
-        if await model.checkInWithoutCard(request, settings: store.settings) {
-            dismiss()
+        if let result = await model.checkInWithoutCard(request, settings: store.settings) {
+            if result.netIdRequired == true, let member = result.member {
+                pendingNetId = ClubNetIdPrompt(target: .member(member.id))
+            } else {
+                dismiss()
+            }
         }
+    }
+}
+
+private func normalizedClubNetId(_ value: String) -> String? {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return normalized.range(of: "^[a-z][a-z0-9]{1,31}$", options: .regularExpression) != nil ? normalized : nil
+}
+
+private struct ClubNetIdField: View {
+    @Binding var netId: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("Rutgers NetID (e.g. sc3275)", text: $netId)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.asciiCapable)
+                .accessibilityIdentifier("club-netid")
+            Text("Enter your NetID only, without @rutgers.edu.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct ClubNetIdView: View {
+    @EnvironmentObject private var store: MonitorStore
+    @Environment(\.dismiss) private var dismiss
+    let prompt: ClubNetIdPrompt
+    @ObservedObject var model: ClubCheckInModel
+    @State private var netId = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("You're checked in. Please add your Rutgers NetID to complete your club profile.")
+                    ClubNetIdField(netId: $netId)
+                } footer: {
+                    Text("Saving adds your NetID to your encrypted profile and the club's private attendance sheet. You'll only be asked while your NetID is missing.")
+                }
+                if let errorMessage {
+                    Section {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Complete Your Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(model.isSaving)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Not Now") { dismiss() }.disabled(model.isSaving)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard let normalized = normalizedClubNetId(netId) else { return }
+                        Task {
+                            do {
+                                try await model.completeNetId(normalized, target: prompt.target,
+                                    settings: store.settings, operatorMode: store.access.level == "developer")
+                                dismiss()
+                            } catch {
+                                errorMessage = error.localizedDescription
+                            }
+                        }
+                    }
+                    .disabled(normalizedClubNetId(netId) == nil || model.isSaving)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
 private struct ClubMemberRegistrationFields: View {
     @Binding var name: String
+    @Binding var netId: String
     @Binding var contactType: String
     @Binding var contact: String
     @Binding var grade: String
@@ -642,6 +763,7 @@ private struct ClubMemberRegistrationFields: View {
                 TextField("Full name", text: $name)
                     .textContentType(.name)
                     .textInputAutocapitalization(.words)
+                ClubNetIdField(netId: $netId)
                 Picker("Grade", selection: $grade) {
                     ForEach(clubGrades, id: \.value) { option in
                         Text(option.label).tag(option.value)
@@ -660,7 +782,7 @@ private struct ClubMemberRegistrationFields: View {
                     .autocorrectionDisabled()
             }
             Section {
-                Toggle("I consent to storing this profile and listing my name, contact information, and attendance in the club's private Google Sheet.", isOn: $consent)
+                Toggle("I consent to storing this profile and listing my name, NetID, contact information, and attendance in the club's private Google Sheet.", isOn: $consent)
             } footer: {
                 Text(footer)
             }
@@ -674,6 +796,7 @@ private struct ClubMemberRegistrationView: View {
     let card: ClubCardScan
     @ObservedObject var model: ClubCheckInModel
     @State private var name = ""
+    @State private var netId = ""
     @State private var contactType = "phone"
     @State private var contact = ""
     @State private var grade = "first_year"
@@ -682,6 +805,7 @@ private struct ClubMemberRegistrationView: View {
     private var registration: ClubMemberRegistrationRequest? {
         clubRegistrationRequest(
             name: name,
+            netId: netId,
             contactType: contactType,
             contact: contact,
             grade: grade,
@@ -694,11 +818,12 @@ private struct ClubMemberRegistrationView: View {
             Form {
                 ClubMemberRegistrationFields(
                     name: $name,
+                    netId: $netId,
                     contactType: $contactType,
                     contact: $contact,
                     grade: $grade,
                     consent: $consent,
-                    footer: "Your profile is encrypted on the server. Your name, contact information, and attendance are copied to the club's private Google Sheet. Card data is not copied to the sheet. The card identifier is converted to a one-way service fingerprint and is not stored in raw form."
+                    footer: "Your profile is encrypted on the server. Your name, NetID, contact information, and attendance are copied to the club's private Google Sheet. Card data is not copied to the sheet. The card identifier is converted to a one-way service fingerprint and is not stored in raw form."
                 )
             }
             .navigationTitle("New Member")
@@ -812,6 +937,7 @@ private struct ClubMemberDetailView: View {
         Form {
             Section("Profile") {
                 LabeledContent("Name", value: member.name)
+                LabeledContent("Rutgers NetID", value: member.netId ?? "Not provided")
                 LabeledContent("Grade", value: gradeLabel(member.grade))
                 LabeledContent(member.contactType == "phone" ? "Phone" : "Instagram", value: member.contact)
             }
@@ -850,6 +976,7 @@ private struct ClubMemberDetailView: View {
 
 private func clubRegistrationRequest(
     name: String,
+    netId: String,
     contactType: String,
     contact: String,
     grade: String,
@@ -858,10 +985,12 @@ private func clubRegistrationRequest(
     let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
     let normalizedContact = contact.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalizedName.isEmpty,
+          let normalizedNetId = normalizedClubNetId(netId),
           normalizedContact.count >= 3,
           consent else { return nil }
     return ClubMemberRegistrationRequest(
         name: normalizedName,
+        netId: normalizedNetId,
         contactType: contactType,
         contact: normalizedContact,
         grade: grade,

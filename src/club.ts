@@ -5,7 +5,7 @@ import {
   createHmac,
   randomBytes,
 } from "node:crypto";
-import type { ClubCardTechnology, ClubMemberProfile } from "./types.js";
+import { ClubNetIdSchema, type ClubCardTechnology, type ClubMemberProfile } from "./types.js";
 
 const AAD = Buffer.from("catalyst-watch-club-profile-v1", "utf8");
 
@@ -39,11 +39,12 @@ export class ClubDataProtector {
   }
 
   seal(profile: ClubMemberProfile): string {
+    const normalized = { ...profile, ...(profile.netId !== undefined ? { netId: ClubNetIdSchema.parse(profile.netId) } : {}) };
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", this.profileKey, iv);
     cipher.setAAD(AAD);
     const encrypted = Buffer.concat([
-      cipher.update(JSON.stringify(profile), "utf8"),
+      cipher.update(JSON.stringify(normalized), "utf8"),
       cipher.final(),
     ]);
     const authTag = cipher.getAuthTag();
@@ -67,6 +68,7 @@ export class ClubDataProtector {
     const profile = JSON.parse(cleartext) as ClubMemberProfile;
     return {
       name: profile.name,
+      ...(profile.netId ? { netId: profile.netId } : {}),
       contactType: profile.contactType,
       contact: profile.contact,
       grade: profile.grade,

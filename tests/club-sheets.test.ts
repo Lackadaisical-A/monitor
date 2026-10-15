@@ -18,14 +18,15 @@ describe("Google Sheets club attendance matrix", () => {
     expect(matrix.values).toEqual([
       [
         "ATTENDEE",
+        "NETID",
         "PHONE",
         "INSTAGRAM",
         "Jan 10, 2026\nKickoff",
         "Jan 17, 2026\nWorkshop",
         "Jan 24, 2026\nCurrent meeting",
       ],
-      ["Alice", "+1 (732) 555-0199", "", "PRESENT", "ABSENT", "PENDING"],
-      ["Bob", "", "@bob", "N/A", "PRESENT", "PRESENT"],
+      ["Alice", "sc3275", "+1 (732) 555-0199", "", "PRESENT", "ABSENT", "PENDING"],
+      ["Bob", "", "", "@bob", "N/A", "PRESENT", "PRESENT"],
     ]);
   });
 
@@ -34,15 +35,15 @@ describe("Google Sheets club attendance matrix", () => {
       memberCount: 2,
       meetingCount: 0,
       values: [
-        ["ATTENDEE", "PHONE", "INSTAGRAM"],
-        ["Alice", "+1 (732) 555-0199", ""],
-        ["Bob", "", "@bob"],
+        ["ATTENDEE", "NETID", "PHONE", "INSTAGRAM"],
+        ["Alice", "sc3275", "+1 (732) 555-0199", ""],
+        ["Bob", "", "", "@bob"],
       ],
     });
     expect(buildClubAttendanceMatrix({ members: [], meetings: [], checkIns: [] }, "America/New_York")).toEqual({
       memberCount: 0,
       meetingCount: 0,
-      values: [["ATTENDEE", "PHONE", "INSTAGRAM"]],
+      values: [["ATTENDEE", "NETID", "PHONE", "INSTAGRAM"]],
     });
   });
 
@@ -93,11 +94,11 @@ describe("Google Sheets club attendance matrix", () => {
     expect(status).toMatchObject({ lastError: null, memberCount: 2, meetingCount: 3 });
     const valuesCall = calls.find(({ url, init }) => url.includes("valueInputOption=RAW") && init?.method === "PUT");
     expect(JSON.parse(String(valuesCall?.init?.body))).toMatchObject({
-      range: "'Attendance'!A1:F3",
+      range: "'Attendance'!A1:G3",
       values: [
-        ["ATTENDEE", "PHONE", "INSTAGRAM", "Jan 10, 2026\nKickoff", "Jan 17, 2026\nWorkshop", "Jan 24, 2026\nCurrent meeting"],
-        ["Alice", "+1 (732) 555-0199", "", "PRESENT", "ABSENT", "PENDING"],
-        ["Bob", "", "@bob", "N/A", "PRESENT", "PRESENT"],
+        ["ATTENDEE", "NETID", "PHONE", "INSTAGRAM", "Jan 10, 2026\nKickoff", "Jan 17, 2026\nWorkshop", "Jan 24, 2026\nCurrent meeting"],
+        ["Alice", "sc3275", "+1 (732) 555-0199", "", "PRESENT", "ABSENT", "PENDING"],
+        ["Bob", "", "", "@bob", "N/A", "PRESENT", "PRESENT"],
       ],
     });
     const batchBodies = calls
@@ -113,14 +114,14 @@ describe("Google Sheets club attendance matrix", () => {
       expect(request).toMatchObject({
         addConditionalFormatRule: {
           rule: {
-            ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 3, startColumnIndex: 3, endColumnIndex: 6 }],
+            ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 3, startColumnIndex: 4, endColumnIndex: 7 }],
           },
         },
       });
     }
     expect(batchBodies[1]?.requests).toContainEqual({
       repeatCell: {
-        range: { sheetId: 0, startRowIndex: 1, endRowIndex: 3, startColumnIndex: 1, endColumnIndex: 3 },
+        range: { sheetId: 0, startRowIndex: 1, endRowIndex: 3, startColumnIndex: 1, endColumnIndex: 4 },
         cell: { userEnteredFormat: { horizontalAlignment: "LEFT", numberFormat: { type: "TEXT" } } },
         fields: "userEnteredFormat.horizontalAlignment,userEnteredFormat.numberFormat",
       },
@@ -136,7 +137,7 @@ function snapshot(): ClubAttendanceSnapshot {
   return {
     members: [
       { id: "member-bob", name: "Bob", contactType: "instagram", contact: "@bob", createdAt: "2026-01-12T15:00:00.000Z" },
-      { id: "member-alice", name: "Alice", contactType: "phone", contact: "+1 (732) 555-0199", createdAt: "2026-01-01T15:00:00.000Z" },
+      { id: "member-alice", name: "Alice", netId: "sc3275", contactType: "phone", contact: "+1 (732) 555-0199", createdAt: "2026-01-01T15:00:00.000Z" },
     ],
     meetings: [
       {

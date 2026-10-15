@@ -55,6 +55,8 @@ xcodebuild -exportArchive -archivePath DerivedData/CatalystWatch.xcarchive \
 
 When the local Xcode version does not satisfy Apple's current upload requirement, `.github/workflows/app-store.yml` can perform a manual release on GitHub's `macos-26` runner. It requires these encrypted repository secrets: `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_PRIVATE_KEY`. The App Store Connect key must be allowed to manage Certificates, Identifiers & Profiles. The workflow enables NFC tag reading, creates or reuses the matching distribution profile, verifies the signed entitlement, and then uploads. It only runs when manually dispatched and uses the supplied build number or the GitHub run number.
 
+After uploading, `.github/workflows/testflight.yml` manages that specific version and build using the same App Store Connect secrets. `inspect` reports processing status, testing state, assigned groups, and release notes. `prepare` requires existing external group IDs and English test notes, waits for processing, assigns the build, and submits TestFlight review when needed. `notify` explicitly starts distribution with Apple's TestFlight notification after approval; run it only when sending that notification is intended. These actions leave public App Store release metadata unchanged.
+
 ## Critical Alerts
 
 The default target uses `BiotechSignal.entitlements` and requests Time Sensitive alerts. It does **not** claim Apple's Critical Alerts entitlement.

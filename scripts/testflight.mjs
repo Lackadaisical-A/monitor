@@ -72,7 +72,7 @@ async function prepare() {
       relationships: { build: { data: { type: "builds", id: build.id } } },
     } } });
   }
-  const currentGroups = await all(`/v1/builds/${build.id}/betaGroups?limit=200`);
+  const currentGroups = await assignedGroups(groups);
   const missing = groupIds.filter(id => !currentGroups.some(group => group.id === id));
   if (missing.length) {
     await api(`/v1/builds/${build.id}/relationships/betaGroups`, { method: "POST", body: {
@@ -90,7 +90,7 @@ async function prepare() {
 async function report() {
   const [detail, groups, localizations] = await Promise.all([
     api(`/v1/builds/${build.id}/buildBetaDetail`),
-    all(`/v1/builds/${build.id}/betaGroups?limit=200`),
+    assignedGroups(),
     all(`/v1/builds/${build.id}/betaBuildLocalizations?limit=200`),
   ]);
   console.log(JSON.stringify({ build: { id: build.id, version, buildNumber,
@@ -99,6 +99,16 @@ async function report() {
     groups: groups.map(group => ({ id: group.id, name: group.attributes.name, isInternalGroup: group.attributes.isInternalGroup })),
     notes: localizations.map(item => ({ locale: item.attributes.locale, whatsNew: item.attributes.whatsNew })),
   }, null, 2));
+}
+
+async function assignedGroups(groups) {
+  groups ??= await all(`/v1/apps/${appId}/betaGroups?limit=200`);
+  // Apple permits reading builds through a group, but not groups through a build.
+  const matches = await Promise.all(groups.map(async group => {
+    const builds = await all(`/v1/betaGroups/${group.id}/builds?limit=200`);
+    return builds.some(candidate => candidate.id === build.id) ? group : null;
+  }));
+  return matches.filter(Boolean);
 }
 
 function required(name) {

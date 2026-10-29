@@ -38,3 +38,10 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify buyback execution and frozen strategy
+        run: |
+          python3 -m venv .venv-buyback
+          .venv-buyback/bin/python -m pip install -r buyback/requirements.txt
+          .venv-buyback/bin/python -m unittest discover -s buyback -p 'test_*.py' -v
+          .venv-buyback/bin/python buyback/worker.py --self-check

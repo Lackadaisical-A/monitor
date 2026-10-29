@@ -29,7 +29,7 @@ sys.path.insert(0, str(FROZEN))
 import live_cash_buyback_drift_shadow_runner as rule
 import live_cash_buyback_sip_execution_observer as sip
 import requests
-from execution import Trader
+from execution import Trader, engine
 
 UTC = timezone.utc
 HISTORY_FLOOR = date(2026, 7, 13)
@@ -229,6 +229,13 @@ def evaluate_events(db, root, headers, now):
         if item["status"] != "qualified_news_pending_feature":
             continue
         day = date.fromisoformat(item["event_date"])
+        if now >= engine.entry_cutoff(rule.next_session(day)):
+            # Retain the missing-data evidence, but never retry an expired entry
+            # forever or silently turn it into a strategy-filter rejection.
+            item.update(status="feature_data_unavailable", feature_expired_at=stamp(now))
+            with db:
+                db.execute("UPDATE events SET data=? WHERE event_key=?", (json.dumps(item), row["event_key"]))
+            continue
         close = rule.CALENDAR.session_close(day.isoformat()).to_pydatetime()
         if now < close + timedelta(minutes=15):
             continue
@@ -259,6 +266,24 @@ def evaluate_events(db, root, headers, now):
             item["status"] = "feature_rejected"
         with db:
             db.execute("UPDATE events SET data=? WHERE event_key=?", (json.dumps(item), row["event_key"]))
+
+
+def entry_feature_blockers(parent, now):
+    """Only unfinished candidates competing for the next eligible entry can block it."""
+    try:
+        candidates = engine.candidates_from_parent(parent)
+    except (RuntimeError, ValueError, KeyError, TypeError):
+        # Keep the execution loop alive to reconcile owned exits even if a
+        # candidate cannot be validated. New entries remain blocked.
+        return ["invalid signal metadata; review required"]
+    entry_dates = [date.fromisoformat(c["entry_date"]) for c in candidates
+                   if now < engine.entry_cutoff(date.fromisoformat(c["entry_date"]))]
+    if not entry_dates:
+        return []
+    next_entry = min(entry_dates)
+    return sorted({e["Ticker"] for e in parent["events"].values()
+                   if e.get("status") == "qualified_news_pending_feature"
+                   and rule.next_session(date.fromisoformat(e["event_date"])) == next_entry})
 
 
 def publish_parent(db, root):
@@ -297,6 +322,7 @@ def write_status(db, root, runtime, stream_enabled, engine_hash):
         news_ok = (datetime.now(UTC) - rule.parse_utc(runtime["news"]["completedAt"])).total_seconds() < 180
     collector_healthy = news_ok and quote["healthy"] and not runtime.get("storageError") and not runtime.get("featureError")
     trading = dict(runtime.get("trading", {"mode": "read_only", "healthy": True, "ordersEnabled": False}))
+    trading["entryBlockReason"] = runtime.get("entryBlockReason")
     if trading.get("mode") != "read_only":
         updated = trading.get("updatedAt")
         fresh = updated and 0 <= (datetime.now(UTC) - rule.parse_utc(updated)).total_seconds() < 120
@@ -407,9 +433,12 @@ async def run(root, stream_enabled):
                 news_at = runtime.get("news", {}).get("completedAt")
                 feeds_ok = bool(news_at and (datetime.now(UTC) - rule.parse_utc(news_at)).total_seconds() < 180
                     and quote_status(root, stream_enabled)["healthy"] and not any(runtime.get(k) for k in ("newsError", "featureError", "storageError")))
-                # A pending feature could outrank another signal for the same entry.
-                unsettled = any(e.get("status") == "qualified_news_pending_feature" and e.get("event_date") <= datetime.now(rule.ET).date().isoformat() for e in parent["events"].values())
-                execution = asyncio.create_task(asyncio.to_thread(trader.cycle, parent, feeds_ok and not unsettled))
+                # Preserve same-entry ranking without letting an older missing-data
+                # candidate (or tomorrow's cohort) stop today's eligible order.
+                blockers = entry_feature_blockers(parent, datetime.now(UTC))
+                runtime["entryBlockReason"] = ("Waiting for daily-bar evaluation of competing candidates: "
+                                               + ", ".join(blockers)) if feeds_ok and blockers else None
+                execution = asyncio.create_task(asyncio.to_thread(trader.cycle, parent, feeds_ok and not blockers))
                 next_trade = clock.monotonic() + 30
             write_status(db, root, runtime, stream_enabled, engine_hash)
             try:

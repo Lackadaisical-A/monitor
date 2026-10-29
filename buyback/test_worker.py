@@ -1,6 +1,6 @@
 import gzip
 import hashlib
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 from pathlib import Path
 import tempfile
@@ -8,6 +8,67 @@ import unittest
 from unittest.mock import patch, Mock
 
 import worker as w
+from test_execution import Session
+import execution as x
+
+
+def candidate_parent(signal_day="2026-10-27", pending_day="2026-10-23"):
+    state = w.rule.new_state()
+    state["events"] = {
+        "ssd": {"Ticker": "SSD", "article_id": "ssd", "event_date": signal_day,
+                "entry_date": w.rule.next_session(date.fromisoformat(signal_day)).isoformat(),
+                "status": "signal_pending_entry_observation",
+                "feature": {"signal": True, "failure_reason": "ok", "event_close": 191.66,
+                            "buyback_pressure_days": 25, **{k: True for k in w.rule.CLAUSES}}},
+        "pending": {"Ticker": "VYLR", "event_date": pending_day,
+                    "status": "qualified_news_pending_feature",
+                    "feature": {"signal": False, "failure_reason": "security_fewer_than_61_prior"}},
+    }
+    return state
+
+
+class EntryCohortTests(unittest.TestCase):
+    def test_old_missing_history_does_not_block_new_signal_order(self):
+        parent = candidate_parent()
+        now = datetime.fromisoformat("2026-10-27T23:05:00+00:00")
+        blockers = w.entry_feature_blockers(parent, now)
+        self.assertEqual(blockers, [])
+        with tempfile.TemporaryDirectory() as root:
+            session = Session()
+            trader = x.Trader(Path(root), x.settings({"BUYBACK_TRADING_MODE": "paper",
+                             "PAPER_KEY": "test", "PAPER_SECRET": "test"}), session)
+            trader.cycle(parent, not blockers, now)
+            self.assertEqual(len(session.posts), 1)
+            self.assertEqual(next(iter(session.orders.values()))["symbol"], "SSD")
+
+    def test_same_entry_candidate_still_blocks_priority_selection(self):
+        now = datetime.fromisoformat("2026-10-27T23:05:00+00:00")
+        self.assertEqual(w.entry_feature_blockers(candidate_parent(pending_day="2026-10-27"), now), ["VYLR"])
+
+    def test_invalid_signal_blocks_entries_without_stopping_exit_loop(self):
+        parent = candidate_parent()
+        parent['events']['ssd']['entry_date'] = 'not-a-date'
+        self.assertTrue(w.entry_feature_blockers(parent, datetime.fromisoformat('2026-10-27T23:05:00+00:00')))
+
+    def test_next_days_pending_candidate_does_not_block_prior_morning_entry(self):
+        now = datetime.fromisoformat("2026-10-28T12:00:00+00:00")
+        self.assertEqual(w.entry_feature_blockers(candidate_parent(pending_day="2026-10-28"), now), [])
+
+    def test_same_entry_block_survives_weekend_until_frozen_cutoff(self):
+        parent = candidate_parent(signal_day="2026-10-23", pending_day="2026-10-23")
+        self.assertEqual(w.entry_feature_blockers(parent, datetime.fromisoformat("2026-10-26T13:26:59+00:00")), ["VYLR"])
+        self.assertEqual(w.entry_feature_blockers(parent, datetime.fromisoformat("2026-10-26T13:27:00+00:00")), [])
+
+    def test_missed_ssd_is_recorded_without_late_order(self):
+        parent = candidate_parent()
+        now = datetime.fromisoformat("2026-10-29T16:00:00+00:00")
+        with tempfile.TemporaryDirectory() as root:
+            session = Session()
+            trader = x.Trader(Path(root), x.settings({"BUYBACK_TRADING_MODE": "paper",
+                             "PAPER_KEY": "test", "PAPER_SECRET": "test"}), session)
+            trader.cycle(parent, not w.entry_feature_blockers(parent, now), now)
+            self.assertEqual(session.posts, [])
+            self.assertEqual(trader.state["events"]["ssd"]["status"], "missed_entry_window")
 
 
 class CaptureTests(unittest.TestCase):
@@ -110,6 +171,32 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(event['entry_date'], '2026-10-14')
         self.assertEqual(event['exit_date'], '2026-10-20')
         self.assertEqual(event['entry_limit'], 10.25)
+
+    def test_missing_data_retries_only_until_entry_cutoff(self):
+        w.record_article(self.db, self.article, self.received)
+        failure = {'signal': False, 'failure_reason': 'security_fewer_than_61_prior'}
+        with patch.object(w, 'fetch_pages', return_value=([{'bars': {}}], 'raw', 'digest', self.received)) as fetch, \
+             patch.object(w.rule, 'parse_feature_daily', return_value={'valid': False}), \
+             patch.object(w.rule, 'feature_decision', return_value=failure):
+            w.evaluate_events(self.db, self.root, {}, self.received.replace(hour=21))
+            event = json.loads(self.db.execute('SELECT data FROM events').fetchone()[0])
+            self.assertEqual(event['status'], 'qualified_news_pending_feature')
+            w.evaluate_events(self.db, self.root, {}, datetime.fromisoformat('2026-10-14T13:27:00+00:00'))
+            event = json.loads(self.db.execute('SELECT data FROM events').fetchone()[0])
+            self.assertEqual(event['status'], 'feature_data_unavailable')
+            self.assertEqual(event['feature']['failure_reason'], failure['failure_reason'])
+            self.assertEqual(event['feature']['raw_feature_bars_sha256'], 'digest')
+            self.assertEqual(fetch.call_count, 1)
+            w.evaluate_events(self.db, self.root, {}, self.received.replace(day=20, hour=21))
+            self.assertEqual(fetch.call_count, 1)
+
+    def test_same_day_pending_waits_for_session_close(self):
+        w.record_article(self.db, self.article, self.received)
+        with patch.object(w, 'fetch_pages') as fetch:
+            w.evaluate_events(self.db, self.root, {}, self.received.replace(hour=18))
+            fetch.assert_not_called()
+        event = json.loads(self.db.execute('SELECT data FROM events').fetchone()[0])
+        self.assertEqual(event['status'], 'qualified_news_pending_feature')
 
     def test_cloud_state_survives_reopen(self):
         w.record_article(self.db, self.article, self.received)

@@ -46,7 +46,7 @@ function renderTrading() {
   const t = snapshot.trading || {}, p = snapshot.performance || {}, mode = t.mode || snapshot.mode || "read_only";
   text("mode-badge", mode === "live" ? "LIVE · REAL MONEY" : mode === "paper" ? "PAPER · SIMULATED" : "READ ONLY");
   text("trading-title", mode === "paper" ? "Paper trading" : mode === "live" ? "Live trading" : "Execution is off");
-  text("trading-state", t.error || (mode === "read_only" ? "Paper and live support are installed. Connect dedicated credentials to start execution." : t.entriesPaused ? "New entries are paused. Existing orders and scheduled exits remain managed." : t.newEntriesAllowed ? "Watching for the next qualifying signal. Orders and fills reconcile every 30 seconds." : "Waiting for healthy data before opening new positions. Existing exits remain managed."));
+  text("trading-state", t.error || (mode === "read_only" ? "Paper and live support are installed. Connect dedicated credentials to start execution." : t.entriesPaused ? "New entries are paused. Existing orders and scheduled exits remain managed." : t.newEntriesAllowed ? "Watching for the next qualifying signal. Orders and fills reconcile every 30 seconds." : t.entryBlockReason || "Waiting for healthy data before opening new positions. Existing exits remain managed."));
   text("trading-limits", mode === "read_only" ? "Default allocation: $3,000 · One position · Whole shares · Cash only" : `${dollars(t.capitalCap)} maximum · ${dollars(t.availableCash)} available cash · One position · No leverage · ${t.otherPositions ?? 0} unrelated account positions`);
   const active = t.activeTrade;
   text("active-trade", active ? `${active.Ticker} · ${active.status.replaceAll("_", " ")} · ${active.strategy_qty || 0} filled shares · planned exit ${active.exit_date}` : "No active buyback position. Waiting for a qualifying announcement.");
@@ -82,11 +82,12 @@ function renderEvents() {
     const evidence = document.createElement("p"); evidence.textContent = e.evidence_class === "prospective_capture" ? "Observed on time" : "Late discovery · excluded"; day.append(evidence);
     const amount = document.createElement("td"); amount.textContent = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(e.authorization_dollars);
     const decision = document.createElement("td"), pill = document.createElement("span"), detail = document.createElement("p");
-    const passed = e.feature?.signal, rejected = ["feature_rejected", "headline_rejected_after_revision"].includes(e.status);
+    const passed = e.feature?.signal, unavailable = e.status === "feature_data_unavailable", rejected = ["feature_rejected", "headline_rejected_after_revision"].includes(e.status);
     pill.className = `pill ${passed ? "pass" : rejected ? "reject" : ""}`;
-    pill.textContent = passed ? "Filters passed" : rejected ? "Rejected" : "Awaiting daily bars";
+    pill.textContent = passed ? "Filters passed" : unavailable ? "Skipped: data unavailable" : rejected ? "Rejected" : "Awaiting daily bars";
     const failures = Object.entries(e.feature || {}).filter(([key, value]) => key.startsWith("clause_") && !value).map(([key]) => key.replace("clause_", "").replaceAll("_", " "));
     detail.textContent = passed ? `Entry ${e.entry_date} · limit $${Number(e.entry_limit).toFixed(2)} · exit ${e.exit_date}` : failures.join(" · ") || (e.feature?.failure_reason && e.feature.failure_reason !== "ok" ? e.feature.failure_reason.replaceAll("_", " ") : "Evaluation follows the event session close.");
+    if (unavailable) detail.textContent += " · Entry window closed before the required data was available.";
     decision.append(pill, detail); tr.append(company, day, amount, decision); tbody.append(tr);
   }
 }

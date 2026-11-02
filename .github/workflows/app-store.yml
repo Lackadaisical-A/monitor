@@ -1,6 +1,9 @@
 name: Upload iOS build
 
 on:
+  push:
+    branches:
+      - codex/flight-academy-testflight-2-0
   workflow_dispatch:
     inputs:
       build_number:
@@ -149,6 +152,22 @@ jobs:
           test -n "$IPA_PATH"
           xcrun altool --validate-app --file "$IPA_PATH" --type ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
           xcrun altool --upload-app --file "$IPA_PATH" --type ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Prepare Academy internal TestFlight build
+        env:
+          ASC_APP_ID: "6803988538"
+          ASC_APP_VERSION: "2.0"
+          ASC_BUILD_NUMBER: ${{ env.IOS_BUILD_NUMBER }}
+          ASC_TESTFLIGHT_ACTION: internal
+          ASC_TESTFLIGHT_GROUP_IDS: c11d1b5a-c0d6-4475-b182-0b6b471557c0
+          ASC_TESTFLIGHT_NOTES: >-
+            Flight Academy for iPhone: a new Flight Deck, editable curriculum skill map,
+            student passports, course plans, checkrides and logbooks. Start in the sample
+            workspace to explore 74 ability cards and 15 courses. Test NFC passport linking
+            and scanning, instructor authentication, checklist sign-off, prerequisite
+            locks, app relaunch and workspace backup/restore. This preview stores records
+            on this iPhone only; it does not sync between devices.
+        run: node scripts/testflight.mjs
 
       - name: Remove signing credentials
         if: always()

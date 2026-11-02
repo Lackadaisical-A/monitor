@@ -1,13 +1,13 @@
 import { sign } from "node:crypto";
 
 const action = process.env.ASC_TESTFLIGHT_ACTION ?? "inspect";
-if (!["inspect", "prepare", "notify"].includes(action)) throw new Error("Unknown TestFlight action");
+if (!["inspect", "prepare", "internal", "notify"].includes(action)) throw new Error("Unknown TestFlight action");
 const appId = required("ASC_APP_ID");
 const version = required("ASC_APP_VERSION");
 const buildNumber = required("ASC_BUILD_NUMBER");
 const groupIds = [...new Set((process.env.ASC_TESTFLIGHT_GROUP_IDS ?? "").split(",").map(x => x.trim()).filter(Boolean))];
 const notes = process.env.ASC_TESTFLIGHT_NOTES?.trim();
-if (action === "prepare" && (!groupIds.length || !notes || notes.length > 4000)) {
+if (["prepare", "internal"].includes(action) && (!groupIds.length || !notes || notes.length > 4000)) {
   throw new Error("Prepare requires existing group IDs and 1–4000 characters of test notes");
 }
 
@@ -31,7 +31,7 @@ if (action !== "inspect" && (build.attributes.processingState !== "VALID" || bui
   throw new Error("The selected build is not valid and unexpired");
 }
 
-if (action === "prepare") await prepare();
+if (["prepare", "internal"].includes(action)) await prepare();
 if (action === "notify") {
   const detail = (await api(`/v1/builds/${build.id}/buildBetaDetail`)).data;
   if (detail.attributes.externalBuildState !== "IN_BETA_TESTING") {
@@ -47,11 +47,12 @@ if (action === "notify") {
 await report();
 
 async function prepare() {
-  if (build.attributes.buildAudienceType === "INTERNAL_ONLY") throw new Error("Build only supports internal testing");
+  const internal = action === "internal";
+  if (!internal && build.attributes.buildAudienceType === "INTERNAL_ONLY") throw new Error("Build only supports internal testing");
   const groups = await all(`/v1/apps/${appId}/betaGroups?limit=200`);
   const selected = groupIds.map(id => groups.find(group => group.id === id));
-  if (selected.some(group => !group || group.attributes.isInternalGroup)) {
-    throw new Error("Every selected group must be an existing external group for this app");
+  if (selected.some(group => !group || group.attributes.isInternalGroup !== internal)) {
+    throw new Error(`Every selected group must be an existing ${internal ? "internal" : "external"} group for this app`);
   }
   const detail = (await api(`/v1/builds/${build.id}/buildBetaDetail`)).data;
   // Preparing review must not send notifications; release is a separate action.
@@ -80,7 +81,7 @@ async function prepare() {
     } });
   }
   const updatedDetail = (await api(`/v1/builds/${build.id}/buildBetaDetail`)).data;
-  if (updatedDetail.attributes.externalBuildState === "READY_FOR_BETA_SUBMISSION") {
+  if (!internal && updatedDetail.attributes.externalBuildState === "READY_FOR_BETA_SUBMISSION") {
     await api("/v1/betaAppReviewSubmissions", { method: "POST", body: {
       data: { type: "betaAppReviewSubmissions", relationships: { build: { data: { type: "builds", id: build.id } } } },
     } });

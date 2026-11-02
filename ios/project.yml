@@ -6,8 +6,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "2.0"
+    CURRENT_PROJECT_VERSION: "18"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: C2Y2PKW3VD
     TARGETED_DEVICE_FAMILY: "1"
@@ -17,32 +17,38 @@ targets:
     type: application
     platform: iOS
     sources:
-      - path: BiotechSignal
+      - path: BiotechSignal/Academy
+      - path: BiotechSignal/Assets.xcassets
+      - path: BiotechSignal/BiotechSignalApp.swift
+      - path: BiotechSignal/ClubCardReader.swift
+      - path: BiotechSignal/KeychainStore.swift
+      - path: BiotechSignal/PrivacyInfo.xcprivacy
     info:
       path: BiotechSignal/Info.plist
       properties:
-        CFBundleDisplayName: Catalyst Watch
+        CFBundleDisplayName: Flight Academy
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
             CFBundleURLName: com.yingcui.CatalystWatch
             CFBundleURLSchemes:
-              - catalystwatch
+              - flightacademy
         ITSAppUsesNonExemptEncryption: false
-        CatalystWatchServerURL: https://catalyst-watch.onrender.com
-        LSApplicationCategoryType: public.app-category.finance
-        NFCReaderUsageDescription: Catalyst Watch uses NFC for club check-in to associate a consented attendance profile with a member card.
+        LSApplicationCategoryType: public.app-category.education
+        NFCReaderUsageDescription: Flight Academy reads student NFC passports to open their learning record and verify instructor checkride sign-offs.
+        NSFaceIDUsageDescription: Authorize instructor checkride sign-offs and NFC passport linking.
+        UIAppFonts:
+          - B612-Regular.ttf
+          - B612-Bold.ttf
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
     entitlements:
       path: BiotechSignal/BiotechSignal.entitlements
       properties:
-        aps-environment: $(APS_ENVIRONMENT)
         com.apple.developer.nfc.readersession.formats:
           - TAG
-        com.apple.developer.usernotifications.time-sensitive: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yingcui.CatalystWatch
@@ -58,12 +64,18 @@ targets:
           PROVISIONING_PROFILE_SPECIFIER: Catalyst Watch App Store
     attributes:
       SystemCapabilities:
-        com.apple.InAppPurchase:
-          enabled: 1
-        com.apple.Push:
-          enabled: 1
         com.apple.NearFieldCommunicationTagReading:
           enabled: 1
+  AcademyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: AcademyTests
+    dependencies:
+      - target: BiotechSignal
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   BiotechSignal:
     build:
@@ -71,6 +83,9 @@ schemes:
         BiotechSignal: all
     run:
       config: Debug
-      storeKitConfiguration: CatalystWatch.storekit
+    test:
+      config: Debug
+      targets:
+        - AcademyTests
     archive:
       config: Release

@@ -1,0 +1,2494 @@
+{
+  "version": 1,
+  "source": "Flight & Aerospace Academy · Ability System v4 · draft · October 30, 2026",
+  "abilities": [
+    {
+      "id": "airspace-check",
+      "course": "UAS 201",
+      "kind": "ability",
+      "lane": "rp",
+      "mission": "Find out whether, where and how high you may fly before you take off.",
+      "name": "Airspace check",
+      "order": 480,
+      "phase": 2,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "flight-line"
+      ],
+      "skills": [
+        "Look up a location on the FAA UAS Facility Map",
+        "Explain controlled airspace and LAANC in plain words",
+        "Check for TFRs and NOTAMs",
+        "Read a METAR for wind and visibility"
+      ],
+      "status": "winter",
+      "unlocks": "Mission planning"
+    },
+    {
+      "id": "arduino",
+      "course": "ENG 100",
+      "kind": "ability",
+      "lane": "sw",
+      "mission": "Write a program that reads an input and controls an output.",
+      "name": "Arduino basics",
+      "order": 310,
+      "phase": 2,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "breadboard"
+      ],
+      "skills": [
+        "Upload and change the blink sketch",
+        "Read a button and switch an LED",
+        "Use a variable and an if statement",
+        "Fix one bug using the serial monitor"
+      ],
+      "status": "winter",
+      "unlocks": "Read a sensor"
+    },
+    {
+      "id": "arena-pass",
+      "course": "ENG 101, ENG 201",
+      "kind": "mission",
+      "lane": "proj",
+      "mission": "Show that you and your robot are safe to fight.",
+      "name": "Arena Pass",
+      "order": 730,
+      "phase": 5,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "combat-robot",
+        "lipo"
+      ],
+      "skills": [
+        "Explain the arena rules and the stop signal",
+        "Run the pre-fight inspection checklist",
+        "Prove the failsafe and weapon lock",
+        "Repair and re-inspect between matches"
+      ],
+      "status": "winter",
+      "unlocks": "The competition team: 3 lb robots (ENG 201) and outside events"
+    },
+    {
+      "id": "bench-reset",
+      "course": "",
+      "kind": "ability",
+      "lane": "ops",
+      "mission": "Leave your bench better than you found it, every class.",
+      "name": "Bench reset",
+      "order": 30,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Return every tool to its shadow board spot",
+        "Sort scraps, sweep and wipe the bench",
+        "Power down irons, chargers and printers",
+        "Report anything broken or running low"
+      ],
+      "status": "winter",
+      "unlocks": "Your own kit bin"
+    },
+    {
+      "id": "bind-radio",
+      "course": "ENG 101, UAS 101",
+      "kind": "ability",
+      "lane": "sw",
+      "mission": "Bind a transmitter to a receiver and set it up for your vehicle.",
+      "name": "Bind a radio",
+      "order": 320,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Bind with your own unique binding phrase",
+        "Create and name a model",
+        "Set channel directions and endpoints",
+        "Set and test the failsafe"
+      ],
+      "status": "winter",
+      "unlocks": "Control module"
+    },
+    {
+      "id": "breadboard",
+      "course": "ENG 100",
+      "kind": "ability",
+      "lane": "ele",
+      "mission": "Build a circuit without solder and make it work.",
+      "name": "Breadboard circuit",
+      "order": 250,
+      "phase": 2,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "meter-basics"
+      ],
+      "skills": [
+        "Read a simple schematic",
+        "Build an LED and resistor circuit",
+        "Add a switch and explain where the current flows"
+      ],
+      "status": "winter",
+      "unlocks": "Circuit debugging and Arduino basics"
+    },
+    {
+      "id": "cad-part",
+      "course": "ENG 100, UAS 100",
+      "kind": "ability",
+      "lane": "des",
+      "mission": "Turn a sketch into a part on the computer.",
+      "name": "Design a CAD part",
+      "order": 130,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Sketch the part with dimensions on paper",
+        "Model it in Tinkercad or Onshape",
+        "Add a hole that fits a real screw",
+        "Export a print-ready file"
+      ],
+      "status": "winter",
+      "unlocks": "3D print a part"
+    },
+    {
+      "id": "cg-balance",
+      "course": "UAS 100",
+      "kind": "ability",
+      "lane": "aero",
+      "mission": "Find and set the balance point so the airplane flies instead of tumbling.",
+      "name": "Center of gravity",
+      "order": 380,
+      "phase": 2,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Mark the CG on the plan",
+        "Balance the airframe on your fingertips or a stand",
+        "Move weight to correct the CG, then check again"
+      ],
+      "status": "winter",
+      "unlocks": "The first-flight checklist"
+    },
+    {
+      "id": "chassis-design",
+      "course": "ENG 101",
+      "kind": "subproject",
+      "lane": "des",
+      "mission": "Design and print a chassis that fits your motors, battery and electronics.",
+      "name": "Chassis design",
+      "order": 160,
+      "phase": 3,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "dme",
+        "measure-mark"
+      ],
+      "skills": [
+        "Lay out every part to scale in CAD",
+        "Print it and test-fit all parts",
+        "Improve it at least once using a test",
+        "Stay under the class weight limit"
+      ],
+      "status": "winter",
+      "unlocks": "Robot car and combat robot capstones"
+    },
+    {
+      "id": "checklists",
+      "course": "FLT 100, FLT 101",
+      "kind": "ability",
+      "lane": "sys",
+      "mission": "Run a Cessna 172 checklist the way real pilots do: read, do, verify.",
+      "name": "Preflight and checklists",
+      "order": 510,
+      "phase": 1,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "flight-deck"
+      ],
+      "skills": [
+        "Run the before-start checklist out loud",
+        "Explain why pilots use checklists even when they know them",
+        "Complete a preflight walkaround in the simulator"
+      ],
+      "status": "spring",
+      "unlocks": "Engine start"
+    },
+    {
+      "id": "circuit-debug",
+      "course": "ENG 100",
+      "kind": "ability",
+      "lane": "ele",
+      "mission": "Find a fault in a circuit with the meter instead of guessing.",
+      "name": "Circuit debugging",
+      "order": 260,
+      "phase": 2,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "breadboard"
+      ],
+      "skills": [
+        "Measure voltage at three points in a circuit",
+        "Find a planted fault in under 10 minutes",
+        "Explain what you found and how you fixed it"
+      ],
+      "status": "winter",
+      "unlocks": "Power module"
+    },
+    {
+      "id": "climbs-descents",
+      "course": "FLT 101",
+      "kind": "ability",
+      "lane": "air",
+      "mission": "Change altitude at a set speed and level off on target.",
+      "name": "Climbs and descents",
+      "order": 550,
+      "phase": 2,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "straight-turns"
+      ],
+      "skills": [
+        "Climb at best rate and level off within 100 ft",
+        "Descend at a set rate",
+        "Combine a climb with a turn"
+      ],
+      "status": "spring",
+      "unlocks": "Traffic pattern"
+    },
+    {
+      "id": "combat-robot",
+      "course": "ENG 101",
+      "kind": "capstone",
+      "lane": "proj",
+      "mission": "A fully built 1 lb combat robot that passes weight, safety and drive tests.",
+      "name": "Combat robot (1 lb)",
+      "order": 670,
+      "phase": 4,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "chassis-design",
+        "drive-module",
+        "power-module",
+        "control-module",
+        "test-report"
+      ],
+      "skills": [
+        "Integrate the chassis, drive, power and control modules",
+        "Make weight: 1 lb (454 g) or less",
+        "Drive a figure eight and push the test block",
+        "Pass the failsafe test"
+      ],
+      "status": "winter",
+      "unlocks": "Arena Pass"
+    },
+    {
+      "id": "control-module",
+      "course": "ENG 101, UAS 100",
+      "kind": "subproject",
+      "lane": "sw",
+      "mission": "Make your vehicle respond to the radio and stop safely when the signal is lost.",
+      "name": "Control module",
+      "order": 340,
+      "phase": 3,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "bind-radio",
+        "motor-esc"
+      ],
+      "skills": [
+        "Map the sticks to motors or servos",
+        "Tune rates so control is smooth",
+        "Prove the failsafe stops everything",
+        "Record the setup in your logbook"
+      ],
+      "status": "winter",
+      "unlocks": "Every radio-controlled capstone"
+    },
+    {
+      "id": "crew-coord",
+      "course": "FLT 101",
+      "kind": "subproject",
+      "lane": "air",
+      "mission": "Fly as a two-pilot crew: pilot flying and pilot monitoring.",
+      "name": "Crew coordination",
+      "order": 580,
+      "phase": 3,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "checklists",
+        "radio-basics"
+      ],
+      "skills": [
+        "Brief the departure as pilot flying",
+        "Make the callouts as pilot monitoring",
+        "Swap roles mid-mission with a clear handover"
+      ],
+      "status": "spring",
+      "unlocks": "Simulator checkride"
+    },
+    {
+      "id": "crimp-connect",
+      "course": "",
+      "kind": "ability",
+      "lane": "ele",
+      "mission": "Make connectors that do not fall out mid-match or mid-flight.",
+      "name": "Crimp and connect",
+      "order": 270,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "soldering"
+      ],
+      "skills": [
+        "Strip and crimp a JST or Dupont connector",
+        "Solder an XT30 or XT60 battery connector",
+        "Pull-test every connector you make"
+      ],
+      "status": "winter",
+      "unlocks": "Power module"
+    },
+    {
+      "id": "cross-country",
+      "course": "FLT 201",
+      "kind": "subproject",
+      "lane": "nav",
+      "mission": "Plan and fly a simulated cross-country flight between two airports.",
+      "name": "Cross-country flight",
+      "order": 620,
+      "phase": 3,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "sectional",
+        "weather",
+        "straight-turns"
+      ],
+      "skills": [
+        "Build a navigation log with headings and times",
+        "Fly the route using checkpoints",
+        "Divert to an alternate airport when asked"
+      ],
+      "status": "spring",
+      "unlocks": "Knowledge test prep"
+    },
+    {
+      "id": "cubesat-team",
+      "course": "",
+      "kind": "mission",
+      "lane": "proj",
+      "mission": "Join the team building the academy's student CubeSat.",
+      "name": "Mission 2030 team",
+      "order": 740,
+      "phase": 5,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "present-build"
+      ],
+      "skills": [
+        "Hold two capstones",
+        "Take a role on a subsystem team",
+        "Present progress at the semester showcase"
+      ],
+      "status": "later",
+      "unlocks": "Flight Commander, when you lead a subsystem"
+    },
+    {
+      "id": "custom-drone",
+      "course": "UAS 101",
+      "kind": "capstone",
+      "lane": "proj",
+      "mission": "A fully built drone that flies a timed mission course.",
+      "name": "Custom drone",
+      "order": 700,
+      "phase": 4,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "fc-setup",
+        "power-module",
+        "hover",
+        "test-report"
+      ],
+      "skills": [
+        "Integrate the frame, power module and flight controller",
+        "Pass the pre-arm checklist",
+        "Fly the timed mission course"
+      ],
+      "status": "winter",
+      "unlocks": "Drone competitions and Remote Pilot Certificate Prep"
+    },
+    {
+      "id": "discovery-flight",
+      "course": "FLT 101",
+      "kind": "mission",
+      "lane": "air",
+      "mission": "A first real flight with a certificated flight instructor at a partner flight school.",
+      "name": "Discovery flight",
+      "order": 590,
+      "phase": 5,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "sim-checkride"
+      ],
+      "skills": [
+        "Do the preflight with the instructor",
+        "Fly the four fundamentals in the real airplane",
+        "Write a logbook reflection and decide whether to pursue the license"
+      ],
+      "status": "spring",
+      "unlocks": "The Pilot Track decision"
+    },
+    {
+      "id": "dme",
+      "course": "UAS 100, ENG 101",
+      "kind": "ability",
+      "lane": "des",
+      "mission": "Improve a part on purpose: change one thing, test it, keep what works.",
+      "name": "Design, Make, Evaluate",
+      "order": 150,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "print-part"
+      ],
+      "skills": [
+        "Write what you want to improve and how you will measure it",
+        "Make one change at a time",
+        "Run the same test before and after",
+        "Keep or reject the change, with a reason"
+      ],
+      "status": "winter",
+      "unlocks": "Chassis and wing subprojects"
+    },
+    {
+      "id": "drive-module",
+      "course": "ENG 101",
+      "kind": "subproject",
+      "lane": "mec",
+      "mission": "Build a working drivetrain: two motors, wheels and a frame that drives straight.",
+      "name": "Drive module",
+      "order": 200,
+      "phase": 3,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "fasteners",
+        "motor-esc"
+      ],
+      "skills": [
+        "Mount motors square to the frame",
+        "Drive 3 meters straight, within 10 cm",
+        "Turn in place both ways",
+        "Fix one problem found in testing"
+      ],
+      "status": "winter",
+      "unlocks": "Robot car and combat robot capstones"
+    },
+    {
+      "id": "emergencies",
+      "course": "FLT 201",
+      "kind": "subproject",
+      "lane": "sys",
+      "mission": "Handle an engine failure and other emergencies with memory items and checklists.",
+      "name": "Emergency procedures",
+      "order": 530,
+      "phase": 3,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "checklists",
+        "straight-turns"
+      ],
+      "skills": [
+        "Fly best glide speed and pick a landing spot",
+        "Run the engine-failure memory items",
+        "Handle an electrical failure",
+        "Declare an emergency on the radio"
+      ],
+      "status": "spring",
+      "unlocks": "Simulator checkride"
+    },
+    {
+      "id": "fasteners",
+      "course": "",
+      "kind": "ability",
+      "lane": "mec",
+      "mission": "Join parts so they stay together under vibration and still come apart for repair.",
+      "name": "Fasteners and linkages",
+      "order": 190,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "hand-tool"
+      ],
+      "skills": [
+        "Choose screw, nut and washer sizes",
+        "Use threadlocker where it belongs",
+        "Build a pushrod linkage with no slop"
+      ],
+      "status": "winter",
+      "unlocks": "The fastener drawers"
+    },
+    {
+      "id": "fc-setup",
+      "course": "UAS 101",
+      "kind": "subproject",
+      "lane": "sw",
+      "mission": "Configure a drone flight controller so it arms, flies and stops safely.",
+      "name": "Flight controller setup",
+      "order": 360,
+      "phase": 3,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "bind-radio",
+        "motor-esc"
+      ],
+      "skills": [
+        "Flash and configure the flight controller",
+        "Set motor order and direction",
+        "Set the arming switch and failsafe",
+        "Pass the pre-arm checklist with propellers off"
+      ],
+      "status": "winter",
+      "unlocks": "Custom drone capstone"
+    },
+    {
+      "id": "field-day",
+      "course": "UAS 200",
+      "kind": "mission",
+      "lane": "rp",
+      "mission": "Fly the airplane you built at a model aviation field, with the club's safety rules.",
+      "name": "Field flight day",
+      "order": 490,
+      "phase": 5,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "rc-airplane",
+        "rc-sim"
+      ],
+      "skills": [
+        "Complete the field's preflight checklist",
+        "Fly 3 circuits and land on the runway",
+        "Log the flight and any repairs"
+      ],
+      "status": "spring",
+      "unlocks": "RC Aerial Combat (UAS 300)"
+    },
+    {
+      "id": "flight-deck",
+      "course": "FLT 100, FLT 101",
+      "kind": "clearance",
+      "lane": "ops",
+      "mission": "Use the simulators and VR headsets safely and leave the Flight Deck ready for the next crew.",
+      "name": "Flight Deck clearance",
+      "order": 20,
+      "phase": 1,
+      "programs": [
+        "flight"
+      ],
+      "requires": [],
+      "skills": [
+        "Start up and shut down a simulator station",
+        "Fit and clean a VR headset, and know when to stop",
+        "Follow Flight Deck rules for food, cables and seats",
+        "Report a fault in the station log"
+      ],
+      "status": "spring",
+      "unlocks": "The simulators"
+    },
+    {
+      "id": "flight-line",
+      "course": "UAS 100, UAS 101",
+      "kind": "clearance",
+      "lane": "rp",
+      "mission": "Fly RC aircraft and drones safely, indoors and at the field.",
+      "name": "Flight Line clearance",
+      "order": 450,
+      "phase": 1,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Explain the propellers-off rule on the bench",
+        "Call clear and arm only on the flight line",
+        "Know where spectators stand and why",
+        "Land at once when the instructor calls it"
+      ],
+      "status": "winter",
+      "unlocks": "Flying drones and RC aircraft"
+    },
+    {
+      "id": "foam-build",
+      "course": "UAS 100",
+      "kind": "ability",
+      "lane": "aero",
+      "mission": "Cut and glue foam board into clean, strong airframe parts.",
+      "name": "Foam cut and glue",
+      "order": 370,
+      "phase": 2,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "hand-tool"
+      ],
+      "skills": [
+        "Cut a straight line and a bevel with a foam knife",
+        "Score, fold and glue a hinge",
+        "Reinforce a joint with tape or a spar"
+      ],
+      "status": "winter",
+      "unlocks": "Wing and tail subprojects"
+    },
+    {
+      "id": "gripper-module",
+      "course": "ENG 202",
+      "kind": "subproject",
+      "lane": "mec",
+      "mission": "Build a gripper that picks up and releases a test object on command.",
+      "name": "Gripper module",
+      "order": 210,
+      "phase": 3,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "fasteners",
+        "arduino"
+      ],
+      "skills": [
+        "Mount a servo with no slip",
+        "Pick up the test object 5 times out of 5",
+        "Release it on a marked spot"
+      ],
+      "status": "spring",
+      "unlocks": "Robotic arm capstone"
+    },
+    {
+      "id": "hand-tool",
+      "course": "Every engineering and aerospace course",
+      "kind": "clearance",
+      "lane": "mec",
+      "mission": "Use the hand tool wall safely: cutters, drivers, foam knives and hot glue.",
+      "name": "Hand Tool clearance",
+      "order": 170,
+      "phase": 1,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Cut away from your body with a foam knife",
+        "Use hot glue without burns and know the cool-down rule",
+        "Pick the right driver and bit, then put them back",
+        "Carry and pass tools safely"
+      ],
+      "status": "winter",
+      "unlocks": "The hand tool wall"
+    },
+    {
+      "id": "hover",
+      "course": "UAS 101",
+      "kind": "ability",
+      "lane": "rp",
+      "mission": "Hold a drone steady and fly it facing any direction.",
+      "name": "Hover and orientation",
+      "order": 470,
+      "phase": 2,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "flight-line"
+      ],
+      "skills": [
+        "Hover inside a box for 30 seconds",
+        "Fly a square with the nose forward",
+        "Fly with the nose pointing toward you"
+      ],
+      "status": "winter",
+      "unlocks": "Custom drone capstone"
+    },
+    {
+      "id": "instructor-cadet",
+      "course": "FLT 201",
+      "kind": "mission",
+      "lane": "ops",
+      "mission": "Assist in an FLT 101 class as an Instructor Cadet.",
+      "name": "Instructor Cadet",
+      "order": 70,
+      "phase": 5,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "sim-checkride"
+      ],
+      "skills": [
+        "Brief a maneuver to a newer student",
+        "Watch a flight and give one clear correction",
+        "Help run the debrief"
+      ],
+      "status": "spring",
+      "unlocks": "The path to Junior Instructor (depends on age and New Jersey working papers)"
+    },
+    {
+      "id": "instruments",
+      "course": "FLT 100, FLT 101",
+      "kind": "ability",
+      "lane": "sys",
+      "mission": "Read the six main flight instruments and know what each one tells you.",
+      "name": "Cockpit instruments",
+      "order": 520,
+      "phase": 1,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "flight-deck"
+      ],
+      "skills": [
+        "Name the six instruments and what they show",
+        "Read altitude, airspeed and heading in flight",
+        "Spot a failed instrument by cross-checking"
+      ],
+      "status": "spring",
+      "unlocks": "Straight-and-level and turns"
+    },
+    {
+      "id": "lipo",
+      "course": "ENG 101, UAS 101",
+      "kind": "clearance",
+      "lane": "ele",
+      "mission": "Charge, store and handle lithium batteries without risk of fire.",
+      "name": "LiPo clearance",
+      "order": 240,
+      "phase": 1,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "meter-basics"
+      ],
+      "skills": [
+        "Check a battery for puffing or damage",
+        "Charge only in a safe bag on the right setting",
+        "Store at storage voltage in the metal box",
+        "Explain what to do if a battery smokes"
+      ],
+      "status": "winter",
+      "unlocks": "The charging station"
+    },
+    {
+      "id": "logbook",
+      "course": "Every course",
+      "kind": "ability",
+      "lane": "doc",
+      "mission": "Record what you did, what went wrong and what you will try next, the way pilots and engineers do.",
+      "name": "Logbook entry",
+      "order": 80,
+      "phase": 1,
+      "programs": [
+        "flight",
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [],
+      "skills": [
+        "Write a dated entry: goal, what you did, result",
+        "Note one problem and how you solved it",
+        "Add a photo or sketch"
+      ],
+      "status": "winter",
+      "unlocks": "Your logbook and portfolio page"
+    },
+    {
+      "id": "measure-mark",
+      "course": "",
+      "kind": "ability",
+      "lane": "mec",
+      "mission": "Measure to the millimeter so parts fit the first time.",
+      "name": "Measure and mark",
+      "order": 180,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "hand-tool"
+      ],
+      "skills": [
+        "Read digital calipers in millimeters",
+        "Mark and cut a part to a drawing within 1 mm",
+        "Check a printed part against its CAD size"
+      ],
+      "status": "winter",
+      "unlocks": "The calipers drawer"
+    },
+    {
+      "id": "meter-basics",
+      "course": "",
+      "kind": "ability",
+      "lane": "ele",
+      "mission": "Use a multimeter to check voltage and continuity before you trust a battery or a wire.",
+      "name": "Meter basics",
+      "order": 220,
+      "phase": 1,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Set the meter to DC volts and read a battery",
+        "Check a wire or switch for continuity",
+        "Explain why you never measure current on the volts setting"
+      ],
+      "status": "winter",
+      "unlocks": "LiPo clearance"
+    },
+    {
+      "id": "model-rocket",
+      "course": "UAS 202",
+      "kind": "capstone",
+      "lane": "proj",
+      "mission": "A fully built model rocket that launches straight and comes back under its parachute.",
+      "name": "Model rocket",
+      "order": 710,
+      "phase": 4,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "nose-fins",
+        "recovery",
+        "test-report"
+      ],
+      "skills": [
+        "Integrate the body, nose cone, fins and recovery system",
+        "Pass the stability and preflight check",
+        "Launch, recover and inspect it",
+        "Write the flight up as a test report"
+      ],
+      "status": "spring",
+      "unlocks": "Mission 2030 payload work"
+    },
+    {
+      "id": "motor-esc",
+      "course": "ENG 101, UAS 100",
+      "kind": "ability",
+      "lane": "ele",
+      "mission": "Connect a motor and speed controller and control it safely.",
+      "name": "Wire a motor and ESC",
+      "order": 280,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "soldering",
+        "lipo"
+      ],
+      "skills": [
+        "Solder the motor wires and insulate them",
+        "Connect ESC, receiver and battery in the right order",
+        "Set direction and calibrate the throttle",
+        "Test with propellers or wheels off"
+      ],
+      "status": "winter",
+      "unlocks": "Drive module and power pod"
+    },
+    {
+      "id": "nose-fins",
+      "course": "UAS 202",
+      "kind": "subproject",
+      "lane": "rkt",
+      "mission": "Design and print a nose cone and fin set, then attach them true.",
+      "name": "Nose cone and fins",
+      "order": 430,
+      "phase": 3,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "print-part",
+        "rocket-safety"
+      ],
+      "skills": [
+        "Model a nose cone and fin can in CAD",
+        "Print and test-fit them on the body tube",
+        "Check stability: center of pressure behind center of gravity"
+      ],
+      "status": "spring",
+      "unlocks": "Model rocket capstone"
+    },
+    {
+      "id": "part107-prep",
+      "course": "UAS 201",
+      "kind": "mission",
+      "lane": "rp",
+      "mission": "Prepare for the FAA Part 107 knowledge test.",
+      "name": "Remote pilot exam prep",
+      "order": 500,
+      "phase": 5,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "airspace-check"
+      ],
+      "skills": [
+        "Score 80% or better on 3 practice tests",
+        "Plan a full mission from a client request",
+        "Explain airspace, weather and the rules in a mock oral"
+      ],
+      "status": "winter",
+      "unlocks": "Readiness to sit the Part 107 knowledge test (from age 14; certificate from 16)"
+    },
+    {
+      "id": "pattern-calls",
+      "course": "FLT 100, FLT 101",
+      "kind": "subproject",
+      "lane": "atc",
+      "mission": "Fly the traffic pattern and make every radio call on time.",
+      "name": "Traffic pattern and radio calls",
+      "order": 650,
+      "phase": 3,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "radio-basics",
+        "climbs-descents"
+      ],
+      "skills": [
+        "Enter the pattern at 45 degrees to the downwind",
+        "Make a position call on each leg",
+        "Hold pattern altitude and spacing"
+      ],
+      "status": "spring",
+      "unlocks": "Simulator checkride"
+    },
+    {
+      "id": "peer-coach",
+      "course": "",
+      "kind": "mission",
+      "lane": "ops",
+      "mission": "Help a newer student through an ability you already hold, without doing it for them. A learning role inside class, not a job.",
+      "name": "Peer coach",
+      "order": 60,
+      "phase": 5,
+      "programs": [
+        "flight",
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "present-build"
+      ],
+      "skills": [
+        "Coach one student through an ability you hold",
+        "Ask questions instead of taking the tools",
+        "Tell the instructor when they are ready for the checkride"
+      ],
+      "status": "later",
+      "unlocks": "Counts toward Flight Commander"
+    },
+    {
+      "id": "photo-video",
+      "course": "",
+      "kind": "ability",
+      "lane": "doc",
+      "mission": "Show your work so someone who was not there understands it.",
+      "name": "Photo and video a build",
+      "order": 90,
+      "phase": 2,
+      "programs": [
+        "flight",
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "logbook"
+      ],
+      "skills": [
+        "Shoot 3 clear photos: overview, detail, in action",
+        "Record a 30-second clip explaining one part",
+        "Follow the media rules: no faces without permission"
+      ],
+      "status": "winter",
+      "unlocks": "Content for your portfolio"
+    },
+    {
+      "id": "portfolio",
+      "course": "",
+      "kind": "mission",
+      "lane": "doc",
+      "mission": "Publish a page that shows colleges, mentors and employers what you built.",
+      "name": "Portfolio page",
+      "order": 120,
+      "phase": 5,
+      "programs": [
+        "flight",
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "present-build"
+      ],
+      "skills": [
+        "Pick your 3 best projects",
+        "Write a short story for each: problem, build, result",
+        "Add photos, video and test data"
+      ],
+      "status": "later",
+      "unlocks": "Counts toward Commander"
+    },
+    {
+      "id": "power-module",
+      "course": "ENG 101, UAS 101",
+      "kind": "subproject",
+      "lane": "ele",
+      "mission": "Build a power system a capstone can trust: battery, switch, fuse and wiring.",
+      "name": "Power module",
+      "order": 290,
+      "phase": 3,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "crimp-connect",
+        "lipo"
+      ],
+      "skills": [
+        "Choose the wire gauge for the current",
+        "Build a harness with a switch and fuse",
+        "Measure voltage under load",
+        "Pass a tug test and a visual inspection"
+      ],
+      "status": "winter",
+      "unlocks": "Every capstone"
+    },
+    {
+      "id": "power-pod",
+      "course": "UAS 100",
+      "kind": "subproject",
+      "lane": "ele",
+      "mission": "Mount a motor, ESC and propeller, then measure the thrust.",
+      "name": "Power pod and thrust test",
+      "order": 300,
+      "phase": 3,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "motor-esc"
+      ],
+      "skills": [
+        "Mount the motor square on the firewall",
+        "Balance and fit the propeller",
+        "Measure thrust on the test stand",
+        "Pick the propeller that gives the thrust you need"
+      ],
+      "status": "winter",
+      "unlocks": "RC airplane capstone"
+    },
+    {
+      "id": "present-build",
+      "course": "",
+      "kind": "ability",
+      "lane": "doc",
+      "mission": "Explain your project to the group at the debrief, then take questions.",
+      "name": "Present your build",
+      "order": 110,
+      "phase": 4,
+      "programs": [
+        "flight",
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "test-report"
+      ],
+      "skills": [
+        "Explain the problem, your design and one trade-off",
+        "Show what failed and how you fixed it",
+        "Answer two questions from the group"
+      ],
+      "status": "winter",
+      "unlocks": "Required for Mission Specialist and Pilot"
+    },
+    {
+      "id": "print-part",
+      "course": "ENG 100, UAS 100",
+      "kind": "ability",
+      "lane": "des",
+      "mission": "Print your own part and check that it fits.",
+      "name": "3D print a part",
+      "order": 140,
+      "phase": 2,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "cad-part"
+      ],
+      "skills": [
+        "Slice with the class settings",
+        "Watch the first layer and stop a bad start",
+        "Remove supports and clean the part",
+        "Test the fit and note what to change"
+      ],
+      "status": "winter",
+      "unlocks": "The printer queue"
+    },
+    {
+      "id": "print-queue",
+      "course": "",
+      "kind": "ability",
+      "lane": "ops",
+      "mission": "Keep the printers moving for the whole class.",
+      "name": "Run the print queue",
+      "order": 40,
+      "phase": 3,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "print-part",
+        "bench-reset"
+      ],
+      "skills": [
+        "Check a file is printable before it joins the queue",
+        "Load filament and start a print",
+        "Clear a failed print and log why it failed",
+        "Hand finished parts back, labeled"
+      ],
+      "status": "winter",
+      "unlocks": "Starting prints without an instructor"
+    },
+    {
+      "id": "radio-basics",
+      "course": "FLT 100, FLT 101",
+      "kind": "ability",
+      "lane": "atc",
+      "mission": "Talk like a pilot: phonetic alphabet, numbers and the parts of a radio call.",
+      "name": "Radio basics",
+      "order": 640,
+      "phase": 1,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "flight-deck"
+      ],
+      "skills": [
+        "Say a callsign and numbers the aviation way",
+        "Make a call: who you are calling, who you are, where, what you want",
+        "Read back an instruction"
+      ],
+      "status": "spring",
+      "unlocks": "Traffic pattern and radio calls"
+    },
+    {
+      "id": "rc-airplane",
+      "course": "UAS 100, UAS 200",
+      "kind": "capstone",
+      "lane": "proj",
+      "mission": "A fully built RC airplane that passes inspection and flies a circuit.",
+      "name": "RC airplane",
+      "order": 690,
+      "phase": 4,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "wing-panel",
+        "tail-surfaces",
+        "power-pod",
+        "control-module",
+        "cg-balance",
+        "test-report"
+      ],
+      "skills": [
+        "Integrate the wing, tail, power pod and control module",
+        "Pass the preflight inspection and range check",
+        "Fly a takeoff, circuit and landing, with an instructor on the buddy box if needed"
+      ],
+      "status": "winter",
+      "unlocks": "Field flight day and RC Aerial Combat"
+    },
+    {
+      "id": "rc-sim",
+      "course": "UAS 100",
+      "kind": "ability",
+      "lane": "rp",
+      "mission": "Learn stick skills on the RC simulator before you risk your airplane.",
+      "name": "RC simulator flying",
+      "order": 460,
+      "phase": 2,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "flight-line"
+      ],
+      "skills": [
+        "Take off, fly a circuit and land on the simulator",
+        "Recover from an upset",
+        "Fly the circuit in both directions"
+      ],
+      "status": "winter",
+      "unlocks": "Your first real RC flight"
+    },
+    {
+      "id": "read-sensor",
+      "course": "ENG 100",
+      "kind": "ability",
+      "lane": "sw",
+      "mission": "Get real numbers from a sensor and use them in code.",
+      "name": "Read a sensor",
+      "order": 330,
+      "phase": 2,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "arduino"
+      ],
+      "skills": [
+        "Wire a distance or line sensor",
+        "Print readings to the serial monitor",
+        "Trigger an action at a set value"
+      ],
+      "status": "winter",
+      "unlocks": "Sensor module"
+    },
+    {
+      "id": "recovery",
+      "course": "UAS 202",
+      "kind": "subproject",
+      "lane": "rkt",
+      "mission": "Pack a parachute that opens every time.",
+      "name": "Recovery system",
+      "order": 440,
+      "phase": 3,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "rocket-safety"
+      ],
+      "skills": [
+        "Size a parachute for the rocket's weight",
+        "Pack it with wadding and a shock cord",
+        "Pass a drop test"
+      ],
+      "status": "spring",
+      "unlocks": "Model rocket capstone"
+    },
+    {
+      "id": "robot-car",
+      "course": "ENG 100",
+      "kind": "capstone",
+      "lane": "proj",
+      "mission": "A fully built robot car that drives a course on radio control and finishes one section on its own.",
+      "name": "Robot car",
+      "order": 660,
+      "phase": 4,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "chassis-design",
+        "drive-module",
+        "power-module",
+        "control-module",
+        "sensor-module",
+        "test-report"
+      ],
+      "skills": [
+        "Integrate the chassis, drive, power, control and sensor modules",
+        "Complete the course on radio control",
+        "Complete one section on its own using the sensor",
+        "Pass the instructor inspection"
+      ],
+      "status": "winter",
+      "unlocks": "Capstone credit toward Mission Specialist"
+    },
+    {
+      "id": "robotic-arm",
+      "course": "ENG 202",
+      "kind": "capstone",
+      "lane": "proj",
+      "mission": "A robotic arm that finds, picks and sorts objects on its own.",
+      "name": "Robotic arm",
+      "order": 680,
+      "phase": 4,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "gripper-module",
+        "sensor-module",
+        "power-module",
+        "test-report"
+      ],
+      "skills": [
+        "Integrate the gripper, sensor and power modules",
+        "Pick and place 5 objects in a row",
+        "Sort objects by color or size on its own"
+      ],
+      "status": "spring",
+      "unlocks": "The Robotic Arm & AI Vision showcase"
+    },
+    {
+      "id": "rocket-safety",
+      "course": "UAS 202",
+      "kind": "clearance",
+      "lane": "rkt",
+      "mission": "Know the model rocket safety code and run a launch countdown.",
+      "name": "Rocket range clearance",
+      "order": 420,
+      "phase": 1,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Explain the NAR Model Rocket Safety Code in your own words",
+        "Run the countdown as range safety officer",
+        "Handle motors only the way the instructor shows"
+      ],
+      "status": "spring",
+      "unlocks": "Launch days"
+    },
+    {
+      "id": "sectional",
+      "course": "FLT 101",
+      "kind": "ability",
+      "lane": "nav",
+      "mission": "Find your way on an aeronautical chart.",
+      "name": "Read a sectional chart",
+      "order": 600,
+      "phase": 2,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "flight-deck"
+      ],
+      "skills": [
+        "Find an airport and read its information",
+        "Name the airspace around Jersey City",
+        "Measure a course and a distance"
+      ],
+      "status": "spring",
+      "unlocks": "Cross-country flight"
+    },
+    {
+      "id": "sensor-module",
+      "course": "ENG 100",
+      "kind": "subproject",
+      "lane": "sw",
+      "mission": "Build a sensing system your robot can act on.",
+      "name": "Sensor module",
+      "order": 350,
+      "phase": 3,
+      "programs": [
+        "robotics"
+      ],
+      "requires": [
+        "read-sensor"
+      ],
+      "skills": [
+        "Mount the sensor where it reads reliably",
+        "Filter noisy readings",
+        "Make the robot react on its own"
+      ],
+      "status": "winter",
+      "unlocks": "Robot car and robotic arm capstones"
+    },
+    {
+      "id": "shop-safety",
+      "course": "Every engineering and aerospace course",
+      "kind": "clearance",
+      "lane": "ops",
+      "mission": "Know the shop rules, the tools that can hurt you and what to do when something goes wrong.",
+      "name": "Shop Safety clearance",
+      "order": 10,
+      "phase": 1,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [],
+      "skills": [
+        "Walk the shop and name the hazard at each station",
+        "Wear and fit safety glasses correctly",
+        "Show where the first aid kit, fire extinguisher and exits are",
+        "Explain stop-work: when and how to call it"
+      ],
+      "status": "winter",
+      "unlocks": "The Engineering Lab and every bench ability"
+    },
+    {
+      "id": "sim-checkride",
+      "course": "FLT 101",
+      "kind": "capstone",
+      "lane": "proj",
+      "mission": "A scored checkride in the simulator: one full flight from preflight to shutdown. Skill-building only, not logged as FAA flight time.",
+      "name": "Simulator checkride",
+      "order": 720,
+      "phase": 4,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "pattern-calls",
+        "takeoff-landing",
+        "emergencies",
+        "crew-coord",
+        "cross-country"
+      ],
+      "skills": [
+        "Preflight, taxi and take off to standard",
+        "Fly the pattern and land",
+        "Handle one emergency the examiner gives you",
+        "Debrief your own performance"
+      ],
+      "status": "spring",
+      "unlocks": "Pilot rank, with the debrief presentation"
+    },
+    {
+      "id": "sim-ops",
+      "course": "FLT 101",
+      "kind": "ability",
+      "lane": "ops",
+      "mission": "Set up a full simulator mission for a two-pilot crew.",
+      "name": "Simulator room setup",
+      "order": 50,
+      "phase": 3,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "flight-deck",
+        "checklists"
+      ],
+      "skills": [
+        "Load an airport, aircraft and weather",
+        "Reset a station between crews",
+        "Run the preflight briefing for a crew"
+      ],
+      "status": "spring",
+      "unlocks": "Assisting in FLT 100 sessions"
+    },
+    {
+      "id": "soldering",
+      "course": "ENG 100, UAS 101",
+      "kind": "clearance",
+      "lane": "ele",
+      "mission": "Use the soldering iron safely and make a joint that holds.",
+      "name": "Soldering clearance",
+      "order": 230,
+      "phase": 1,
+      "programs": [
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "shop-safety"
+      ],
+      "skills": [
+        "Set up the iron, fume extractor and glasses",
+        "Tin a wire and join two wires",
+        "Make a shiny, cone-shaped joint and inspect it",
+        "Shut down and park the iron safely"
+      ],
+      "status": "winter",
+      "unlocks": "The soldering stations"
+    },
+    {
+      "id": "straight-turns",
+      "course": "FLT 100, FLT 101",
+      "kind": "ability",
+      "lane": "air",
+      "mission": "Hold altitude and heading, then turn precisely.",
+      "name": "Straight-and-level and turns",
+      "order": 540,
+      "phase": 2,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "instruments"
+      ],
+      "skills": [
+        "Hold altitude within 100 ft and heading within 10 degrees",
+        "Make 30-degree bank turns to a heading",
+        "Use trim to fly hands-off"
+      ],
+      "status": "spring",
+      "unlocks": "Climbs and descents"
+    },
+    {
+      "id": "tail-surfaces",
+      "course": "UAS 100",
+      "kind": "subproject",
+      "lane": "aero",
+      "mission": "Build the tail and connect every control surface with no slop.",
+      "name": "Tail and control surfaces",
+      "order": 400,
+      "phase": 3,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "foam-build",
+        "fasteners"
+      ],
+      "skills": [
+        "Build the tail and align it square to the wing",
+        "Install servos and linkages",
+        "Set control throws to the plan"
+      ],
+      "status": "winter",
+      "unlocks": "RC airplane capstone"
+    },
+    {
+      "id": "takeoff-landing",
+      "course": "FLT 101, FLT 201",
+      "kind": "subproject",
+      "lane": "air",
+      "mission": "Take off and land on the centerline in normal conditions.",
+      "name": "Takeoff and landing",
+      "order": 570,
+      "phase": 3,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "climbs-descents",
+        "taxi"
+      ],
+      "skills": [
+        "Rotate at the right speed and climb at best rate",
+        "Fly a stabilized approach",
+        "Touch down in the landing zone on the centerline",
+        "Go around when the approach is not stable"
+      ],
+      "status": "spring",
+      "unlocks": "Simulator checkride"
+    },
+    {
+      "id": "taxi",
+      "course": "FLT 101",
+      "kind": "ability",
+      "lane": "air",
+      "mission": "Move around the airport without a runway incursion.",
+      "name": "Taxi and runway safety",
+      "order": 560,
+      "phase": 2,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "checklists"
+      ],
+      "skills": [
+        "Read an airport diagram",
+        "Taxi on the centerline at walking speed",
+        "Stop at hold-short lines and read back clearances"
+      ],
+      "status": "spring",
+      "unlocks": "Takeoff and landing"
+    },
+    {
+      "id": "test-report",
+      "course": "",
+      "kind": "ability",
+      "lane": "doc",
+      "mission": "Turn a test into data: what you changed, what you measured, what you learned.",
+      "name": "Test report",
+      "order": 100,
+      "phase": 3,
+      "programs": [
+        "flight",
+        "aerospace",
+        "robotics"
+      ],
+      "requires": [
+        "logbook"
+      ],
+      "skills": [
+        "State what you are testing and why",
+        "Record at least 3 measured trials",
+        "Write one conclusion and the next change"
+      ],
+      "status": "winter",
+      "unlocks": "Required before any capstone"
+    },
+    {
+      "id": "weather",
+      "course": "FLT 101",
+      "kind": "ability",
+      "lane": "nav",
+      "mission": "Decode a METAR and TAF and make a go or no-go decision.",
+      "name": "Weather briefing",
+      "order": 610,
+      "phase": 2,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "flight-deck"
+      ],
+      "skills": [
+        "Decode a METAR for wind, visibility and ceiling",
+        "Read a TAF for the next 6 hours",
+        "Make and explain a go or no-go call"
+      ],
+      "status": "spring",
+      "unlocks": "Cross-country flight"
+    },
+    {
+      "id": "wind-tunnel",
+      "course": "UAS 200",
+      "kind": "subproject",
+      "lane": "aero",
+      "mission": "Measure lift and drag on your own wing in the academy wind tunnel.",
+      "name": "Wind tunnel test",
+      "order": 410,
+      "phase": 3,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "wing-panel",
+        "test-report"
+      ],
+      "skills": [
+        "Mount a wing safely in the tunnel",
+        "Record readings at 3 angles",
+        "Plot the results and explain them"
+      ],
+      "status": "later",
+      "unlocks": "Design work in Aerospace Engineering II"
+    },
+    {
+      "id": "wing-panel",
+      "course": "UAS 100",
+      "kind": "subproject",
+      "lane": "aero",
+      "mission": "Build a wing that is straight, strong and the right shape.",
+      "name": "Wing build",
+      "order": 390,
+      "phase": 3,
+      "programs": [
+        "aerospace"
+      ],
+      "requires": [
+        "foam-build",
+        "dme"
+      ],
+      "skills": [
+        "Build to the plan with no twist",
+        "Add a spar and load-test it",
+        "Compare two versions with a glide test or the wind tunnel"
+      ],
+      "status": "winter",
+      "unlocks": "RC airplane capstone"
+    },
+    {
+      "id": "written-prep",
+      "course": "FLT 201, FLT 301",
+      "kind": "mission",
+      "lane": "nav",
+      "mission": "Prepare for the FAA private pilot knowledge test.",
+      "name": "Knowledge test prep",
+      "order": 630,
+      "phase": 5,
+      "programs": [
+        "flight"
+      ],
+      "requires": [
+        "cross-country"
+      ],
+      "skills": [
+        "Finish the online ground school sections",
+        "Score 80% or better on 3 practice tests",
+        "Review weak areas with an instructor"
+      ],
+      "status": "spring",
+      "unlocks": "Readiness to take the knowledge test (from age 15)"
+    }
+  ],
+  "courses": [
+    {
+      "id": "eng-100",
+      "ages": "7 to 12",
+      "build": "A robot car that drives a course and finishes one section on its own",
+      "capstones": [
+        "robot-car"
+      ],
+      "code": "ENG 100",
+      "instructor": "",
+      "level": 100,
+      "name": "Intro to Robotics & Coding",
+      "notes": "Most students reach the robot car capstone in their second semester. Abilities carry over, nothing resets.",
+      "order": 210,
+      "prereq": "None",
+      "status": "winter",
+      "summary": "Build robots and code them, from blocks to Python, to complete missions.",
+      "track": "robotics",
+      "weeks": [
+        {
+          "abilities": [
+            "shop-safety",
+            "logbook"
+          ],
+          "plan": "Shop Safety clearance, safety glasses, the stop-work rule. Watch an LED circuit come alive. First logbook entry.",
+          "title": "Shop safety and first circuit"
+        },
+        {
+          "abilities": [
+            "meter-basics",
+            "breadboard"
+          ],
+          "plan": "Meter basics: volts and continuity. Build an LED, resistor and switch circuit on a breadboard.",
+          "title": "Breadboards and the meter"
+        },
+        {
+          "abilities": [
+            "arduino"
+          ],
+          "plan": "Upload and change the blink sketch, read a button, use a variable and an if statement.",
+          "title": "First code"
+        },
+        {
+          "abilities": [
+            "read-sensor",
+            "circuit-debug"
+          ],
+          "plan": "Wire a distance sensor and print readings. Find a planted fault in a circuit with the meter.",
+          "title": "Sensors and debugging"
+        },
+        {
+          "abilities": [
+            "hand-tool",
+            "cad-part"
+          ],
+          "plan": "Hand Tool clearance. Sketch a part with dimensions and model it in Tinkercad.",
+          "title": "Tools and CAD"
+        },
+        {
+          "abilities": [
+            "print-part",
+            "measure-mark"
+          ],
+          "plan": "Slice and print the part, then check it with calipers against the CAD size.",
+          "title": "Print and fit"
+        },
+        {
+          "abilities": [
+            "chassis-design",
+            "dme"
+          ],
+          "plan": "Lay out motors, battery and board to scale, print, test-fit and improve once.",
+          "title": "Design the chassis"
+        },
+        {
+          "abilities": [
+            "drive-module",
+            "sensor-module"
+          ],
+          "plan": "Mount the drive module on the chassis, then the sensor module that lets the car react on its own.",
+          "title": "Drive and sense"
+        },
+        {
+          "abilities": [
+            "robot-car",
+            "test-report"
+          ],
+          "plan": "Power and control modules on, course practice on radio control and one autonomous section. Test report.",
+          "title": "Integrate the robot car"
+        },
+        {
+          "abilities": [
+            "robot-car",
+            "present-build"
+          ],
+          "plan": "Run the course for the instructor inspection. Present the build at the March 20 showcase.",
+          "title": "Course run and showcase"
+        }
+      ]
+    },
+    {
+      "id": "eng-101",
+      "ages": "11 to 15",
+      "build": "Their own 1 lb combat robot and an Arena Pass",
+      "capstones": [
+        "combat-robot",
+        "arena-pass"
+      ],
+      "code": "ENG 101",
+      "instructor": "",
+      "level": 100,
+      "name": "Combat Robotics I",
+      "notes": "",
+      "order": 220,
+      "prereq": "None",
+      "status": "winter",
+      "summary": "Design, wire and build your own 1 lb robot, then battle it in competitions.",
+      "track": "robotics",
+      "weeks": [
+        {
+          "abilities": [
+            "shop-safety",
+            "hand-tool",
+            "logbook"
+          ],
+          "plan": "Shop Safety and Hand Tool clearances. What makes a combat robot win. First logbook entry.",
+          "title": "Shop safety and tools"
+        },
+        {
+          "abilities": [
+            "meter-basics",
+            "lipo"
+          ],
+          "plan": "Meter basics, then the LiPo clearance: check, charge, store, and the smoke procedure.",
+          "title": "Batteries and the meter"
+        },
+        {
+          "abilities": [
+            "soldering"
+          ],
+          "plan": "Soldering clearance: set up, tin, join, inspect, park the iron.",
+          "title": "Soldering"
+        },
+        {
+          "abilities": [
+            "crimp-connect",
+            "motor-esc"
+          ],
+          "plan": "Crimp and solder connectors with a pull test. Wire a motor and ESC and calibrate the throttle.",
+          "title": "Connectors and motors"
+        },
+        {
+          "abilities": [
+            "bind-radio",
+            "fasteners"
+          ],
+          "plan": "Bind with a unique phrase, set and test the failsafe. Fastener sizes and threadlocker.",
+          "title": "Radio and fasteners"
+        },
+        {
+          "abilities": [
+            "cad-part",
+            "print-part",
+            "measure-mark"
+          ],
+          "plan": "Model a robot part, print it, check the fit with calipers.",
+          "title": "CAD and print"
+        },
+        {
+          "abilities": [
+            "chassis-design",
+            "dme"
+          ],
+          "plan": "Chassis to scale in CAD, print, test-fit everything, improve it once and stay under weight.",
+          "title": "Design the chassis"
+        },
+        {
+          "abilities": [
+            "drive-module",
+            "power-module",
+            "control-module"
+          ],
+          "plan": "Build and test the three modules: drive straight 3 m, power harness under load, failsafe stops everything.",
+          "title": "Drive, power and control"
+        },
+        {
+          "abilities": [
+            "combat-robot",
+            "test-report"
+          ],
+          "plan": "Make weight at 1 lb (454 g) or less, figure eight and push test, failsafe test. Write the test report.",
+          "title": "Integrate the robot"
+        },
+        {
+          "abilities": [
+            "arena-pass",
+            "present-build"
+          ],
+          "plan": "Pre-fight inspection, arena rules and the stop signal, then the tournament at the March 20 showcase.",
+          "title": "Arena Pass and tournament"
+        }
+      ]
+    },
+    {
+      "id": "eng-201",
+      "ages": "12 and up",
+      "build": "A 3 lb competition robot",
+      "capstones": [
+        "arena-pass"
+      ],
+      "code": "ENG 201",
+      "instructor": "",
+      "level": 200,
+      "name": "Combat Robotics II",
+      "notes": "",
+      "order": 230,
+      "prereq": "ENG 101",
+      "status": "winter",
+      "summary": "Engineer a tougher 3 lb robot built to compete in outside competitions.",
+      "track": "robotics",
+      "weeks": []
+    },
+    {
+      "id": "eng-202",
+      "ages": "12 and up",
+      "build": "A robotic arm that sorts objects on its own",
+      "capstones": [
+        "robotic-arm"
+      ],
+      "code": "ENG 202",
+      "instructor": "",
+      "level": 200,
+      "name": "Robotic Arm & AI Vision",
+      "notes": "",
+      "order": 240,
+      "prereq": "ENG 101",
+      "status": "spring",
+      "summary": "Program an arm that sees, grabs and sorts objects on its own.",
+      "track": "robotics",
+      "weeks": []
+    },
+    {
+      "id": "eng-301",
+      "ages": "12 and up",
+      "build": "A team-built 12 or 30 lb robot and competition results",
+      "capstones": [],
+      "code": "ENG 301",
+      "instructor": "",
+      "level": 300,
+      "name": "Advanced Combat Robotics",
+      "notes": "",
+      "order": 250,
+      "prereq": "ENG 201",
+      "status": "winter",
+      "summary": "Lead a team that builds and competes with 12 and 30 lb robots.",
+      "track": "robotics",
+      "weeks": []
+    },
+    {
+      "id": "flt-100",
+      "ages": "7 to 13",
+      "build": "Simulator missions flown as a crew, logged in the student's logbook",
+      "capstones": [],
+      "code": "FLT 100",
+      "instructor": "",
+      "level": 100,
+      "name": "Intro to Aviation",
+      "notes": "",
+      "order": 10,
+      "prereq": "None",
+      "status": "winter",
+      "summary": "Fly real-world missions in our simulator across different aircraft and scenarios, learning navigation, weather and teamwork.",
+      "track": "flight",
+      "weeks": []
+    },
+    {
+      "id": "flt-101",
+      "ages": "14 and up",
+      "build": "A scored simulator checkride, then a discovery flight with a partner flight school",
+      "capstones": [
+        "sim-checkride",
+        "discovery-flight"
+      ],
+      "code": "FLT 101",
+      "instructor": "",
+      "level": 100,
+      "name": "Intro to Flight Training",
+      "notes": "Simulator time is skill-building only and is not logged as FAA flight time.",
+      "order": 20,
+      "prereq": "None",
+      "status": "winter",
+      "summary": "Train like a student pilot: maneuvers, checklists and radio calls from the Private Pilot syllabus.",
+      "track": "flight",
+      "weeks": [
+        {
+          "abilities": [
+            "flight-deck",
+            "checklists",
+            "logbook"
+          ],
+          "plan": "Flight Deck clearance, simulator start-up and shutdown. Read, do, verify: the before-start checklist out loud. First logbook entry.",
+          "title": "Flight Deck and checklists"
+        },
+        {
+          "abilities": [
+            "instruments",
+            "straight-turns"
+          ],
+          "plan": "The six main instruments. Hold altitude and heading, then 30-degree bank turns to a heading. Introduce trim.",
+          "title": "Instruments and straight-and-level"
+        },
+        {
+          "abilities": [
+            "climbs-descents",
+            "radio-basics"
+          ],
+          "plan": "Climb at best rate and level off on target. Phonetic alphabet and the four parts of a radio call.",
+          "title": "Climbs, descents and the radio"
+        },
+        {
+          "abilities": [
+            "taxi",
+            "sectional"
+          ],
+          "plan": "Airport diagram, taxi on the centerline, hold-short lines. Find airports and airspace on the sectional chart.",
+          "title": "On the ground and on the chart"
+        },
+        {
+          "abilities": [
+            "weather",
+            "crew-coord"
+          ],
+          "plan": "Decode a METAR and TAF and make a go or no-go call. Fly as pilot flying and pilot monitoring with callouts.",
+          "title": "Weather and crew roles"
+        },
+        {
+          "abilities": [
+            "pattern-calls"
+          ],
+          "plan": "Enter at 45 degrees to the downwind, position calls on every leg, hold pattern altitude and spacing.",
+          "title": "The traffic pattern"
+        },
+        {
+          "abilities": [
+            "takeoff-landing"
+          ],
+          "plan": "Rotate, climb at best rate, stabilized approach, touchdown on the centerline, go around when unstable.",
+          "title": "Takeoffs and landings"
+        },
+        {
+          "abilities": [
+            "emergencies"
+          ],
+          "plan": "Engine failure memory items, best glide, electrical failure, declaring an emergency on the radio.",
+          "title": "Emergencies"
+        },
+        {
+          "abilities": [
+            "cross-country",
+            "sim-checkride"
+          ],
+          "plan": "Short simulated cross-country with checkpoints. Mock checkride in crews; each student lists their weak areas.",
+          "title": "Cross-country preview and checkride practice"
+        },
+        {
+          "abilities": [
+            "sim-checkride",
+            "present-build",
+            "discovery-flight"
+          ],
+          "plan": "Scored simulator checkride, then each student presents their flight at the debrief. Schedule discovery flights.",
+          "title": "Checkride and debrief"
+        }
+      ]
+    },
+    {
+      "id": "flt-201",
+      "ages": "14 and up",
+      "build": "Cross-country flight plans and practice tests toward the knowledge test",
+      "capstones": [
+        "written-prep"
+      ],
+      "code": "FLT 201",
+      "instructor": "",
+      "level": 200,
+      "name": "Private Pilot Prep I",
+      "notes": "",
+      "order": 30,
+      "prereq": "FLT 101",
+      "status": "winter",
+      "summary": "Ground school and simulator training to prepare for the FAA Private Pilot written test.",
+      "track": "flight",
+      "weeks": []
+    },
+    {
+      "id": "flt-301",
+      "ages": "15 and up",
+      "build": "Real flight lessons with a certificated flight instructor, billed by the partner flight school",
+      "capstones": [],
+      "code": "FLT 301",
+      "instructor": "",
+      "level": 300,
+      "name": "Private Pilot Prep II",
+      "notes": "",
+      "order": 40,
+      "prereq": "A 200 course",
+      "status": "winter",
+      "summary": "Fly with a partner flight school and prepare for the Private Pilot checkride.",
+      "track": "flight",
+      "weeks": []
+    },
+    {
+      "id": "uas-100",
+      "ages": "8 and up",
+      "build": "Their own RC airplane, inspected and flown",
+      "capstones": [
+        "rc-airplane"
+      ],
+      "code": "UAS 100",
+      "instructor": "",
+      "level": 100,
+      "name": "Intro to Aerospace Engineering",
+      "notes": "Younger students do the soldering steps with an instructor's hands on the iron until they hold the Soldering clearance.",
+      "order": 110,
+      "prereq": "None",
+      "status": "winter",
+      "summary": "Build and fly your own RC airplane, and learn the physics that keep it in the air.",
+      "track": "aerospace",
+      "weeks": [
+        {
+          "abilities": [
+            "shop-safety",
+            "hand-tool",
+            "logbook"
+          ],
+          "plan": "Shop Safety and Hand Tool clearances. Concept of the week: lift, weight, thrust and drag. First logbook entry.",
+          "title": "Shop safety and why airplanes fly"
+        },
+        {
+          "abilities": [
+            "foam-build",
+            "flight-line"
+          ],
+          "plan": "Cut, score and glue foam board. Flight Line clearance: propellers-off rule, where spectators stand.",
+          "title": "Foam and the flight line"
+        },
+        {
+          "abilities": [
+            "cg-balance",
+            "rc-sim"
+          ],
+          "plan": "Find and set the center of gravity on a trainer. First circuits on the RC simulator.",
+          "title": "Balance and stick time"
+        },
+        {
+          "abilities": [
+            "wing-panel",
+            "dme"
+          ],
+          "plan": "Wing to the plan with no twist, add the spar. Design, Make, Evaluate: compare two versions with a glide test.",
+          "title": "Build the wing"
+        },
+        {
+          "abilities": [
+            "tail-surfaces",
+            "fasteners"
+          ],
+          "plan": "Build and align the tail. Install servos and pushrods with no slop. Set throws to the plan.",
+          "title": "Tail and control surfaces"
+        },
+        {
+          "abilities": [
+            "meter-basics",
+            "lipo",
+            "soldering"
+          ],
+          "plan": "Meter basics, then the LiPo clearance: check, charge, store. Soldering clearance for students ready for it.",
+          "title": "Batteries and the meter"
+        },
+        {
+          "abilities": [
+            "motor-esc",
+            "power-pod"
+          ],
+          "plan": "Wire the motor and ESC, mount it on the firewall, measure thrust and pick the propeller.",
+          "title": "Power pod"
+        },
+        {
+          "abilities": [
+            "bind-radio",
+            "control-module"
+          ],
+          "plan": "Bind with a unique binding phrase, set directions, endpoints and failsafe, then the control module test.",
+          "title": "Radio and control"
+        },
+        {
+          "abilities": [
+            "rc-airplane",
+            "test-report"
+          ],
+          "plan": "Put the airplane together, balance it, range check and preflight inspection. Write the test report.",
+          "title": "Integration and inspection"
+        },
+        {
+          "abilities": [
+            "rc-airplane",
+            "present-build"
+          ],
+          "plan": "First flights with an instructor on the buddy box. Present the build at the March 20 showcase.",
+          "title": "First flights and showcase"
+        }
+      ]
+    },
+    {
+      "id": "uas-101",
+      "ages": "11 and up",
+      "build": "Their own custom drone, flown through a timed mission course",
+      "capstones": [
+        "custom-drone"
+      ],
+      "code": "UAS 101",
+      "instructor": "",
+      "level": 100,
+      "name": "Drone Dynamics",
+      "notes": "",
+      "order": 120,
+      "prereq": "None",
+      "status": "winter",
+      "summary": "Build, program and fly your own drone through timed missions.",
+      "track": "aerospace",
+      "weeks": [
+        {
+          "abilities": [
+            "shop-safety",
+            "flight-line",
+            "logbook"
+          ],
+          "plan": "Shop Safety and Flight Line clearances. Hover a trainer drone inside a box. First logbook entry.",
+          "title": "Safety and first hover"
+        },
+        {
+          "abilities": [
+            "hover",
+            "airspace-check"
+          ],
+          "plan": "Fly squares nose-forward and nose-in. Look up our location on the FAA UAS Facility Map.",
+          "title": "Orientation and airspace"
+        },
+        {
+          "abilities": [
+            "meter-basics",
+            "lipo"
+          ],
+          "plan": "Meter basics, then the LiPo clearance: check, charge, store, and what to do if a battery smokes.",
+          "title": "Batteries"
+        },
+        {
+          "abilities": [
+            "soldering",
+            "crimp-connect"
+          ],
+          "plan": "Soldering clearance, then crimp and solder battery and signal connectors with a pull test.",
+          "title": "Solder and connect"
+        },
+        {
+          "abilities": [
+            "motor-esc"
+          ],
+          "plan": "Wire, insulate and test motors with propellers off. Set direction.",
+          "title": "Motors and ESCs"
+        },
+        {
+          "abilities": [
+            "power-module"
+          ],
+          "plan": "Build the harness with switch and fuse, measure voltage under load, pass inspection.",
+          "title": "Power module"
+        },
+        {
+          "abilities": [
+            "bind-radio",
+            "fc-setup"
+          ],
+          "plan": "Bind the radio, flash and configure the flight controller, set motor order and arming switch.",
+          "title": "Radio and flight controller"
+        },
+        {
+          "abilities": [
+            "fc-setup",
+            "hover"
+          ],
+          "plan": "Pre-arm checklist with propellers off, then first hover of the custom frame.",
+          "title": "First flight of your own drone"
+        },
+        {
+          "abilities": [
+            "custom-drone",
+            "test-report"
+          ],
+          "plan": "Full build integration and timed course practice. Write the test report.",
+          "title": "Mission practice"
+        },
+        {
+          "abilities": [
+            "custom-drone",
+            "present-build"
+          ],
+          "plan": "Fly the timed mission course for score. Present the build at the March 20 showcase.",
+          "title": "Timed mission and showcase"
+        }
+      ]
+    },
+    {
+      "id": "uas-200",
+      "ages": "10 and up",
+      "build": "An aircraft of their own design, tested and flown",
+      "capstones": [
+        "rc-airplane"
+      ],
+      "code": "UAS 200",
+      "instructor": "",
+      "level": 200,
+      "name": "Aerospace Engineering II",
+      "notes": "",
+      "order": 130,
+      "prereq": "UAS 100",
+      "status": "winter",
+      "summary": "Design your own aircraft, test it in a flight simulator, then build and fly it.",
+      "track": "aerospace",
+      "weeks": []
+    },
+    {
+      "id": "uas-201",
+      "ages": "13 and up",
+      "build": "Planned client missions and practice tests toward the Part 107 knowledge test (test from 14, certificate from 16)",
+      "capstones": [
+        "part107-prep"
+      ],
+      "code": "UAS 201",
+      "instructor": "",
+      "level": 200,
+      "name": "Remote Pilot Certificate Prep",
+      "notes": "",
+      "order": 140,
+      "prereq": "None",
+      "status": "winter",
+      "summary": "Master airspace, weather and FAA rules to prepare for the Part 107 exam.",
+      "track": "aerospace",
+      "weeks": []
+    },
+    {
+      "id": "uas-202",
+      "ages": "12 and up",
+      "build": "Their own model rocket, launched and recovered",
+      "capstones": [
+        "model-rocket"
+      ],
+      "code": "UAS 202",
+      "instructor": "",
+      "level": 200,
+      "name": "Rocketry I",
+      "notes": "",
+      "order": 150,
+      "prereq": "None",
+      "status": "spring",
+      "summary": "Design, build and launch model rockets, and learn what keeps them stable.",
+      "track": "aerospace",
+      "weeks": []
+    },
+    {
+      "id": "uas-300",
+      "ages": "10 and up",
+      "build": "A combat aircraft and tournament results",
+      "capstones": [],
+      "code": "UAS 300",
+      "instructor": "",
+      "level": 300,
+      "name": "RC Aerial Combat",
+      "notes": "",
+      "order": 160,
+      "prereq": "A 200 course",
+      "status": "spring",
+      "summary": "Engineer a combat plane or drone and battle other pilots in tournaments.",
+      "track": "aerospace",
+      "weeks": []
+    }
+  ]
+}

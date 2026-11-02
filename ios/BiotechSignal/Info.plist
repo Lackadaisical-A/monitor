@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Catalyst Watch</string>
+	<string>Flight Academy</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,20 +27,25 @@
 			<string>com.yingcui.CatalystWatch</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>catalystwatch</string>
+				<string>flightacademy</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>CatalystWatchServerURL</key>
-	<string>https://catalyst-watch.onrender.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.finance</string>
+	<string>public.app-category.education</string>
 	<key>NFCReaderUsageDescription</key>
-	<string>Catalyst Watch uses NFC for club check-in to associate a consented attendance profile with a member card.</string>
+	<string>Flight Academy reads student NFC passports to open their learning record and verify instructor checkride sign-offs.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Authorize instructor checkride sign-offs and NFC passport linking.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>B612-Regular.ttf</string>
+		<string>B612-Bold.ttf</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

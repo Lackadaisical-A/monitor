@@ -18,7 +18,7 @@ enum ClubCardReaderError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailable: "NFC card reading is unavailable on this iPhone."
-        case .unauthorizedBuild: "NFC is not authorized for this app build. Install the latest Catalyst Watch build from TestFlight and try again."
+        case .unauthorizedBuild: "NFC is not authorized for this app build. Install the latest Flight Academy build from TestFlight and try again."
         case .busy: "An NFC scan is already active."
         case .cancelled: nil
         case .unsupported: "This card does not expose a supported NFC identifier."
@@ -58,7 +58,7 @@ final class ClubCardReader: NSObject, NFCTagReaderSessionDelegate {
             lock.lock()
             self.session = session
             lock.unlock()
-            session.alertMessage = "Hold the top of this iPhone near the member's card."
+            session.alertMessage = "Hold the top of this iPhone near the student’s Academy passport."
             session.begin()
         }
     }

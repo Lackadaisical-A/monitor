@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
@@ -9,7 +9,8 @@ import { z } from "zod";
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const opaque = () => randomBytes(32).toString("base64url");
 const fail = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
-const staffSchema = z.record(z.string().email(), z.enum(["admin", "instructor"]));
+const staffSchema = z.record(z.string().min(1).max(150).regex(/^[a-z0-9@._+-]+$/), z.enum(["admin", "instructor"]));
+export const accessCodeDigest = (account: string, code: string) => hash(`academy-code-v1:${account}:${code.trim().replace(/[\s-]/g, "").toUpperCase()}`);
 const record = z.object({ id: z.string().min(1).max(100) }).passthrough();
 const rows = z.array(record).max(20_000);
 // Swift's complete local backup is the wire format. All arrays are bounded and
@@ -30,8 +31,8 @@ export const SnapshotSchema = z.object({
   }
 });
 export type AcademySnapshot = z.infer<typeof SnapshotSchema>;
-export type AcademyConfig = { path: string; origin: string; clientID: string; clientSecret: string; key: string; staff: Record<string, "admin" | "instructor"> };
-type Session = { email: string; expires: number };
+export type AcademyConfig = { path: string; origin: string; clientID?: string | undefined; clientSecret?: string | undefined; key: string; staff: Record<string, "admin" | "instructor">; codes?: Record<string, string> };
+type Session = { email: string; expires: number; credential?: string | null };
 type Version = { revision: number; payload: string };
 
 export class AcademyDatabase {
@@ -46,7 +47,11 @@ export class AcademyDatabase {
     this.db.exec(`CREATE TABLE IF NOT EXISTS academy_versions (revision INTEGER PRIMARY KEY, payload TEXT NOT NULL, actor TEXT NOT NULL, changed_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS academy_operations (id TEXT PRIMARY KEY, digest TEXT NOT NULL, revision INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS academy_sessions (token TEXT PRIMARY KEY, email TEXT NOT NULL, expires INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS academy_nfc (digest TEXT PRIMARY KEY, student TEXT UNIQUE NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS academy_nfc (digest TEXT PRIMARY KEY, student TEXT UNIQUE NOT NULL);
+      CREATE TABLE IF NOT EXISTS academy_staff_cards (id TEXT PRIMARY KEY, digest TEXT UNIQUE NOT NULL, account TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS academy_auth_audit (id INTEGER PRIMARY KEY, account TEXT NOT NULL, action TEXT NOT NULL, at INTEGER NOT NULL);`);
+    const columns = this.db.pragma("table_info(academy_sessions)") as { name: string }[];
+    if (!columns.some(x => x.name === "credential")) this.db.exec("ALTER TABLE academy_sessions ADD COLUMN credential TEXT");
   }
   seal(value: unknown) {
     const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", this.key, iv);
@@ -75,21 +80,24 @@ export class AcademyDatabase {
       return { revision };
     })();
   }
-  session(email: string) {
+  session(email: string, credential: string | null = null) {
     const token = opaque(), expires = Date.now() + 7 * 86400_000;
     this.db.prepare("DELETE FROM academy_sessions WHERE expires < ?").run(Date.now());
-    this.db.prepare("INSERT INTO academy_sessions VALUES (?, ?, ?)").run(hash(token), email, expires);
+    this.db.prepare("INSERT INTO academy_sessions (token, email, expires, credential) VALUES (?, ?, ?, ?)").run(hash(token), email, expires, credential);
     return { token, email, expires };
   }
   lookup(token: string): Session | undefined {
-    return this.db.prepare("SELECT email, expires FROM academy_sessions WHERE token = ? AND expires > ?").get(hash(token), Date.now()) as Session | undefined;
+    return this.db.prepare("SELECT email, expires, credential FROM academy_sessions WHERE token = ? AND expires > ?").get(hash(token), Date.now()) as Session | undefined;
   }
+  audit(account: string, action: string) { this.db.prepare("INSERT INTO academy_auth_audit (account, action, at) VALUES (?, ?, ?)").run(account, action, Date.now()); }
   tag(technology: string, identifier: string) { return createHmac("sha256", this.key).update(`academy-nfc-v1:${technology.toLowerCase()}:${identifier.toLowerCase()}`).digest("hex"); }
 }
 
 export async function registerAcademy(app: FastifyInstance, config: AcademyConfig) {
   const db = new AcademyDatabase(config.path, config.key);
   const staff = staffSchema.parse(config.staff);
+  const codes = z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)).parse(config.codes ?? {});
+  const googleEnabled = Boolean(config.clientID && config.clientSecret);
   const origin = new URL(config.origin);
   if (origin.protocol !== "https:" || origin.pathname !== "/") throw new Error("Academy origin must be an HTTPS origin");
   const redirectURI = `${origin.origin}/api/academy/v1/auth/callback`;
@@ -100,26 +108,90 @@ export async function registerAcademy(app: FastifyInstance, config: AcademyConfi
     const token = req.headers.authorization?.replace(/^Bearer /, "") ?? "";
     const session = db.lookup(token);
     if (!session || !staff[session.email]) throw fail(401, "Sign in with an approved instructor account");
+    if (session.credential?.startsWith("card:") && !db.db.prepare("SELECT id FROM academy_staff_cards WHERE id = ? AND account = ? AND active = 1").get(session.credential.slice(5), session.email)) throw fail(401, "This instructor card has been revoked. Sign in with your access code.");
+    if (session.credential?.startsWith("code:") && session.credential.slice(5) !== codes[session.email]) throw fail(401, "Your access code changed. Sign in again.");
     return { ...session, role: staff[session.email]! };
   };
   app.addHook("onClose", async () => { db.db.close(); });
+  app.get(`${prefix}/health`, async () => { db.db.prepare("SELECT 1").get(); return { ok: true, service: "flight-academy", storage: "persistent", accessCodes: Object.keys(codes).length > 0, google: googleEnabled }; });
+  // Bound attempts even when the module is mounted without a global rate limiter.
+  const attempts = new Map<string, { count: number; until: number }>();
+  const throttle = (req: FastifyRequest) => {
+    for (const [key, value] of attempts) if (value.until < Date.now()) attempts.delete(key);
+    const current = attempts.get(req.ip) ?? { count: 0, until: Date.now() + 60_000 };
+    if (current.count >= 30 || attempts.size > 5000) throw fail(429, "Too many sign-in attempts. Wait one minute and try again.");
+    current.count++; attempts.set(req.ip, current);
+  };
+  app.post(`${prefix}/auth/code`, async (req, reply) => {
+    throttle(req); reply.header("Cache-Control", "no-store");
+    const body = z.object({ account: z.string().trim().toLowerCase().min(1).max(150), code: z.string().min(1).max(128) }).parse(req.body);
+    const expected = codes[body.account] ?? "0".repeat(64);
+    const valid = timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(accessCodeDigest(body.account, body.code), "hex"));
+    if (!valid || !codes[body.account] || !staff[body.account]) throw fail(401, "Instructor ID or access code is incorrect.");
+    db.audit(body.account, "code-sign-in");
+    return { ...db.session(body.account, `code:${expected}`), role: staff[body.account] };
+  });
+  app.post(`${prefix}/auth/card`, async (req, reply) => {
+    throttle(req); reply.header("Cache-Control", "no-store");
+    const { token } = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).parse(req.body);
+    const card = db.db.prepare("SELECT id, account FROM academy_staff_cards WHERE digest = ? AND active = 1").get(hash(token)) as { id: string; account: string } | undefined;
+    if (!card || !staff[card.account]) throw fail(401, "This instructor card is not active. Sign in with your access code.");
+    db.audit(card.account, "card-sign-in");
+    return { ...db.session(card.account, `card:${card.id}`), role: staff[card.account] };
+  });
+  app.get(`${prefix}/auth/cards`, async req => {
+    const actor = authorize(req);
+    return { cards: db.db.prepare(`SELECT id, account, created_at AS createdAt FROM academy_staff_cards WHERE active = 1 ${actor.role === "admin" ? "" : "AND account = ?"}`).all(...(actor.role === "admin" ? [] : [actor.email])) };
+  });
+  app.post(`${prefix}/auth/cards`, async (req, reply) => {
+    const actor = authorize(req); reply.header("Cache-Control", "no-store");
+    // Enrollment requires a code/Google session, so a found card cannot create another card.
+    if (actor.credential?.startsWith("card:")) throw fail(403, "Sign in with your access code before linking a new instructor card.");
+    const id = randomUUID(), token = opaque();
+    db.db.prepare("DELETE FROM academy_staff_cards WHERE active = 0 AND created_at < ?").run(Date.now() - 600_000);
+    db.db.prepare("DELETE FROM academy_staff_cards WHERE active = 0 AND account = ?").run(actor.email);
+    db.db.prepare("INSERT INTO academy_staff_cards VALUES (?, ?, ?, 0, ?)").run(id, hash(token), actor.email, Date.now());
+    return { id, token };
+  });
+  app.post(`${prefix}/auth/cards/:id/activate`, async req => {
+    const actor = authorize(req), { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    if (actor.credential?.startsWith("card:")) throw fail(403, "Use your access code to link an instructor card.");
+    db.db.transaction(() => {
+      if (!db.db.prepare("SELECT id FROM academy_staff_cards WHERE id = ? AND account = ? AND active = 0 AND created_at > ?").get(id, actor.email, Date.now() - 600_000)) throw fail(409, "Card setup expired. Start again.");
+      db.db.prepare("UPDATE academy_staff_cards SET active = 0 WHERE account = ?").run(actor.email);
+      db.db.prepare("UPDATE academy_staff_cards SET active = 1 WHERE id = ?").run(id);
+      db.audit(actor.email, "card-activated");
+    })();
+    return { ok: true };
+  });
+  app.delete(`${prefix}/auth/cards/:id`, async req => {
+    const actor = authorize(req), { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const card = db.db.prepare("SELECT account FROM academy_staff_cards WHERE id = ?").get(id) as { account: string } | undefined;
+    if (!card || (actor.role !== "admin" && card.account !== actor.email)) throw fail(404, "Instructor card was not found.");
+    db.db.prepare("UPDATE academy_staff_cards SET active = 0 WHERE id = ?").run(id);
+    db.db.prepare("DELETE FROM academy_sessions WHERE credential = ?").run(`card:${id}`);
+    db.audit(actor.email, `card-revoked:${id}`);
+    return { ok: true };
+  });
   app.get(`${prefix}/auth/start`, async (req, reply) => {
+    if (!googleEnabled) throw fail(503, "Use instructor access code or NFC sign-in in Flight Academy build 20 or newer.");
     const { challenge } = z.object({ challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).parse(req.query);
     for (const [key, value] of pending) if (value.expiry < Date.now()) pending.delete(key);
     if (pending.size > 500) throw fail(429, "Try signing in again shortly");
     const state = opaque(), nonce = opaque();
     pending.set(state, { challenge, nonce, expiry: Date.now() + 300_000 });
-    const params = new URLSearchParams({ client_id: config.clientID, redirect_uri: redirectURI, response_type: "code", scope: "openid email", state, nonce, prompt: "select_account" });
+    const params = new URLSearchParams({ client_id: config.clientID!, redirect_uri: redirectURI, response_type: "code", scope: "openid email", state, nonce, prompt: "select_account" });
     return reply.header("Cache-Control", "no-store").redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
   });
   app.get(`${prefix}/auth/callback`, async (req, reply) => {
+    if (!googleEnabled) throw fail(503, "Google sign-in is not configured.");
     const { state, code } = z.object({ state: z.string(), code: z.string() }).parse(req.query);
     const flow = pending.get(state);
     if (!flow || flow.expiry < Date.now() || flow.email) throw fail(401, "Sign-in expired; start again");
-    const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: config.clientID, client_secret: config.clientSecret, redirect_uri: redirectURI, grant_type: "authorization_code" }), signal: AbortSignal.timeout(15_000) });
+    const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: config.clientID!, client_secret: config.clientSecret!, redirect_uri: redirectURI, grant_type: "authorization_code" }), signal: AbortSignal.timeout(15_000) });
     if (!response.ok) throw fail(401, "Google sign-in was not accepted");
     const tokens = z.object({ id_token: z.string() }).parse(await response.json());
-    const { payload } = await jwtVerify(tokens.id_token, googleKeys, { issuer: ["https://accounts.google.com", "accounts.google.com"], audience: config.clientID });
+    const { payload } = await jwtVerify(tokens.id_token, googleKeys, { issuer: ["https://accounts.google.com", "accounts.google.com"], audience: config.clientID! });
     const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
     if (payload.nonce !== flow.nonce || payload.email_verified !== true || !staff[email]) { pending.delete(state); throw fail(403, "This Google account is not an approved academy instructor"); }
     flow.email = email;
@@ -162,6 +234,6 @@ export async function registerAcademy(app: FastifyInstance, config: AcademyConfi
 
 export async function registerAcademyFromEnvironment(app: FastifyInstance, env = process.env) {
   if (!env.ACADEMY_ORIGIN) return; // Explicitly disconnected until deployment is configured.
-  if (!env.ACADEMY_GOOGLE_CLIENT_ID || !env.ACADEMY_GOOGLE_CLIENT_SECRET || !env.ACADEMY_DATA_KEY || !env.ACADEMY_STAFF_JSON || !env.ACADEMY_DATABASE_PATH) throw new Error("Academy shared workspace configuration is incomplete");
-  await registerAcademy(app, { path: env.ACADEMY_DATABASE_PATH, origin: env.ACADEMY_ORIGIN, clientID: env.ACADEMY_GOOGLE_CLIENT_ID, clientSecret: env.ACADEMY_GOOGLE_CLIENT_SECRET, key: env.ACADEMY_DATA_KEY, staff: JSON.parse(env.ACADEMY_STAFF_JSON) });
+  if (!env.ACADEMY_DATA_KEY || !env.ACADEMY_STAFF_JSON || !env.ACADEMY_DATABASE_PATH || (!env.ACADEMY_ACCESS_CODES_JSON && !(env.ACADEMY_GOOGLE_CLIENT_ID && env.ACADEMY_GOOGLE_CLIENT_SECRET))) throw new Error("Academy shared workspace configuration is incomplete");
+  await registerAcademy(app, { path: env.ACADEMY_DATABASE_PATH, origin: env.ACADEMY_ORIGIN, clientID: env.ACADEMY_GOOGLE_CLIENT_ID, clientSecret: env.ACADEMY_GOOGLE_CLIENT_SECRET, key: env.ACADEMY_DATA_KEY, staff: JSON.parse(env.ACADEMY_STAFF_JSON), codes: JSON.parse(env.ACADEMY_ACCESS_CODES_JSON ?? "{}") });
 }

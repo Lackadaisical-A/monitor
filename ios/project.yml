@@ -7,7 +7,7 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     MARKETING_VERSION: "2.1"
-    CURRENT_PROJECT_VERSION: "19"
+    CURRENT_PROJECT_VERSION: "20"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: C2Y2PKW3VD
     TARGETED_DEVICE_FAMILY: "1"
@@ -36,7 +36,7 @@ targets:
               - flightacademy
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.education
-        NFCReaderUsageDescription: Flight Academy reads student NFC passports to open their learning record and verify instructor checkride sign-offs.
+        NFCReaderUsageDescription: Flight Academy reads student passports and reads or writes instructor NFC cards for secure shared-workspace sign-in.
         NSFaceIDUsageDescription: Authorize instructor checkride sign-offs and NFC passport linking.
         UIAppFonts:
           - B612-Regular.ttf

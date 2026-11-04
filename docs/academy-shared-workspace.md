@@ -2,9 +2,62 @@
 
 The iPhone app works offline without Airtable or Google API credentials. Real student
 names are supplied through a private roster file, never through the app bundle.
-Shared sync is disconnected until the following server configuration is completed.
+Shared sync is provided by the configured Render service; individual instructor codes avoid Google Cloud setup.
 
-## Google sign-in
+## Render and instructor access
+
+The Academy uses the existing Render web service at
+`https://catalyst-watch.onrender.com`, with a **separate SQLite database** at
+`/app/data/academy/academy.db` on its existing persistent disk. This is not a new
+managed Postgres subscription. Existing legacy databases and service settings are
+preserved. The service stays at one instance because SQLite uses a local disk.
+
+Build 20 adds private instructor access codes and instructor NFC sign-in. Google
+Cloud and Airtable credentials are not required for this path. The initial roster
+contains 52 students, seven instructors, 23 dated class groups, the November rota,
+and two BattleBots teams. It is sent privately to the authenticated service, never
+committed to Git or packaged in the public app.
+
+1. Install build 20 or newer. Open **Workspace → Shared workspace**.
+2. If you are exploring the demo, choose **Open academy workspace**.
+3. Enter your individual instructor ID and private access code. The academy server
+   is prefilled. Sign-in syncs the roster and records to your phone.
+4. Sign in on a second phone and verify the shared records. Later offline edits
+   sync while the app is open and connected; conflicting edits require review.
+
+The local owner-only `Flight-Academy-Instructor-Access.txt` handoff contains the
+individual codes. Give each instructor only their own entry; do not distribute the
+master list. George is the initial administrator; the other six listed instructors
+have instructor permissions. Codes contain 128 random bits; the server stores only
+account-bound SHA-256 digests. Rotate a code by generating a new random code and
+updating its digest in `ACADEMY_ACCESS_CODES_JSON`; sessions issued using the old
+code then fail authorization. Remove a staff ID from `ACADEMY_STAFF_JSON` to revoke
+all its code, card, and session access. Deploy the environment change to apply it.
+The deployment encryption key is backed up separately in the owner's private
+`.secrets/academy-render-config.json`; do not replace it during code rotation.
+
+### Instructor NFC cards
+
+Sign in using your access code, then choose **Link my instructor card**. Authorize
+with Face ID, Touch ID, or your device passcode, and hold a blank, writable,
+NDEF-compatible tag near the top of your iPhone. The app checks that the tag is
+empty, writes a random 256-bit token, reads it back, and activates it on the server.
+A successful replacement revokes the previous card. Failed setup leaves the old
+card active. A pending setup expires after ten minutes.
+
+On another phone, choose **Tap instructor card** and hold the card near its top.
+This uses the iPhone's built-in reader while the scan sheet is open; no USB reader
+or background tap is assumed. Sign-in requires an internet connection. Ordinary
+student passports and public tag identifiers cannot authenticate an instructor.
+
+Treat an instructor card like a key: NDEF tokens can be copied by someone who reads
+the card. The token is revocable, not a cryptographic smart-card challenge. In
+**Instructor cards**, instructors can revoke their own card and the administrator
+can revoke any instructor's card. Revocation also invalidates sessions created
+with that card. A card session cannot enroll another card; use an access code.
+Physical card reading/writing still needs validation with your actual iPhone/tags.
+
+## Optional Google sign-in
 
 1. In Google Cloud Console, create or select an academy-owned project. Configure the
    Google Auth Platform consent screen with the academy name and support contact.
@@ -32,11 +85,12 @@ Keep the existing service configuration intact; Academy data uses a separate dat
 | Environment variable | Value |
 | --- | --- |
 | `ACADEMY_ORIGIN` | The HTTPS origin, such as `https://academy.example.org`, with no path |
-| `ACADEMY_GOOGLE_CLIENT_ID` | The web OAuth client ID |
-| `ACADEMY_GOOGLE_CLIENT_SECRET` | The web OAuth client secret, stored as a secret |
+| `ACADEMY_GOOGLE_CLIENT_ID` | Optional web OAuth client ID, only for Google sign-in |
+| `ACADEMY_GOOGLE_CLIENT_SECRET` | Optional Google client secret |
 | `ACADEMY_DATABASE_PATH` | Persistent path, for example `/app/data/academy.db` |
 | `ACADEMY_DATA_KEY` | 32 random bytes encoded as 64 hex characters; generate securely and back it up separately |
-| `ACADEMY_STAFF_JSON` | JSON mapping approved email addresses to `admin` or `instructor` |
+| `ACADEMY_STAFF_JSON` | JSON mapping approved instructor IDs (or Google emails) to `admin` or `instructor` |
+| `ACADEMY_ACCESS_CODES_JSON` | JSON mapping instructor IDs to digests from `accessCodeDigest(id, code)`; never readable codes |
 
 Example staff mapping (replace these example addresses):
 
@@ -56,14 +110,14 @@ consistent SQLite backup procedure, and keep backups and the key in separate,
 access-controlled locations. Set an academy retention policy before live use; this
 first version keeps snapshot history rather than automatically deleting it.
 
-## First connection
+## Alternative: importing an additional roster
 
 1. On the director's phone, open **Workspace → Start your academy workspace**.
 2. Set the instructor name, then use **Today → Import** to review the private roster
    file. Matching IDs are reused; ambiguous matches with existing records stop the
    import so existing history is not silently merged into the wrong student.
-3. Open **Workspace → Shared workspace**, enter the deployed HTTPS origin, and sign
-   in with the approved administrator Google account.
+3. Open **Workspace → Shared workspace** and sign in with the approved administrator
+   access code (or Google account if separately configured).
 4. Tap **Sync now**. Confirm the roster and projects appear on a second approved
    instructor's phone after sign-in and sync.
 5. Verify an offline edit, reconnect, and sync. Make different edits on both phones
@@ -105,5 +159,5 @@ Run `npm run typecheck`, `npm test -- tests/academy.test.ts`, and the `AcademyTe
 Xcode test target before deployment. Automated tests cover authenticated API access,
 expiry, role checks, encryption, stale writes, idempotency, NFC uniqueness, curriculum
 integrity, assessment gates, backup compatibility, and three-way merge behavior.
-Google sign-in and cross-device NFC require a configured live service and real phones;
+Optional Google sign-in and physical cross-device NFC require their corresponding configuration and real phones;
 they cannot be claimed verified from the simulator tests alone.

@@ -38,7 +38,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.education</string>
 	<key>NFCReaderUsageDescription</key>
-	<string>Flight Academy reads student NFC passports to open their learning record and verify instructor checkride sign-offs.</string>
+	<string>Flight Academy reads student passports and reads or writes instructor NFC cards for secure shared-workspace sign-in.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authorize instructor checkride sign-offs and NFC passport linking.</string>
 	<key>UIAppFonts</key>

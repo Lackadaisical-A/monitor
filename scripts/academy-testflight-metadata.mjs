@@ -10,7 +10,7 @@ async function api(path, method = "GET", body) {
   if (!response.ok) throw new Error(`Apple metadata request failed (${response.status}): ${await response.text()}`);
   return response.status === 204 ? null : response.json();
 }
-const description = "Flight & Aerospace Academy's instructor workspace brings student progress, practical skills, Onshape lessons, team projects, homework, and semester goals into one iPhone app. Explore the sample workspace, record individual assessment evidence, and share progress reports. Academy rosters are imported privately and are not included in public test builds. This preview works offline; shared instructor sign-in requires separate academy server setup.";
+const description = "Flight & Aerospace Academy's instructor workspace brings student progress, practical skills, Onshape lessons, team projects, homework, and semester goals into one iPhone app. Explore the sample workspace, record individual assessment evidence, and share progress reports. Academy rosters are imported privately and are not included in public test builds. Approved instructors can sync through the academy server using private access codes or linked instructor NFC cards. Offline changes sync when connected.";
 const beta = (await api(`/v1/apps/${app}/betaAppLocalizations?limit=200`)).data;
 const english = beta.find(item => item.attributes.locale === "en-US");
 if (english) await api(`/v1/betaAppLocalizations/${english.id}`, "PATCH", { data: { type: "betaAppLocalizations", id: english.id, attributes: { description, marketingUrl: "https://flightaerospace.academy/" } } });

@@ -1,7 +1,18 @@
 import XCTest
+import CoreNFC
 @testable import BiotechSignal
 
 final class AcademyTeachingTests: XCTestCase {
+    func testInstructorCardAcceptsOnlyVersionedCredentialAndRejectsStudentTags() throws {
+        let token = String(repeating: "A", count: 43)
+        let message = try AcademyInstructorCardPayload.message(token)
+        XCTAssertEqual(try AcademyInstructorCardPayload.token(message), token)
+        XCTAssertLessThanOrEqual(message.length, 144)
+        XCTAssertThrowsError(try AcademyInstructorCardPayload.message("aabbccdd"))
+        let studentTag = NFCNDEFMessage(records: [NFCNDEFPayload.wellKnownTypeTextPayload(string: "Student passport", locale: Locale(identifier: "en"))!])
+        XCTAssertThrowsError(try AcademyInstructorCardPayload.token(studentTag))
+        XCTAssertThrowsError(try AcademyInstructorCardPayload.token(NFCNDEFMessage(records: message.records + message.records)))
+    }
     func testLibraryRetainsAllStableCheckpointsAndValidDependencies() throws {
         let library = try AcademyTeachingLibrary.load()
         try library.validate()

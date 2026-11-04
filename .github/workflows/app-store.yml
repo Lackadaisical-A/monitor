@@ -187,14 +187,12 @@ jobs:
           ASC_TESTFLIGHT_ACTION: internal
           ASC_TESTFLIGHT_GROUP_IDS: c11d1b5a-c0d6-4475-b182-0b6b471557c0
           ASC_TESTFLIGHT_NOTES: >-
-            Instructor workspace: Today, Students, Projects, and Library. Explore 154
-            skills, 608 checkpoints, visual prerequisite paths, Onshape teaching steps,
-            and expanded course lesson plans. Test individual evidence and skill awards,
-            team projects, semester goals, homework review, progress reports, and complete
-            backup/restore. The public app contains sample students only. Import the
-            academy's private roster file from Today. Records work offline; shared Google
-            sign-in requires separate academy server configuration and is not connected
-            in this preview. Earlier sign-offs and local NFC passports are preserved.
+            Academy shared workspace on Render. Sign in with your private instructor ID
+            and access code, then sync the shared roster. Link a blank writable NFC tag
+            as your instructor card; tap the card to sign in on another iPhone. Lost cards
+            can be revoked. Test offline edits, conflict review, projects, homework, and
+            Onshape lessons. Public demo contains fictional students only; academy records
+            require approved staff credentials. NFC requires a physical iPhone.
         run: node scripts/testflight.mjs
 
       - name: Update Academy TestFlight metadata
@@ -210,13 +208,11 @@ jobs:
           ASC_TESTFLIGHT_ACTION: prepare
           ASC_TESTFLIGHT_GROUP_IDS: da77ab8e-eec5-44cb-bc54-de9e390de3bc
           ASC_TESTFLIGHT_NOTES: >-
-            Academy instructor preview: Today, Students, Projects, Library, 154 skills,
-            608 checkpoints, Onshape lessons, course plans, individual assessments,
-            homework, semester goals, progress reports, and full workspace backups.
-            Public builds contain sample students only. Use Today > Import for the
-            private academy roster. Shared sync remains disconnected until academy
-            Google sign-in and server setup are complete. Test local saves, app
-            relaunch, NFC passports on a physical iPhone, and backup/restore.
+            Academy instructor workspace with private access codes, shared roster and
+            progress sync on Render, and instructor NFC card setup and tap sign-in.
+            Explore Today, Students, Projects, Library, Onshape lessons, assessments,
+            and homework in the public demo. Real academy data requires staff credentials.
+            Test NFC on a physical iPhone with a blank writable NDEF tag.
         run: node scripts/testflight.mjs
 
       - name: Remove signing credentials

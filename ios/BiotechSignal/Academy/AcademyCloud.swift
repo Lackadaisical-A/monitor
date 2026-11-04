@@ -8,15 +8,17 @@ struct AcademyCloudState: Codable {
 }
 struct AcademyCloudResponse: Codable { var revision: Int; var snapshot: AcademyBackup?; var email: String?; var role: String? }
 struct AcademyCloudLogin: Codable { var token: String; var email: String; var role: String; var expires: Double }
+struct AcademyStaffCard: Codable, Identifiable { var id: String; var account: String; var createdAt: Double }
 
 @MainActor final class AcademyCloud: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
-    @Published var origin = UserDefaults.standard.string(forKey: "academy-cloud-origin") ?? ""
+    @Published var origin = UserDefaults.standard.string(forKey: "academy-cloud-origin") ?? "https://catalyst-watch.onrender.com"
     @Published private(set) var email = ""
     @Published private(set) var role = ""
     @Published private(set) var status = "Shared workspace is not connected"
     @Published private(set) var busy = false
     @Published var error: String?
     @Published var conflict: AcademyCloudResponse?
+    @Published private(set) var cards: [AcademyStaffCard] = []
     private var auth: ASWebAuthenticationSession?
     private var baseline = AcademyCloudState()
     private var token = ""
@@ -60,17 +62,62 @@ struct AcademyCloudLogin: Codable { var token: String; var email: String; var ro
             }
             guard callback.host == "auth", let code = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else { throw CloudError("Invalid sign-in response.") }
             let response: AcademyCloudLogin = try await request("auth/complete", method: "POST", body: JSONSerialization.data(withJSONObject: ["code": code, "verifier": verifier]))
-            try KeychainStore.save(response.token, account: account)
-            origin = configuredOrigin; UserDefaults.standard.set(origin, forKey: "academy-cloud-origin")
-            baseline = AcademyCloudState(); configureSaved()
-            email = response.email; role = response.role; status = "Signed in · sync to open the shared workspace"
+            try accept(response)
         } catch { self.error = error.localizedDescription }
+    }
+    private func accept(_ response: AcademyCloudLogin) throws {
+        try KeychainStore.save(response.token, account: account)
+        origin = configuredOrigin; UserDefaults.standard.set(origin, forKey: "academy-cloud-origin")
+        baseline = AcademyCloudState(); configureSaved()
+        email = response.email; role = response.role; status = "Signed in · sync to open the shared workspace"
+    }
+    func signIn(account: String, code: String) async {
+        guard !busy else { return }; busy = true; defer { busy = false }
+        do {
+            configuredOrigin = origin.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+            let response: AcademyCloudLogin = try await request("auth/code", method: "POST", body: JSONSerialization.data(withJSONObject: ["account": account, "code": code]))
+            try accept(response)
+        } catch { self.error = error.localizedDescription }
+    }
+    func tapSignIn() async {
+        guard !busy else { return }; busy = true; defer { busy = false }
+        do {
+            configuredOrigin = origin.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+            let credential = try await AcademyInstructorCardReader.shared.read()
+            let response: AcademyCloudLogin = try await request("auth/card", method: "POST", body: JSONSerialization.data(withJSONObject: ["token": credential]))
+            try accept(response)
+        } catch ClubCardReaderError.cancelled {} catch { self.error = error.localizedDescription }
+    }
+    func loadCards() async {
+        guard connected else { return }
+        do { struct Response: Decodable { var cards: [AcademyStaffCard] }; let result: Response = try await request("auth/cards"); cards = result.cards }
+        catch { self.error = error.localizedDescription }
+    }
+    func linkInstructorCard(store: AcademyStore) async {
+        guard connected, !busy, !store.isDemo else { return }; busy = true; defer { busy = false }
+        var pendingID: String?
+        do {
+            try await store.authorizeInstructor()
+            struct Pending: Decodable { var id: String; var token: String }
+            let pending: Pending = try await request("auth/cards", method: "POST")
+            pendingID = pending.id
+            try await AcademyInstructorCardReader.shared.write(pending.token)
+            let _: [String: Bool] = try await request("auth/cards/\(pending.id)/activate", method: "POST")
+            pendingID = nil; status = "Instructor card linked · previous card revoked"
+            await loadCards()
+        } catch ClubCardReaderError.cancelled {} catch { self.error = error.localizedDescription }
+        if let pendingID { let _: [String: Bool]? = try? await request("auth/cards/\(pendingID)", method: "DELETE") }
+    }
+    func revokeCard(_ card: AcademyStaffCard) async {
+        guard !busy else { return }; busy = true; defer { busy = false }
+        do { let _: [String: Bool] = try await request("auth/cards/\(card.id)", method: "DELETE"); cards.removeAll { $0.id == card.id }; status = "Instructor card revoked" }
+        catch { self.error = error.localizedDescription }
     }
     func signOut() async {
         do {
             let _: [String: Bool] = try await request("auth/logout", method: "POST")
             try KeychainStore.save("", account: account)
-            token = ""; email = ""; role = ""; status = "Signed out · local records kept"
+            token = ""; email = ""; role = ""; cards = []; status = "Signed out · local records kept"
         } catch { self.error = error.localizedDescription }
     }
     struct CloudError: LocalizedError { var message: String; init(_ message: String) { self.message = message }; var errorDescription: String? { message } }
@@ -81,7 +128,10 @@ struct AcademyCloudLogin: Codable { var token: String; var email: String; var ro
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw CloudError("The server did not respond.") }
         guard (200...299).contains(http.statusCode) else {
-            if http.statusCode == 401 { status = "Sign-in expired · local changes are kept" }
+            if http.statusCode == 401, path != "auth/code", path != "auth/card" {
+                try? KeychainStore.save("", account: account); token = ""; email = ""; role = ""; cards = []
+                status = "Sign-in expired · local changes are kept"
+            }
             if http.statusCode == 409 { throw CloudError("Another instructor just updated this workspace. Sync again to merge or review the changes.") }
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             let message = object?["message"] as? String ?? object?["error"] as? String
@@ -105,8 +155,13 @@ struct AcademyCloudLogin: Codable { var token: String; var email: String; var ro
             var merged = local
             if let shared = remote.snapshot {
                 do {
-                    let result = try AcademyMerge.combine(base: baseline.snapshot.map { try JSONEncoder().encode($0) }, local: JSONEncoder().encode(local), remote: JSONEncoder().encode(shared))
-                    merged = try AcademyBackup.decode(result)
+                    if baseline.snapshot == nil, local.workspace.students.isEmpty, local.workspace.progress.isEmpty, local.workspace.log.isEmpty,
+                       local.teaching == TeachingState(), local.workspace.curriculum == shared.workspace.curriculum {
+                        merged = shared
+                    } else {
+                        let result = try AcademyMerge.combine(base: baseline.snapshot.map { try JSONEncoder().encode($0) }, local: JSONEncoder().encode(local), remote: JSONEncoder().encode(shared))
+                        merged = try AcademyBackup.decode(result)
+                    }
                 } catch is AcademyMerge.Conflict { conflict = remote; status = "Review conflicting edits"; return }
             } else if role != "admin" { throw CloudError("An academy administrator must import the first roster.") }
             try merged.validate()
@@ -154,9 +209,20 @@ struct AcademyCloudView: View {
     @State private var confirmShared = false
     @State private var exporting = false
     @State private var document: AcademyDocument?
+    @State private var instructorID = ""
+    @State private var accessCode = ""
+    @State private var revoke: AcademyStaffCard?
+    @State private var confirmLink = false
     var body: some View {
-        Form { accountSection; conflictSection }
+        Form { accountSection; cardSection; conflictSection }
             .navigationTitle("Shared workspace").toolbar(.visible, for: .navigationBar)
+            .task { await cloud.loadCards() }
+            .confirmationDialog("Link a new instructor card?", isPresented: $confirmLink) {
+                Button("Write blank NFC tag") { Task { await cloud.linkInstructorCard(store: store) } }
+            } message: { Text("Use a blank, writable NDEF tag. A successful setup replaces your previous instructor card. Keep the card private; it grants access to academy records.") }
+            .confirmationDialog("Revoke this instructor card?", isPresented: Binding(get: { revoke != nil }, set: { if !$0 { revoke = nil } })) {
+                if let card = revoke { Button("Revoke \(card.account)'s card", role: .destructive) { Task { await cloud.revokeCard(card); revoke = nil } } }
+            } message: { Text("This card and sessions opened with it will stop working. The instructor can still use their access code.") }
             .confirmationDialog("Replace local records with the shared version?", isPresented: $confirmShared) {
                 Button("Use shared version") { do { try cloud.useShared(store: store, teaching: teaching) } catch { cloud.error = error.localizedDescription } }
             }
@@ -176,12 +242,33 @@ struct AcademyCloudView: View {
                 Button("Sync now") { Task { await cloud.sync(store: store, teaching: teaching) } }.disabled(cloud.busy || store.isDemo || cloud.conflict != nil)
                 Button("Sign out") { Task { await cloud.signOut() } }.disabled(cloud.busy)
             } else {
-                TextField("Academy server address", text: $cloud.origin).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button("Sign in with Google") { Task { await cloud.signIn() } }.disabled(cloud.busy || store.isDemo)
+                if store.isDemo {
+                    Button("Open academy workspace") { do { try store.switchWorkspace() } catch { cloud.error = error.localizedDescription } }
+                } else {
+                    Label("Your academy, connected.", systemImage: "building.2.crop.circle").font(AcademyTheme.display(22))
+                    TextField("Instructor ID", text: $instructorID).textContentType(.username).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    SecureField("Private access code", text: $accessCode).textContentType(.password).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button("Sign in with access code") { Task { await cloud.signIn(account: instructorID, code: accessCode); if cloud.connected { accessCode = ""; await cloud.sync(store: store, teaching: teaching); await cloud.loadCards() } } }.disabled(cloud.busy || instructorID.isEmpty || accessCode.isEmpty)
+                    Button { Task { await cloud.tapSignIn(); if cloud.connected { await cloud.sync(store: store, teaching: teaching); await cloud.loadCards() } } } label: { Label("Tap instructor card", systemImage: "wave.3.right.circle.fill") }.disabled(cloud.busy)
+                    DisclosureGroup("Server settings") {
+                        TextField("Academy server address", text: $cloud.origin).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        Button("Use configured Google sign-in") { Task { await cloud.signIn(); if cloud.connected { await cloud.sync(store: store, teaching: teaching) } } }.disabled(cloud.busy)
+                    }
+                }
             }
             if cloud.busy { ProgressView() }
         } header: { Text("Instructor workspace") } footer: {
             Text(store.isDemo ? "Switch to the academy workspace to sign in. Demo records are never uploaded." : "Only accounts approved by the academy can access shared student records. Offline changes stay on this iPhone until the next successful sync.")
+        }
+    }
+    @ViewBuilder private var cardSection: some View {
+        if cloud.connected, !store.isDemo {
+            Section {
+                Button { confirmLink = true } label: { Label("Link my instructor card", systemImage: "wave.3.right") }.disabled(cloud.busy)
+                ForEach(cloud.cards) { card in
+                    HStack { Label(card.account.capitalized, systemImage: "person.crop.rectangle"); Spacer(); Button("Revoke", role: .destructive) { revoke = card }.disabled(cloud.busy) }
+                }
+            } header: { Text("Instructor cards") } footer: { Text("Sign in with your access code before linking a card. Administrators can revoke lost cards for any instructor. Student passports do not grant instructor access.") }
         }
     }
     @ViewBuilder private var conflictSection: some View {

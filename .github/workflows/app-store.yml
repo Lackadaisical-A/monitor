@@ -10,9 +10,14 @@ on:
         description: App Store build number (defaults to the workflow run number)
         required: false
         type: string
+      verified_run:
+        description: Optional earlier run with passed Academy checks and identical app source
+        required: false
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: app-store-upload
@@ -34,6 +39,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Select Xcode 26.6
         run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
@@ -79,7 +86,16 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec ios/project.yml
 
+      - name: Reuse verified Academy checks when resuming
+        id: validation
+        if: inputs.verified_run != ''
+        env:
+          ACADEMY_VERIFIED_RUN: ${{ inputs.verified_run }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verified-academy-run.mjs
+
       - name: Verify Academy build
+        if: steps.validation.outputs.verified != 'true'
         run: |
           set -euo pipefail
           npm run typecheck
@@ -180,6 +196,11 @@ jobs:
             sign-in requires separate academy server configuration and is not connected
             in this preview. Earlier sign-offs and local NFC passports are preserved.
         run: node scripts/testflight.mjs
+
+      - name: Update Academy TestFlight metadata
+        env:
+          ASC_APP_ID: "6803988538"
+        run: node scripts/academy-testflight-metadata.mjs
 
       - name: Add Academy build to existing public TestFlight group
         env:

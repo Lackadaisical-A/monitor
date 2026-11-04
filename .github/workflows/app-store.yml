@@ -25,7 +25,8 @@ concurrency:
 
 jobs:
   upload:
-    runs-on: macos-26
+    # Standard Intel pool avoids the current macOS ARM capacity failures.
+    runs-on: macos-26-intel
     timeout-minutes: 45
     env:
       BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}

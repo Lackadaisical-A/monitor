@@ -90,9 +90,10 @@ or restored snapshot.
 - The private roster contains 52 distinct student records and 23 historical class
   groups. Its student source is labeled **Week 6: Oct 19–25, 2026**; it is not treated
   as a current booking feed. November's instructor rota is displayed separately.
-- One existing project team could be matched unambiguously to the roster and has
-  its source CAD/parts links included. Other project references need identity
-  reconciliation; no uncertain student matches or completed assessments were invented.
+- Both existing BattleBots project teams are matched to the roster and include
+  their source CAD/parts links. One nickname was confirmed by the academy before
+  linking it; no completed assessments were invented. Instructors should review
+  the current project stages after import.
 - Existing app history is preserved separately from the imported skill library.
   Notion student logbook entries are not automatically converted to earned skills.
 - Original Notion and Google Sheets documents are unchanged. There is no Airtable

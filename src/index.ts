@@ -1,4 +1,5 @@
 import { createApp } from "./app.js";
+import { registerAcademyFromEnvironment } from "./academy/service.js";
 import { bootstrap } from "./bootstrap.js";
 import { BuybackMonitor } from "./buyback.js";
 
@@ -13,6 +14,7 @@ await pipeline.reconcileStoredPolicies();
 await pipeline.requeueOutdatedAnalyses();
 const buyback = new BuybackMonitor(config, bootstrapLogger);
 const app = await createApp(config, db, pipeline, undefined, marketData, clubSheets, buyback);
+await registerAcademyFromEnvironment(app);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "shutting down");

@@ -79,6 +79,16 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec ios/project.yml
 
+      - name: Verify Academy build
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm test -- tests/academy.test.ts
+          SIMULATOR_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["name"].startswith("iPhone")))')"
+          xcodebuild -project ios/BiotechSignal.xcodeproj -scheme BiotechSignal \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            CODE_SIGNING_ALLOWED=NO test
+
       - name: Provision NFC distribution profile
         run: |
           set -euo pipefail
@@ -156,17 +166,36 @@ jobs:
       - name: Prepare Academy internal TestFlight build
         env:
           ASC_APP_ID: "6803988538"
-          ASC_APP_VERSION: "2.0"
+          ASC_APP_VERSION: "2.1"
           ASC_BUILD_NUMBER: ${{ env.IOS_BUILD_NUMBER }}
           ASC_TESTFLIGHT_ACTION: internal
           ASC_TESTFLIGHT_GROUP_IDS: c11d1b5a-c0d6-4475-b182-0b6b471557c0
           ASC_TESTFLIGHT_NOTES: >-
-            Flight Academy for iPhone: a new Flight Deck, editable curriculum skill map,
-            student passports, course plans, checkrides and logbooks. Start in the sample
-            workspace to explore 74 ability cards and 15 courses. Test NFC passport linking
-            and scanning, instructor authentication, checklist sign-off, prerequisite
-            locks, app relaunch and workspace backup/restore. This preview stores records
-            on this iPhone only; it does not sync between devices.
+            Instructor workspace: Today, Students, Projects, and Library. Explore 154
+            skills, 608 checkpoints, visual prerequisite paths, Onshape teaching steps,
+            and expanded course lesson plans. Test individual evidence and skill awards,
+            team projects, semester goals, homework review, progress reports, and complete
+            backup/restore. The public app contains sample students only. Import the
+            academy's private roster file from Today. Records work offline; shared Google
+            sign-in requires separate academy server configuration and is not connected
+            in this preview. Earlier sign-offs and local NFC passports are preserved.
+        run: node scripts/testflight.mjs
+
+      - name: Add Academy build to existing public TestFlight group
+        env:
+          ASC_APP_ID: "6803988538"
+          ASC_APP_VERSION: "2.1"
+          ASC_BUILD_NUMBER: ${{ env.IOS_BUILD_NUMBER }}
+          ASC_TESTFLIGHT_ACTION: prepare
+          ASC_TESTFLIGHT_GROUP_IDS: da77ab8e-eec5-44cb-bc54-de9e390de3bc
+          ASC_TESTFLIGHT_NOTES: >-
+            Academy instructor preview: Today, Students, Projects, Library, 154 skills,
+            608 checkpoints, Onshape lessons, course plans, individual assessments,
+            homework, semester goals, progress reports, and full workspace backups.
+            Public builds contain sample students only. Use Today > Import for the
+            private academy roster. Shared sync remains disconnected until academy
+            Google sign-in and server setup are complete. Test local saves, app
+            relaunch, NFC passports on a physical iPhone, and backup/restore.
         run: node scripts/testflight.mjs
 
       - name: Remove signing credentials

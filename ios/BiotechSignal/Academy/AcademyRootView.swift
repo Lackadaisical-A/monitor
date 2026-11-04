@@ -2,6 +2,8 @@ import SwiftUI
 
 struct AcademyRootView: View {
     @EnvironmentObject private var store: AcademyStore
+    @StateObject private var teaching = AcademyTeachingStore()
+    @StateObject private var cloud = AcademyCloud()
     @State private var showWorkspace = false
     @State private var showPassport = false
     @State private var showStudents = false
@@ -14,16 +16,17 @@ struct AcademyRootView: View {
                 AcademyTheme.paper.ignoresSafeArea()
                 Group {
                     switch store.selectedTab {
-                    case "map": AcademyMapView()
+                    case "map": AcademyLibraryView()
                     case "crew": AcademyStudentsView()
-                    case "log": AcademyLogbookView()
-                    default: AcademyDeckView(showPassport: $showPassport, showStudents: $showStudents, showCourses: $showCourses, courseTrack: $courseTrack)
+                    case "log": AcademyProjectsView()
+                    default: AcademyTodayView()
                     }
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $store.openScannedStudent) { if let id = store.selectedStudentID { AcademyStudentDetail(studentID: id) } }
             .sheet(isPresented: $showWorkspace) { AcademyWorkspaceView() }
             .sheet(isPresented: $showPassport) { AcademyPassportView() }
             .sheet(isPresented: $showStudents) { AcademyStudentPicker() }
@@ -38,11 +41,17 @@ struct AcademyRootView: View {
                 }
             }
         }.tint(AcademyTheme.navy)
+        .environmentObject(teaching)
+        .environmentObject(cloud)
+        .onAppear { store.cloud = cloud; teaching.load(demo: store.isDemo, students: store.workspace.students) }
+        .onChange(of: store.isDemo) { _, _ in teaching.load(demo: store.isDemo, students: store.workspace.students) }
+        .task { while !Task.isCancelled { try? await Task.sleep(for: .seconds(30)); if !Task.isCancelled { await cloud.sync(store: store, teaching: teaching) } } }
+        .onChange(of: teaching.error) { _, message in if let message { store.errorMessage = message; teaching.error = nil } }
     }
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "airplane.circle").font(.system(size: 31, weight: .light)).foregroundStyle(AcademyTheme.navy).accessibilityHidden(true)
+            Image("AcademyBrand").renderingMode(.original).resizable().scaledToFit().frame(width: 38, height: 38).clipShape(Circle()).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text("FLIGHT & AEROSPACE").font(AcademyTheme.display(11, relativeTo: .caption)).tracking(0.7)
                 Text("A C A D E M Y").font(.system(size: 8, weight: .medium)).foregroundStyle(AcademyTheme.muted)
@@ -55,10 +64,10 @@ struct AcademyRootView: View {
 
     private var tabBar: some View {
         HStack(spacing: 0) {
-            tab("deck", "Flight deck", "square.grid.2x2")
-            tab("map", "Skill map", "point.topleft.down.to.point.bottomright.curvepath")
+            tab("deck", "Today", "sun.max")
             tab("crew", "Students", "person.2")
-            tab("log", "Logbook", "book.closed")
+            tab("log", "Projects", "shippingbox")
+            tab("map", "Library", "books.vertical")
         }.padding(.top, 11).padding(.bottom, 5).background(.white).overlay(alignment: .top) { Rectangle().fill(AcademyTheme.line).frame(height: 1) }
     }
 

@@ -166,7 +166,7 @@
       ],
       "skills": [
         "Sketch the part with dimensions on paper",
-        "Model it in Tinkercad or Onshape",
+        "Model it in an Onshape Part Studio",
         "Add a hole that fits a real screw",
         "Export a print-ready file"
       ],
@@ -1859,7 +1859,7 @@
             "hand-tool",
             "cad-part"
           ],
-          "plan": "Hand Tool clearance. Sketch a part with dimensions and model it in Tinkercad.",
+          "plan": "Hand Tool clearance. Sketch a dimensioned part, then model it in an Onshape Part Studio using constraints and extruded features.",
           "title": "Tools and CAD"
         },
         {

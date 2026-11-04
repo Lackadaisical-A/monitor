@@ -11,6 +11,8 @@ final class AcademyStore: ObservableObject {
     @Published var selectedTab = "deck"
     @Published var errorMessage: String?
     @Published var notice: String?
+    @Published var openScannedStudent = false
+    weak var cloud: AcademyCloud?
     @Published private(set) var storageHealthy = true
     private let directory: URL
     private let bundledCurriculum: AcademyCurriculum
@@ -70,7 +72,7 @@ final class AcademyStore: ObservableObject {
         selectedStudentID = workspace.students.first?.id
     }
 
-    static func decode(_ data: Data) throws -> AcademyWorkspace {
+    nonisolated static func decode(_ data: Data) throws -> AcademyWorkspace {
         guard data.count <= 20_000_000 else { throw AcademyError.invalidBackup }
         let value = try JSONDecoder().decode(AcademyWorkspace.self, from: data)
         try value.validate()
@@ -200,9 +202,14 @@ final class AcademyStore: ObservableObject {
     func scanPassport() async {
         do {
             let scan = try await ClubCardReader.shared.scan()
-            let student = try identify(scan)
+            let student: AcademyStudent
+            if !isDemo, let cloud, cloud.connected {
+                let id = try await cloud.identify(scan)
+                guard let found = workspace.students.first(where: { $0.id == id }) else { throw AcademyError.unknownPassport }
+                student = found
+            } else { student = try identify(scan) }
             selectedStudentID = student.id
-            selectedTab = "deck"
+            openScannedStudent = true
             notice = "\(student.firstName)'s passport is open."
         } catch ClubCardReaderError.cancelled {} catch { errorMessage = error.localizedDescription }
     }
@@ -212,7 +219,10 @@ final class AcademyStore: ObservableObject {
         try await authorizeInstructor()
         if useNFC {
             let scan = try await ClubCardReader.shared.scan()
-            guard try identify(scan).id == studentID else { throw AcademyError.wrongPassport }
+            let found: UUID
+            if !isDemo, let cloud, cloud.connected { found = try await cloud.identify(scan) }
+            else { found = try identify(scan).id }
+            guard found == studentID else { throw AcademyError.wrongPassport }
         }
         try update { try $0.sign(cardID, studentID: studentID, checked: checked, note: note, verification: useNFC ? "NFC passport + device authorization" : isDemo ? "Demo" : "Manual + device authorization") }
         UINotificationFeedbackGenerator().notificationOccurred(.success)

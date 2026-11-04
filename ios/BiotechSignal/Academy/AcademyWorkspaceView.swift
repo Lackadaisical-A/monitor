@@ -3,6 +3,8 @@ import UniformTypeIdentifiers
 
 struct AcademyWorkspaceView: View {
     @EnvironmentObject private var store: AcademyStore
+    @EnvironmentObject private var teaching: AcademyTeachingStore
+    @EnvironmentObject private var cloud: AcademyCloud
     @Environment(\.dismiss) private var dismiss
     @State private var instructor = ""
     @State private var document: AcademyDocument?
@@ -25,18 +27,18 @@ struct AcademyWorkspaceView: View {
                 Section { LabeledContent("Workspace", value: store.isDemo ? "Demo" : "Academy"); LabeledContent("Storage", value: "On this iPhone"); Button(store.isDemo ? "Start your academy workspace" : "Explore the demo workspace") { do { try store.switchWorkspace(); dismiss() } catch { self.error = error.localizedDescription } } } footer: { Text(store.isDemo ? "Demo students and sign-offs are sample data. Your academy workspace starts with an empty roster and the editable draft curriculum." : "Your records and the demo are saved separately. Switching workspaces keeps both.") }
                 Section { TextField("Your instructor name", text: $instructor).textContentType(.name); Button(saved ? "Instructor name saved" : "Save instructor name") { do { try store.update { $0.instructor = instructor.trimmingCharacters(in: .whitespacesAndNewlines) }; saved = true } catch { self.error = error.localizedDescription } }.disabled(instructor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || instructor.count > 100) } header: { Text("Instructor") } footer: { Text("Your name is recorded on every sign-off. In the academy workspace, signing cards and linking passports also require Face ID, Touch ID, or your device passcode.") }
                 Section("Your records") {
-                    Button { do { document = try store.backup(); exporting = true } catch { self.error = error.localizedDescription } } label: { Label("Export workspace backup", systemImage: "square.and.arrow.up") }.disabled(!store.storageHealthy)
+                    Button { do { document = AcademyDocument(data: try JSONEncoder().encode(AcademyBackup(workspace: store.workspace, teaching: teaching.state))); exporting = true } catch { self.error = error.localizedDescription } } label: { Label("Export workspace backup", systemImage: "square.and.arrow.up") }.disabled(!store.storageHealthy)
                     Button { importing = true } label: { Label("Restore a workspace backup", systemImage: "square.and.arrow.down") }
-                    Text("Backups contain student names, curriculum, and learning records. Store them privately. NFC tags must be linked again after restoring on an iPhone.").font(.caption).foregroundStyle(AcademyTheme.muted)
+                    Text("Backups contain student names, curriculum, and learning records. Store them privately. Backups include projects, homework, goals, observations, and lesson edits. Local NFC tags must be linked again after restoring.").font(.caption).foregroundStyle(AcademyTheme.muted)
                 }
                 Section("How this version works") {
                     Label("Available offline", systemImage: "checkmark.circle").foregroundStyle(AcademyTheme.green)
                     Label("Device-protected student records", systemImage: "lock.shield")
-                    Label("Shared instructor sync is not connected", systemImage: "icloud.slash")
+                    NavigationLink { AcademyCloudView() } label: { Label(cloud.status, systemImage: cloud.connected ? "icloud" : "icloud.slash") }
                     Text("A passport identifies a student; it does not authorize a sign-off. This app does not issue FAA certificates or count simulator practice as certified flight time.").font(.caption).foregroundStyle(AcademyTheme.muted)
                 }.font(.subheadline)
                 Section("Curriculum source") { Text(store.workspace.curriculum.source).font(.caption); Text("\(store.cards.count) editable cards · \(store.workspace.curriculum.courses.count) courses").font(.caption).foregroundStyle(AcademyTheme.muted); Link("Academy website", destination: URL(string: "https://flightaerospace.academy/")!) }
-                Section { Text("B612 typeface · SIL Open Font License\nAcademy app · Version 2.0").font(.caption2).foregroundStyle(AcademyTheme.muted) }
+                Section { Text("B612 typeface · SIL Open Font License\nAcademy app · Version 2.1").font(.caption2).foregroundStyle(AcademyTheme.muted) }
             }.navigationTitle("Workspace").navigationBarTitleDisplayMode(.inline).toolbar(.visible, for: .navigationBar)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
                 .onAppear { instructor = store.workspace.instructor }
@@ -47,11 +49,11 @@ struct AcademyWorkspaceView: View {
                         let url = try result.get(); let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }
                         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                         guard size <= 20_000_000 else { throw AcademyError.invalidBackup }
-                        let data = try Data(contentsOf: url); _ = try AcademyStore.decode(data); pendingRestore = data; confirmRestore = true
+                        let data = try Data(contentsOf: url); _ = try AcademyBackup.decode(data); pendingRestore = data; confirmRestore = true
                     } catch { self.error = error.localizedDescription }
                 }
                 .confirmationDialog("Replace this workspace with the backup?", isPresented: $confirmRestore, titleVisibility: .visible) {
-                    Button("Restore backup") { do { if let data = pendingRestore { try store.restore(data); instructor = store.workspace.instructor; pendingRestore = nil } } catch { self.error = error.localizedDescription } }
+                    Button("Restore backup") { do { if let data = pendingRestore { try AcademyBackup.decode(data).apply(store: store, teaching: teaching, retainBindings: false); instructor = store.workspace.instructor; pendingRestore = nil } } catch { self.error = error.localizedDescription } }
                     Button("Cancel", role: .cancel) { pendingRestore = nil }
                 } message: { Text("This replaces the current \(store.isDemo ? "demo" : "academy") records and clears NFC bindings. A recovery copy of the previous records is kept on this iPhone.") }
                 .alert("Workspace", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) { Button("OK", role: .cancel) {} } message: { Text(error ?? "") }

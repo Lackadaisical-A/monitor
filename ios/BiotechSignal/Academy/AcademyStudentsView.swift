@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AcademyStudentsView: View {
     @EnvironmentObject private var store: AcademyStore
+    @EnvironmentObject private var teaching: AcademyTeachingStore
     @State private var query = ""
     @State private var adding = false
     @State private var passport = false
@@ -10,7 +11,7 @@ struct AcademyStudentsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 8) { AcademyEyebrow(text: "Every student has a flight path"); Text("Your crew").font(AcademyTheme.display(32)).foregroundStyle(AcademyTheme.navy) }
+                    VStack(alignment: .leading, spacing: 8) { AcademyEyebrow(text: "Every student has a flight path"); Text("Your students").font(AcademyTheme.display(32)).foregroundStyle(AcademyTheme.navy) }
                     Spacer(); Button { adding = true } label: { Image(systemName: "plus").frame(width: 44, height: 44).background(.white, in: Circle()) }.accessibilityLabel("Add student")
                 }
                 Button { Task { await store.scanPassport() } } label: { HStack { Image(systemName: "wave.3.right"); Text("Open a student with a tap"); Spacer(); Image(systemName: "arrow.up.right") } }.buttonStyle(AcademyPrimaryButton())
@@ -18,11 +19,11 @@ struct AcademyStudentsView: View {
                 Text("\(students.count) \(students.count == 1 ? "student" : "students")\(store.isDemo ? " · demo records" : "")").font(.caption).foregroundStyle(AcademyTheme.muted)
                 if students.isEmpty { AcademyEmpty(symbol: "person.2", title: query.isEmpty ? "Meet your next generation." : "No matching students.", message: query.isEmpty ? "Add a student to start their passport and record the skills they earn." : "Try a different name or passport number.") }
                 ForEach(students) { student in
-                    Button { store.selectedStudentID = student.id; passport = true } label: {
+                    NavigationLink { AcademyStudentDetail(studentID: student.id) } label: {
                         AcademyPanel {
                             VStack(alignment: .leading, spacing: 17) {
                                 HStack(spacing: 12) { AcademyAvatar(student: student, size: 48); VStack(alignment: .leading, spacing: 5) { Text(student.name).font(AcademyTheme.display(18)); Text("\(student.track.name) · \(store.workspace.rank(for: student))").font(.caption).foregroundStyle(AcademyTheme.muted) }; Spacer(); Image(systemName: "arrow.up.right").font(.subheadline) }
-                                HStack { Text(student.passportNumber).font(.system(size: 10, design: .monospaced)).foregroundStyle(AcademyTheme.muted); Spacer(); Text("\(store.workspace.signedIDs(for: student.id).count) cards earned").font(.caption.weight(.medium)); Image(systemName: student.passportFingerprint == nil ? "wave.3.right" : "wave.3.right.circle.fill").foregroundStyle(student.passportFingerprint == nil ? AcademyTheme.muted : AcademyTheme.green) }
+                                HStack { Text(student.passportNumber).font(.system(size: 10, design: .monospaced)).foregroundStyle(AcademyTheme.muted); Spacer(); Text("\(store.workspace.signedIDs(for: student.id).count + teaching.state.awards.filter { $0.studentID == student.id && !$0.paused }.count) skills earned").font(.caption.weight(.medium)); Image(systemName: student.passportFingerprint == nil ? "wave.3.right" : "wave.3.right.circle.fill").foregroundStyle(student.passportFingerprint == nil ? AcademyTheme.muted : AcademyTheme.green) }
                             }
                         }
                     }.buttonStyle(.plain)
@@ -148,7 +149,7 @@ struct AcademyPassportView: View {
     private func link(_ student: AcademyStudent) {
         Task {
             busy = true; defer { busy = false }
-            do { try await store.authorizeInstructor(); let scan = try await ClubCardReader.shared.scan(); try store.linkPassport(scan, studentID: student.id) }
+            do { try await store.authorizeInstructor(); let scan = try await ClubCardReader.shared.scan(); if !store.isDemo, let cloud = store.cloud, cloud.connected { try await cloud.link(scan, studentID: student.id) }; try store.linkPassport(scan, studentID: student.id) }
             catch ClubCardReaderError.cancelled {} catch { self.error = error.localizedDescription }
         }
     }

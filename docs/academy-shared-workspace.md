@@ -151,13 +151,52 @@ or restored snapshot.
 - Existing app history is preserved separately from the imported skill library.
   Notion student logbook entries are not automatically converted to earned skills.
 - Original Notion and Google Sheets documents are unchanged. There is no Airtable
-  integration, parent portal, attendance writeback, or automatic parent messaging.
+  integration, attendance writeback, or automatic parent messaging.
 
 ## Validation and deployment boundary
 
-Run `npm run typecheck`, `npm test -- tests/academy.test.ts`, and the `AcademyTests`
+Run `npm run typecheck`, `npm test -- tests/academy.test.ts tests/academy-journal.test.ts`, and the `AcademyTests`
 Xcode test target before deployment. Automated tests cover authenticated API access,
 expiry, role checks, encryption, stale writes, idempotency, NFC uniqueness, curriculum
 integrity, assessment gates, backup compatibility, and three-way merge behavior.
 Optional Google sign-in and physical cross-device NFC require their corresponding configuration and real phones;
 they cannot be claimed verified from the simulator tests alone.
+
+## Daily class logbook and family access (build 21)
+
+Open **Today**, choose the class date, then **Class logbook** on a class card.
+Each student has their own dated progress updates: accomplishment, next steps,
+private instructor notes, and up to six photos. Use **Take photo** or **Choose
+photo**, then save a draft or explicitly **Share with family**. Updates also appear
+on the student's profile. Drafts and private notes never enter the family API.
+
+Photos are reduced to at most 1600 pixels, stripped of metadata on the phone and
+again on the server, and encrypted separately in the existing Academy database.
+The app uploads photos before committing their references, keeps offline files
+with complete file protection, retries uploads idempotently, and downloads photos
+on demand on other signed-in phones. Sync still runs in the foreground. A failed
+upload leaves the draft and its photos on the originating phone. The server caps
+encrypted photo storage at 512 MB to reserve space on the existing 1 GB disk.
+No new storage subscription is created. Photos and historical records are retained
+until the academy applies its retention policy. JSON exports include photo IDs,
+not the media binaries; back up the database and encryption key to retain media.
+
+Choose **Family access** within the class logbook or student profile to create a
+private read-only link. Creating a replacement immediately revokes the previous
+link. Only the newly created link is available to share; the server retains only
+its digest. Links expire after one year. Nothing is sent automatically. The link
+opens a mobile-friendly web logbook and requires no parent app installation.
+Anyone holding the link can read that student's explicitly shared updates.
+Revoking the link or returning an entry to draft blocks further access after sync;
+it cannot retract copies already saved by a recipient.
+
+The family credential is kept in the URL fragment and sent only in an Authorization
+header, never an image URL. Responses use no-store; family pages have no analytics
+or third-party resources. Student and photo ownership are checked on every family
+request. Family credentials cannot access staff endpoints. Older build 20 clients
+can continue syncing without deleting journal fields they do not understand.
+
+Automated checks cover family isolation, private-note exclusion, revocation,
+photo ownership, metadata stripping, old-client preservation, dated membership,
+offline journal persistence, merge behavior, and image resizing. The simulator
+can test photo selection; taking a real camera photo requires a physical iPhone.

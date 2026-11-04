@@ -84,6 +84,7 @@ struct AcademyRootView: View {
 
 struct AcademyDeckView: View {
     @EnvironmentObject private var store: AcademyStore
+    @EnvironmentObject private var cloud: AcademyCloud
     @Binding var showPassport: Bool
     @Binding var showStudents: Bool
     @Binding var showCourses: Bool
@@ -128,7 +129,7 @@ struct AcademyDeckView: View {
                     Button { addStudent = true } label: { Label("Add your first student", systemImage: "plus") }.buttonStyle(AcademyPrimaryButton())
                     Button("Explore the curriculum") { store.selectedTab = "map" }.frame(maxWidth: .infinity).font(.subheadline)
                 }
-                HStack(spacing: 6) { Image(systemName: "iphone"); Text(store.isDemo ? "Demo workspace · sample student records" : "Saved on this iPhone · works offline") }.font(.caption2).foregroundStyle(AcademyTheme.muted).frame(maxWidth: .infinity).padding(.bottom, 8)
+                HStack(spacing: 6) { Image(systemName: cloud.connected && !store.isDemo ? "icloud" : "iphone"); Text(store.isDemo ? "Demo workspace · sample student records" : cloud.connected ? "Shared academy workspace · \(cloud.status)" : "On this iPhone · sign in to sync") }.font(.caption2).foregroundStyle(AcademyTheme.muted).frame(maxWidth: .infinity).padding(.bottom, 8)
             }.padding(22)
         }.sheet(item: $selectedCard) { AcademyAbilityView(cardID: $0.id) }
             .sheet(isPresented: $addStudent) { AcademyStudentEditor() }

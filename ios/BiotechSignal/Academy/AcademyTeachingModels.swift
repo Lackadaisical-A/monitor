@@ -137,6 +137,7 @@ struct TeachingState: Codable, Equatable {
     var lessonEdits: [String: AcademySkillLesson] = [:]
     var courseEdits: [String: [AcademyWeek]]? = nil
     var duties: [TeachingDuty]? = nil
+    var classLogs: [AcademyClassLog]? = nil
 }
 
 @Model final class TeachingSnapshot {
@@ -178,6 +179,11 @@ struct TeachingState: Codable, Equatable {
                     state.projects = [TeachingProject(title: "Flight-ready glider", studentIDs: [student.id], stage: "Build", nextTask: "Check wing alignment and measure the center of gravity", materials: "Foam board, tape, ruler, balance stand")]
                     state.goals = [TeachingGoal(studentID: student.id, title: "Design, test, and explain a stable aircraft")]
                     state.homework = [TeachingHomework(studentID: student.id, title: "Sketch two wing shapes and predict how each will fly", due: Date().addingTimeInterval(86400 * 3))]
+                }
+            }
+            if demo, state.sessions.isEmpty, !students.isEmpty {
+                state.sessions = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map { day in
+                    TeachingSession(id: "demo-flight-lab-\(day.lowercased())", day: day, slot: "4:00–5:30 PM", course: "Flight & Design Lab", instructor: "Demo instructor", studentIDs: Array(students.prefix(3).map(\.id)), sourceLabel: "Sample class · explore the daily logbook")
                 }
             }
             healthy = true

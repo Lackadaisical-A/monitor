@@ -55,3 +55,5 @@ The Academy release uses version 2.1 and the existing app identity. The upload w
 - The Instagram reference was not readable with the available web fetch; the ability/NFC workflow follows the supplied prototype.
 - B612 is bundled for offline use under `BiotechSignal/Academy/Resources/B612-OFL.txt`.
 - Regenerate the vector-drawn icon from the repository root with `swift scripts/generate-academy-icon.swift`.
+
+Build 21 adds dated class logbooks, per-student progress notes, camera/photo-library attachments, and revocable private family links. Open Today → Class logbook, or view a student’s class updates from their profile. Photos are encrypted on Render and cached with device protection. JSON backups contain photo references, not photo binaries.

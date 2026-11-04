@@ -15,6 +15,11 @@ struct AcademyBackup: Codable, Equatable {
         guard references.allSatisfy(ids.contains) else { throw AcademyError.invalidBackup }
         func unique<T: Identifiable>(_ rows: [T]) -> Bool where T.ID: Hashable { Set(rows.map(\.id)).count == rows.count }
         guard unique(teaching.projects), unique(teaching.homework), unique(teaching.goals), unique(teaching.evidence), unique(teaching.awards), unique(teaching.sessions) else { throw AcademyError.invalidBackup }
+        guard unique(teaching.classLogs ?? []) else { throw AcademyError.invalidBackup }
+        for entry in teaching.classLogs ?? [] {
+            try entry.validate()
+            guard ids.contains(entry.studentID), teaching.sessions.contains(where: { $0.id == entry.sessionID && $0.studentIDs.contains(entry.studentID) }) else { throw AcademyError.invalidBackup }
+        }
     }
     static func decode(_ data: Data) throws -> Self {
         guard data.count <= 20_000_000 else { throw AcademyError.invalidBackup }

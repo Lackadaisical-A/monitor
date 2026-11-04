@@ -39,6 +39,8 @@
 	<string>public.app-category.education</string>
 	<key>NFCReaderUsageDescription</key>
 	<string>Flight Academy reads student passports and reads or writes instructor NFC cards for secure shared-workspace sign-in.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Photograph student projects and class accomplishments for instructor logs and private family updates.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authorize instructor checkride sign-offs and NFC passport linking.</string>
 	<key>UIAppFonts</key>

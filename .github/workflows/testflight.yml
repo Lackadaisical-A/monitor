@@ -68,7 +68,7 @@ jobs:
             ID and code to sync the academy roster. Link a blank writable NDEF tag as
             your instructor card, then tap it to sign in on another iPhone. Test
             offline edits, conflict review, Onshape lessons, projects, homework,
-            and assessments. Public demo uses fictional students. NFC requires a physical iPhone.
+            and assessments. Test dated class logbooks, camera/photos, and private family links. Public demo uses fictional students. Camera and NFC require a physical iPhone.
         run: node scripts/testflight.mjs
       - name: Update Academy beta description
         if: inputs.action == 'academy'
@@ -82,5 +82,5 @@ jobs:
             Academy shared workspace with private instructor access codes and NFC
             instructor cards. Explore Onshape lessons, projects, homework, goals,
             and assessments in the public demo. Real academy records require staff
-            credentials. Test syncing between phones and NFC on physical devices.
+            credentials. Test dated class logbooks, photo attachments, and revocable per-student family links. Camera and NFC require physical devices.
         run: node scripts/testflight.mjs

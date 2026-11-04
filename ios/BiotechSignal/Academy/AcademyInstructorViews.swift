@@ -4,7 +4,9 @@ import UniformTypeIdentifiers
 struct AcademyTodayView: View {
     @EnvironmentObject private var store: AcademyStore
     @EnvironmentObject private var teaching: AcademyTeachingStore
-    @State private var day = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Calendar.current.component(.weekday, from: Date()) - 1]
+    @EnvironmentObject private var cloud: AcademyCloud
+    @State private var classDate = Date()
+    private var day: String { ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Calendar.current.component(.weekday, from: classDate) - 1] }
     @State private var importing = false
     @State private var importRoster: TeachingRoster?
     @State private var course: AcademyCourse?
@@ -28,15 +30,16 @@ struct AcademyTodayView: View {
                         metric(teaching.state.projects.filter { $0.stage != "Complete" }.count, "Active projects")
                         metric(teaching.state.homework.filter { $0.status == "Reported complete" }.count, "To review")
                     }
-                    Text(store.isDemo ? "Demo workspace · explore with sample records" : "Private workspace · saved on this iPhone").font(.caption).foregroundStyle(.white.opacity(0.8))
+                    Text(store.isDemo ? "Demo workspace · explore with sample records" : cloud.connected ? "Shared academy workspace · \(cloud.status)" : "On this iPhone · sign in to share progress").font(.caption).foregroundStyle(.white.opacity(0.8))
                 }.padding(24).foregroundStyle(.white).background { ZStack { AcademyTheme.navy; AcademyFlightDrawing().opacity(0.25) } }.clipShape(RoundedRectangle(cornerRadius: 24))
                 HStack {
                     Text("Class roster").font(AcademyTheme.display(21))
                     Spacer()
                     Button { importing = true } label: { Label("Import", systemImage: "square.and.arrow.down") }.font(.subheadline.weight(.semibold))
                 }
+                DatePicker("Class date", selection: $classDate, displayedComponents: .date).font(.subheadline.weight(.semibold))
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack { ForEach(days, id: \.self) { item in Button { day = item } label: { Text(String(item.prefix(3))).font(.subheadline.weight(.semibold)).padding(.horizontal, 17).padding(.vertical, 12).foregroundStyle(day == item ? .white : AcademyTheme.navy).background(day == item ? AcademyTheme.navy : .white, in: Capsule()) } } }
+                    HStack { ForEach(days, id: \.self) { item in Button { let weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]; let offset = (weekdays.firstIndex(of: item) ?? 0) - (weekdays.firstIndex(of: day) ?? 0); classDate = Calendar.current.date(byAdding: .day, value: offset, to: classDate) ?? classDate } label: { Text(String(item.prefix(3))).font(.subheadline.weight(.semibold)).padding(.horizontal, 17).padding(.vertical, 12).foregroundStyle(day == item ? .white : AcademyTheme.navy).background(day == item ? AcademyTheme.navy : .white, in: Capsule()) } } }
                 }
                 let sessions = teaching.state.sessions.filter { $0.day == day }
                 let duties = (teaching.state.duties ?? []).filter { $0.day == day }
@@ -55,6 +58,9 @@ struct AcademyTodayView: View {
                         HStack { Text(session.course).font(AcademyTheme.display(19)); Spacer(); AcademyPill(text: session.slot) }
                         Label(session.instructor.isEmpty ? "Instructor unassigned" : session.instructor, systemImage: "person.crop.circle").font(.subheadline)
                         Text(session.sourceLabel).font(.caption).foregroundStyle(AcademyTheme.goldInk)
+                        NavigationLink { AcademyClassLogbookView(session: session, date: classDate) } label: {
+                            HStack { Label("Class logbook", systemImage: "book.closed"); Spacer(); Text("\((teaching.state.classLogs ?? []).filter { $0.sessionID == session.id && $0.classDate == AcademyClassLog.dayKey(classDate) }.count) updates").font(.caption); Image(systemName: "chevron.right").font(.caption) }.font(.subheadline.weight(.semibold)).padding(14).background(AcademyTheme.paper, in: RoundedRectangle(cornerRadius: 12))
+                        }
                         ForEach(store.workspace.students.filter { session.studentIDs.contains($0.id) }) { student in
                             NavigationLink { AcademyStudentDetail(studentID: student.id) } label: { HStack { AcademyAvatar(student: student, size: 34); Text(student.name); Spacer(); Image(systemName: "chevron.right").font(.caption) } }
                         }
@@ -255,6 +261,13 @@ struct AcademyStudentDetail: View {
         HStack(spacing: 15) { AcademyAvatar(student: student, size: 64); VStack(alignment: .leading, spacing: 6) { Text(student.name).font(AcademyTheme.display(27)); Text(student.track.name).foregroundStyle(AcademyTheme.muted) }; Spacer() }
         HStack { Button("Passport") { store.selectedStudentID = student.id; passport = true }; Spacer(); Button("Earlier logbook") { store.selectedStudentID = student.id; logbook = true } }.font(.subheadline)
         ShareLink(item: teaching.report(for: student, legacy: store.workspace)) { Label("Share progress report", systemImage: "square.and.arrow.up") }.buttonStyle(AcademyPrimaryButton())
+        NavigationLink { AcademyFamilyLinkView(student: student) } label: { Label("Family access & shared updates", systemImage: "person.2.badge.key") }.font(.subheadline.weight(.semibold))
+        if !(teaching.state.classLogs ?? []).filter({ $0.studentID == studentID }).isEmpty {
+            Text("Class logbook").font(AcademyTheme.display(21))
+            ForEach((teaching.state.classLogs ?? []).filter { $0.studentID == studentID }.sorted { $0.classDate > $1.classDate }) { entry in
+                NavigationLink { AcademyStudentClassEntry(entry: entry) } label: { AcademyClassLogSummary(entry: entry) }.buttonStyle(.plain)
+            }
+        }
         AcademyPanel { VStack(alignment: .leading, spacing: 14) {
             Text("Semester goals").font(AcademyTheme.display(20))
             ForEach(teaching.state.goals.filter { $0.studentID == studentID }) { item in Toggle(item.title, isOn: Binding(get: { item.completed }, set: { yes in teaching.change { value in if let i = value.goals.firstIndex(where: { $0.id == item.id }) { value.goals[i].completed = yes } } })) }

@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { ClassLogSchema, registerJournal } from "./journal.js";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 // JSON object key order changes when Swift re-encodes a snapshot. It is not an edit.
@@ -19,17 +20,21 @@ const rows = z.array(record).max(20_000);
 // record identities must be unique; the server never treats ranks as app roles.
 export const SnapshotSchema = z.object({
   workspace: z.object({ students: rows, progress: rows, log: rows, curriculum: z.object({ abilities: rows, courses: rows }).passthrough() }).passthrough(),
-  teaching: z.object({ projects: rows, homework: rows, goals: rows, evidence: rows, awards: rows, sessions: rows, instructors: z.array(z.string()).max(200), lessonEdits: z.record(z.string(), z.unknown()), courseEdits: z.record(z.string(), z.unknown()).optional() }).passthrough(),
+  teaching: z.object({ projects: rows, homework: rows, goals: rows, evidence: rows, awards: rows, sessions: rows, instructors: z.array(z.string()).max(200), lessonEdits: z.record(z.string(), z.unknown()), courseEdits: z.record(z.string(), z.unknown()).optional(), classLogs: z.array(ClassLogSchema).max(20_000).optional() }).passthrough(),
 }).superRefine((value, ctx) => {
-  for (const list of [value.workspace.students, value.workspace.progress, value.workspace.log, value.teaching.projects, value.teaching.homework, value.teaching.goals, value.teaching.evidence, value.teaching.awards, value.teaching.sessions]) {
+  for (const list of [value.workspace.students, value.workspace.progress, value.workspace.log, value.teaching.projects, value.teaching.homework, value.teaching.goals, value.teaching.evidence, value.teaching.awards, value.teaching.sessions, value.teaching.classLogs ?? []]) {
     if (new Set(list.map(x => x.id)).size !== list.length) ctx.addIssue({ code: "custom", message: "Duplicate record identity" });
   }
   const students = new Set(value.workspace.students.map(x => x.id));
-  for (const list of [value.workspace.progress, value.workspace.log, value.teaching.homework, value.teaching.goals, value.teaching.evidence, value.teaching.awards]) {
+  for (const list of [value.workspace.progress, value.workspace.log, value.teaching.homework, value.teaching.goals, value.teaching.evidence, value.teaching.awards, value.teaching.classLogs ?? []]) {
     if (list.some(x => typeof x.studentID !== "string" || !students.has(x.studentID))) ctx.addIssue({ code: "custom", message: "Unknown student reference" });
   }
   for (const x of [...value.teaching.projects, ...value.teaching.sessions]) {
     if (!Array.isArray(x.studentIDs) || x.studentIDs.some(id => !students.has(id))) ctx.addIssue({ code: "custom", message: "Unknown team member" });
+  }
+  for (const entry of value.teaching.classLogs ?? []) {
+    const session = value.teaching.sessions.find(session => session.id === entry.sessionID);
+    if (!session || !Array.isArray(session.studentIDs) || !session.studentIDs.includes(entry.studentID)) ctx.addIssue({ code: "custom", message: "Class log student must belong to its class" });
   }
 });
 export type AcademySnapshot = z.infer<typeof SnapshotSchema>;
@@ -60,7 +65,7 @@ export class AcademyDatabase {
     const data = Buffer.concat([cipher.update(JSON.stringify(value)), cipher.final()]);
     return Buffer.concat([iv, cipher.getAuthTag(), data]).toString("base64");
   }
-  open(value: string): AcademySnapshot {
+  open<T = AcademySnapshot>(value: string): T {
     const bytes = Buffer.from(value, "base64"), cipher = createDecipheriv("aes-256-gcm", this.key, bytes.subarray(0, 12));
     cipher.setAuthTag(bytes.subarray(12, 28));
     return JSON.parse(Buffer.concat([cipher.update(bytes.subarray(28)), cipher.final()]).toString());
@@ -114,6 +119,7 @@ export async function registerAcademy(app: FastifyInstance, config: AcademyConfi
     if (session.credential?.startsWith("code:") && session.credential.slice(5) !== codes[session.email]) throw fail(401, "Your access code changed. Sign in again.");
     return { ...session, role: staff[session.email]! };
   };
+  registerJournal(app, db, authorize, origin.origin);
   app.addHook("onClose", async () => { db.db.close(); });
   app.get(`${prefix}/health`, async () => { db.db.prepare("SELECT 1").get(); return { ok: true, service: "flight-academy", storage: "persistent", accessCodes: Object.keys(codes).length > 0, google: googleEnabled }; });
   // Bound attempts even when the module is mounted without a global rate limiter.
@@ -215,6 +221,15 @@ export async function registerAcademy(app: FastifyInstance, config: AcademyConfi
     const actor = authorize(req);
     const body = z.object({ revision: z.number().int().nonnegative(), operation: z.string().uuid(), snapshot: SnapshotSchema }).parse(req.body);
     const previous = db.latest();
+    // Build 20 does not know this field. A legacy phone must never erase journals.
+    if (body.snapshot.teaching.classLogs === undefined && previous.snapshot?.teaching.classLogs !== undefined) body.snapshot.teaching.classLogs = previous.snapshot.teaching.classLogs;
+    SnapshotSchema.parse(body.snapshot);
+    for (const entry of body.snapshot.teaching.classLogs ?? []) {
+      for (const id of entry.photoIDs) {
+        const photo = db.db.prepare("SELECT student FROM academy_photos WHERE id = ?").get(id) as { student: string } | undefined;
+        if (!photo || photo.student !== entry.studentID) throw fail(400, "Upload each photo for its student before syncing this class log.");
+      }
+    }
     if (actor.role !== "admin") {
       if (!previous.snapshot || canonical(previous.snapshot.workspace.curriculum) !== canonical(body.snapshot.workspace.curriculum) || canonical(previous.snapshot.teaching.lessonEdits) !== canonical(body.snapshot.teaching.lessonEdits) || canonical(previous.snapshot.teaching.courseEdits) !== canonical(body.snapshot.teaching.courseEdits)) throw fail(403, "Curriculum changes and workspace setup require an administrator");
     }

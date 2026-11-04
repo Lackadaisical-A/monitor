@@ -144,6 +144,39 @@ struct AcademyStaffCard: Codable, Identifiable { var id: String; var account: St
         result.workspace.instructor = "" // Staff identity is local/authenticated, never another device's setting.
         return result
     }
+    func photo(_ id: UUID) async throws -> Data {
+        guard connected else { throw CloudError("Sign in to download this photo.") }
+        struct Photo: Decodable { var data: Data }
+        let value: Photo = try await request("photos/\(id.uuidString)")
+        return value.data
+    }
+    private func uploadPhotos(_ snapshot: AcademyBackup) async throws {
+        struct Item: Encodable { var id: UUID; var studentID: UUID }
+        struct Check: Encodable { var photos: [Item] }
+        struct Present: Decodable { var present: [UUID] }
+        var seen = Set<UUID>()
+        let items = (snapshot.teaching.classLogs ?? []).flatMap { entry in entry.photoIDs.filter { seen.insert($0).inserted }.map { Item(id: $0, studentID: entry.studentID) } }
+        guard !items.isEmpty else { return }
+        let inventory: Present = try await request("photos/check", method: "POST", body: JSONEncoder().encode(Check(photos: items)))
+        let present = Set(inventory.present)
+        for item in items where !present.contains(item.id) {
+            guard let data = AcademyPhotos.data(item.id, demo: false) else { throw CloudError("A photo has not reached the shared workspace. Sync the iPhone where it was taken first, or remove the missing photo from the update.") }
+            struct Upload: Encodable { var id: UUID; var studentID: UUID; var data: Data }
+            status = "Uploading class photos…"
+            let _: [String: Bool] = try await request("photos", method: "POST", body: JSONEncoder().encode(Upload(id: item.id, studentID: item.studentID, data: data)))
+        }
+    }
+    func familyLinkActive(_ id: UUID) async throws -> Bool {
+        struct Status: Decodable { var active: Bool }
+        let result: Status = try await request("students/\(id.uuidString)/family-link"); return result.active
+    }
+    func createFamilyLink(_ id: UUID) async throws -> URL {
+        struct Link: Decodable { var url: URL }
+        let result: Link = try await request("students/\(id.uuidString)/family-link", method: "POST"); return result.url
+    }
+    func revokeFamilyLink(_ id: UUID) async throws {
+        let _: [String: Bool] = try await request("students/\(id.uuidString)/family-link", method: "DELETE")
+    }
     func sync(store: AcademyStore, teaching: AcademyTeachingStore) async {
         guard connected, !store.isDemo, !busy, conflict == nil else { return }
         guard store.storageHealthy, teaching.healthy else { error = "Restore local storage before syncing."; return }
@@ -169,6 +202,7 @@ struct AcademyStaffCard: Codable, Identifiable { var id: String; var account: St
             // Freeze this upload. Edits made while the request runs remain local
             // differences against this exact baseline for the next sync.
             let uploaded = snapshot(store, teaching)
+            try await uploadPhotos(uploaded)
             let nextRevision: Int
             if uploaded == remote.snapshot { nextRevision = remote.revision }
             else {

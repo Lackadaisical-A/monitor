@@ -1,8 +1,59 @@
 import XCTest
 import CoreNFC
+import ImageIO
 @testable import BiotechSignal
 
 final class AcademyTeachingTests: XCTestCase {
+    func testClassLogBackupCompatibilityAndStudentMembership() throws {
+        let resource = try XCTUnwrap(Bundle.main.url(forResource: "academy-curriculum", withExtension: "json"))
+        var workspace = AcademyWorkspace(curriculum: try JSONDecoder().decode(AcademyCurriculum.self, from: Data(contentsOf: resource)))
+        let student = AcademyStudent(name: "Journal Student", track: .aerospace, courseID: "uas-101")
+        workspace.students = [student]
+        let old = try JSONEncoder().encode(AcademyBackup(workspace: workspace, teaching: TeachingState()))
+        XCTAssertNil(try AcademyBackup.decode(old).teaching.classLogs)
+        var teaching = TeachingState()
+        teaching.sessions = [TeachingSession(id: "class", day: "Wednesday", slot: "4 PM", course: "Design", instructor: "Teacher", studentIDs: [student.id], sourceLabel: "Test")]
+        var entry = AcademyClassLog(studentID: student.id, sessionID: "class", classDate: "2026-11-04", instructor: "Teacher")
+        entry.accomplishments = "Tested a wing"; entry.privateNotes = "Teacher only"; entry.published = true; entry.photoIDs = [UUID()]
+        teaching.classLogs = [entry]
+        let backup = AcademyBackup(workspace: workspace, teaching: teaching)
+        XCTAssertEqual(try AcademyBackup.decode(JSONEncoder().encode(backup)), backup)
+        teaching.classLogs?[0].studentID = UUID()
+        XCTAssertThrowsError(try AcademyBackup(workspace: workspace, teaching: teaching).validate())
+        teaching.classLogs = [entry, entry]
+        XCTAssertThrowsError(try AcademyBackup(workspace: workspace, teaching: teaching).validate())
+        entry.classDate = "2026-02-30"; XCTAssertThrowsError(try entry.validate())
+        entry.classDate = "2026-11-04"; entry.accomplishments = " "; XCTAssertThrowsError(try entry.validate())
+    }
+    @MainActor func testClassDraftPersistsSeparatelyFromDemoAndMergesIndependentUpdates() throws {
+        let store = AcademyTeachingStore(inMemory: true), student = UUID()
+        store.load(demo: false, students: [])
+        let entry = AcademyClassLog(studentID: student, sessionID: "class", classDate: "2026-11-04", instructor: "Teacher")
+        XCTAssertTrue(store.change { $0.classLogs = [entry] })
+        store.load(demo: true, students: []); XCTAssertNil(store.state.classLogs)
+        store.load(demo: false, students: []); XCTAssertEqual(store.state.classLogs, [entry])
+        var local = TeachingState(), remote = TeachingState()
+        local.classLogs = [entry]
+        var other = entry; other.id = UUID(); other.accomplishments = "A different update"; remote.classLogs = [other]
+        let merged = try AcademyMerge.combine(base: JSONEncoder().encode(TeachingState()), local: JSONEncoder().encode(local), remote: JSONEncoder().encode(remote))
+        XCTAssertEqual(try JSONDecoder().decode(TeachingState.self, from: merged).classLogs?.count, 2)
+    }
+    @MainActor func testClassPhotoResizesAndRemovesLocationMetadata() throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2000, height: 1000)).image { context in
+            UIColor.blue.setFill(); context.fill(CGRect(x: 0, y: 0, width: 2000, height: 1000))
+        }
+        let sourceData = NSMutableData()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(sourceData, "public.jpeg" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, try XCTUnwrap(image.cgImage), [kCGImagePropertyGPSDictionary: [kCGImagePropertyGPSLatitude: 40.7, kCGImagePropertyGPSLongitude: 74.0]] as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        let data = try AcademyPhotos.prepare(sourceData as Data)
+        XCTAssertLessThanOrEqual(data.count, 950_000)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+        let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+        XCTAssertNil(properties[kCGImagePropertyGPSDictionary])
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 1600)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 800)
+    }
     func testInstructorCardAcceptsOnlyVersionedCredentialAndRejectsStudentTags() throws {
         let token = String(repeating: "A", count: 43)
         let message = try AcademyInstructorCardPayload.message(token)

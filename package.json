@@ -29,6 +29,7 @@
     "fastify": "latest",
     "jose": "latest",
     "openai": "latest",
+    "sharp": "^0.35.5",
     "zod": "latest"
   },
   "devDependencies": {

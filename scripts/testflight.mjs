@@ -133,14 +133,32 @@ function authorizationToken() {
 async function api(path, options = {}) {
   const url = new URL(path, "https://api.appstoreconnect.apple.com");
   if (url.origin !== "https://api.appstoreconnect.apple.com") throw new Error("Unexpected API origin");
-  const response = await fetch(url, { method: options.method ?? "GET", signal: AbortSignal.timeout(30_000),
-    headers: { Authorization: `Bearer ${authorizationToken()}`, Accept: "application/json", "Content-Type": "application/json" },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  if (response.status === 204) return null;
-  const payload = await response.json();
-  if (!response.ok) throw new Error(`${options.method ?? "GET"} ${url.pathname}: ${JSON.stringify(payload.errors)}`);
-  return payload;
+  const method = options.method ?? "GET";
+  // Reads and attribute replacement are safe to retry. Never blindly retry a POST
+  // whose outcome is unknown; a later distribution run reconciles current state.
+  const attempts = ["GET", "PATCH"].includes(method) ? 3 : 1;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const response = await fetch(url, { method, signal: AbortSignal.timeout(30_000),
+        headers: { Authorization: `Bearer ${authorizationToken()}`, Accept: "application/json", "Content-Type": "application/json" },
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      });
+      if ((response.status === 429 || response.status >= 500) && attempt + 1 < attempts) {
+        await response.body?.cancel();
+        const delay = Math.min(30, Math.max(1, Number(response.headers.get("Retry-After")) || attempt + 1));
+        await new Promise(resolve => setTimeout(resolve, delay * 1000));
+        continue;
+      }
+      if (response.status === 204) return null;
+      const payload = await response.json();
+      if (!response.ok) throw new Error(`${method} ${url.pathname}: ${JSON.stringify(payload.errors)}`);
+      return payload;
+    } catch (error) {
+      if (attempt + 1 === attempts || !["TimeoutError", "TypeError"].includes(error.name)) throw error;
+      console.log(`Retrying temporary Apple API failure for ${method} ${url.pathname}`);
+      await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
+    }
+  }
 }
 
 async function all(path) {

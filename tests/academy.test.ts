@@ -42,9 +42,11 @@ describe("academy private workspace", () => {
       expect((await app.inject({ url })).statusCode).toBe(401);
       expect((await app.inject({ url, headers: { authorization: `Bearer ${outsider.token}` } })).statusCode).toBe(401);
       const data = snapshot();
+      Object.assign(data.workspace.curriculum, { source: "Draft", version: 1 });
       expect((await app.inject({ method: "PUT", url, headers: { authorization: `Bearer ${instructor.token}` }, payload: { revision: 0, operation: randomUUID(), snapshot: data } })).statusCode).toBe(403);
       expect((await app.inject({ method: "PUT", url, headers: { authorization: `Bearer ${admin.token}` }, payload: { revision: 0, operation: randomUUID(), snapshot: data } })).statusCode).toBe(200);
       data.teaching.goals.push({ id: randomUUID(), studentID: student, title: "Practice" });
+      data.workspace.curriculum = { version: 1, source: "Draft", courses: [], abilities: [] };
       expect((await app.inject({ method: "PUT", url, headers: { authorization: `Bearer ${instructor.token}` }, payload: { revision: 1, operation: randomUUID(), snapshot: data } })).statusCode).toBe(200);
       data.teaching.lessonEdits.test = {};
       expect((await app.inject({ method: "PUT", url, headers: { authorization: `Bearer ${instructor.token}` }, payload: { revision: 2, operation: randomUUID(), snapshot: data } })).statusCode).toBe(403);

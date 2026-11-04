@@ -123,7 +123,7 @@ struct AcademyStaffCard: Codable, Identifiable { var id: String; var account: St
     struct CloudError: LocalizedError { var message: String; init(_ message: String) { self.message = message }; var errorDescription: String? { message } }
     private func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil) async throws -> T {
         var req = URLRequest(url: try endpoint(path)); req.httpMethod = method; req.httpBody = body; req.timeoutInterval = 25
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if body != nil { req.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         if !token.isEmpty { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw CloudError("The server did not respond.") }

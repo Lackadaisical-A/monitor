@@ -7,6 +7,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+// JSON object key order changes when Swift re-encodes a snapshot. It is not an edit.
+const canonical = (value: unknown): string => JSON.stringify(value, (_key, item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : item) ?? "null";
 const opaque = () => randomBytes(32).toString("base64url");
 const fail = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 const staffSchema = z.record(z.string().min(1).max(150).regex(/^[a-z0-9@._+-]+$/), z.enum(["admin", "instructor"]));
@@ -69,7 +71,7 @@ export class AcademyDatabase {
   }
   save(base: number, operation: string, snapshot: AcademySnapshot, actor: string) {
     return this.db.transaction(() => {
-      const digest = hash(JSON.stringify(snapshot));
+      const digest = hash(canonical(snapshot));
       const prior = this.db.prepare("SELECT revision, digest FROM academy_operations WHERE id = ?").get(operation) as { revision: number; digest: string } | undefined;
       if (prior) { if (prior.digest !== digest) throw fail(409, "Operation ID was reused with different data"); return { revision: prior.revision }; }
       const current = this.latest();
@@ -214,7 +216,7 @@ export async function registerAcademy(app: FastifyInstance, config: AcademyConfi
     const body = z.object({ revision: z.number().int().nonnegative(), operation: z.string().uuid(), snapshot: SnapshotSchema }).parse(req.body);
     const previous = db.latest();
     if (actor.role !== "admin") {
-      if (!previous.snapshot || JSON.stringify(previous.snapshot.workspace.curriculum) !== JSON.stringify(body.snapshot.workspace.curriculum) || JSON.stringify(previous.snapshot.teaching.lessonEdits) !== JSON.stringify(body.snapshot.teaching.lessonEdits) || JSON.stringify(previous.snapshot.teaching.courseEdits) !== JSON.stringify(body.snapshot.teaching.courseEdits)) throw fail(403, "Curriculum changes and workspace setup require an administrator");
+      if (!previous.snapshot || canonical(previous.snapshot.workspace.curriculum) !== canonical(body.snapshot.workspace.curriculum) || canonical(previous.snapshot.teaching.lessonEdits) !== canonical(body.snapshot.teaching.lessonEdits) || canonical(previous.snapshot.teaching.courseEdits) !== canonical(body.snapshot.teaching.courseEdits)) throw fail(403, "Curriculum changes and workspace setup require an administrator");
     }
     // Portable snapshots never transfer device-specific fingerprints.
     for (const student of body.snapshot.workspace.students) delete student.passportFingerprint;

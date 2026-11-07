@@ -68,7 +68,10 @@ jobs:
             ID and code to sync the academy roster. Link a blank writable NDEF tag as
             your instructor card, then tap it to sign in on another iPhone. Test
             offline edits, conflict review, Onshape lessons, projects, homework,
-            and assessments. Test dated class logbooks, camera/photos, and private family links. Public demo uses fictional students. Camera and NFC require a physical iPhone.
+            and assessments. Test dated class logbooks, camera/photos, private family links,
+            and instructor hours. Clock-in requires an accurate location within 100 feet
+            of 118 Ferry Street, Jersey City. Check weekly totals, team hours, corrections,
+            and entrance calibration. Camera, real location clock-in, and NFC require a physical iPhone.
         run: node scripts/testflight.mjs
       - name: Update Academy beta description
         if: inputs.action == 'academy'
@@ -82,5 +85,8 @@ jobs:
             Academy shared workspace with private instructor access codes and NFC
             instructor cards. Explore Onshape lessons, projects, homework, goals,
             and assessments in the public demo. Real academy records require staff
-            credentials. Test dated class logbooks, photo attachments, and revocable per-student family links. Camera and NFC require physical devices.
+            credentials. Test dated class logbooks, photo attachments, revocable family
+            links, and instructor hours. Staff clock-in checks a 100-foot radius at
+            118 Ferry Street, Jersey City. Demo mode records no work hours. Camera,
+            real location checks, and NFC require physical devices.
         run: node scripts/testflight.mjs

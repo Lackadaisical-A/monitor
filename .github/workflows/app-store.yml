@@ -100,7 +100,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run typecheck
-          npm test -- tests/academy.test.ts tests/academy-journal.test.ts
+          npm test -- tests/academy.test.ts tests/academy-journal.test.ts tests/academy-hours.test.ts
           SIMULATOR_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["name"].startswith("iPhone")))')"
           xcodebuild -project ios/BiotechSignal.xcodeproj -scheme BiotechSignal \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
@@ -193,7 +193,11 @@ jobs:
             as your instructor card; tap the card to sign in on another iPhone. Lost cards
             can be revoked. Test offline edits, conflict review, projects, homework, and
             Onshape lessons. Public demo contains fictional students only; academy records
-            require approved staff credentials. NFC requires a physical iPhone.
+            require approved staff credentials. Test daily class logs, camera photos,
+            private family links, and instructor hours. Clock-in requires an accurate
+            real location within 100 feet of 118 Ferry Street, Jersey City. Clock-out
+            works anywhere online. Check personal/team weeks, admin corrections, and
+            entrance calibration. Camera, location clock-in, and NFC require a physical iPhone.
         run: node scripts/testflight.mjs
 
       - name: Update Academy TestFlight metadata
@@ -213,7 +217,10 @@ jobs:
             progress sync on Render, and instructor NFC card setup and tap sign-in.
             Explore Today, Students, Projects, Library, Onshape lessons, assessments,
             and homework in the public demo. Real academy data requires staff credentials.
-            Test NFC on a physical iPhone with a blank writable NDEF tag.
+            Test class logbooks, photo attachments, private family links, and instructor
+            hours. Staff clock-in checks a 100-foot radius at 118 Ferry Street, Jersey City.
+            Hours require sign-in and an internet connection; demo mode records no shifts.
+            Camera, real location checks, and NFC require a physical iPhone.
         run: node scripts/testflight.mjs
 
       - name: Remove signing credentials

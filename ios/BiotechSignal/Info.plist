@@ -43,6 +43,8 @@
 	<string>Photograph student projects and class accomplishments for instructor logs and private family updates.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authorize instructor checkride sign-offs and NFC passport linking.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Verify that you are near the academy when you clock in for your teaching shift. Your location is checked only when you tap to clock in or verify the entrance pin.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>B612-Regular.ttf</string>

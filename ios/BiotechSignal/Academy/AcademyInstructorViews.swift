@@ -32,6 +32,7 @@ struct AcademyTodayView: View {
                     }
                     Text(store.isDemo ? "Demo workspace · explore with sample records" : cloud.connected ? "Shared academy workspace · \(cloud.status)" : "On this iPhone · sign in to share progress").font(.caption).foregroundStyle(.white.opacity(0.8))
                 }.padding(24).foregroundStyle(.white).background { ZStack { AcademyTheme.navy; AcademyFlightDrawing().opacity(0.25) } }.clipShape(RoundedRectangle(cornerRadius: 24))
+                AcademyHoursCard()
                 HStack {
                     Text("Class roster").font(AcademyTheme.display(21))
                     Spacer()

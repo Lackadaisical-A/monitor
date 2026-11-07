@@ -32,7 +32,9 @@ struct AcademyWorkspaceView: View {
                     Text("Backups contain student names, curriculum, and learning records. Store them privately. Backups include projects, homework, goals, observations, and lesson edits. Local NFC tags must be linked again after restoring.").font(.caption).foregroundStyle(AcademyTheme.muted)
                 }
                 Section("How this version works") {
-                    Label("Available offline", systemImage: "checkmark.circle").foregroundStyle(AcademyTheme.green)
+                    Label("Teaching records available offline", systemImage: "checkmark.circle").foregroundStyle(AcademyTheme.green)
+                    NavigationLink { AcademyHoursView() } label: { Label("Instructor hours", systemImage: "clock") }
+                    Text("Clock-in and clock-out require an internet connection. Staff hours are saved separately on Render and are not included in workspace backups.").font(.caption).foregroundStyle(AcademyTheme.muted)
                     Label("Device-protected student records", systemImage: "lock.shield")
                     NavigationLink { AcademyCloudView() } label: { Label("Shared workspace", systemImage: cloud.connected ? "icloud" : "icloud.slash") }
                     Text(cloud.status).font(.caption).foregroundStyle(AcademyTheme.muted)

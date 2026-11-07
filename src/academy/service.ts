@@ -6,6 +6,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { ClassLogSchema, registerJournal } from "./journal.js";
+import { registerHours } from "./hours.js";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 // JSON object key order changes when Swift re-encodes a snapshot. It is not an edit.
@@ -120,6 +121,7 @@ export async function registerAcademy(app: FastifyInstance, config: AcademyConfi
     return { ...session, role: staff[session.email]! };
   };
   registerJournal(app, db, authorize, origin.origin);
+  registerHours(app, db, authorize, staff);
   app.addHook("onClose", async () => { db.db.close(); });
   app.get(`${prefix}/health`, async () => { db.db.prepare("SELECT 1").get(); return { ok: true, service: "flight-academy", storage: "persistent", accessCodes: Object.keys(codes).length > 0, google: googleEnabled }; });
   // Bound attempts even when the module is mounted without a global rate limiter.

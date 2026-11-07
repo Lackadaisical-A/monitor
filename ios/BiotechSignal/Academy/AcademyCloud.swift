@@ -121,8 +121,10 @@ struct AcademyStaffCard: Codable, Identifiable { var id: String; var account: St
         } catch { self.error = error.localizedDescription }
     }
     struct CloudError: LocalizedError { var message: String; init(_ message: String) { self.message = message }; var errorDescription: String? { message } }
-    private func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil) async throws -> T {
-        var req = URLRequest(url: try endpoint(path)); req.httpMethod = method; req.httpBody = body; req.timeoutInterval = 25
+    func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil, query: [URLQueryItem] = []) async throws -> T {
+        var components = URLComponents(url: try endpoint(path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { components.queryItems = query }
+        var req = URLRequest(url: components.url!); req.httpMethod = method; req.httpBody = body; req.timeoutInterval = 25
         if body != nil { req.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         if !token.isEmpty { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -132,7 +134,7 @@ struct AcademyStaffCard: Codable, Identifiable { var id: String; var account: St
                 try? KeychainStore.save("", account: account); token = ""; email = ""; role = ""; cards = []
                 status = "Sign-in expired · local changes are kept"
             }
-            if http.statusCode == 409 { throw CloudError("Another instructor just updated this workspace. Sync again to merge or review the changes.") }
+            if http.statusCode == 409, path == "workspace" { throw CloudError("Another instructor just updated this workspace. Sync again to merge or review the changes.") }
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             let message = object?["message"] as? String ?? object?["error"] as? String
             throw CloudError(message ?? "The shared service returned \(http.statusCode). Local records are unchanged.")

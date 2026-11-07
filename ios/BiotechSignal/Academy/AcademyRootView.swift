@@ -4,6 +4,7 @@ struct AcademyRootView: View {
     @EnvironmentObject private var store: AcademyStore
     @StateObject private var teaching = AcademyTeachingStore()
     @StateObject private var cloud = AcademyCloud()
+    @StateObject private var hours = AcademyHoursModel()
     @State private var showWorkspace = false
     @State private var showPassport = false
     @State private var showStudents = false
@@ -43,8 +44,11 @@ struct AcademyRootView: View {
         }.tint(AcademyTheme.navy)
         .environmentObject(teaching)
         .environmentObject(cloud)
+        .environmentObject(hours)
         .onAppear { store.cloud = cloud; teaching.load(demo: store.isDemo, students: store.workspace.students) }
-        .onChange(of: store.isDemo) { _, _ in teaching.load(demo: store.isDemo, students: store.workspace.students) }
+        .onChange(of: store.isDemo) { _, _ in hours.clear(); teaching.load(demo: store.isDemo, students: store.workspace.students) }
+        .onChange(of: cloud.email) { _, _ in hours.clear() }
+        .onChange(of: cloud.connected) { _, _ in hours.clear() }
         .task { while !Task.isCancelled { try? await Task.sleep(for: .seconds(30)); if !Task.isCancelled { await cloud.sync(store: store, teaching: teaching) } } }
         .onChange(of: teaching.error) { _, message in if let message { store.errorMessage = message; teaching.error = nil } }
     }

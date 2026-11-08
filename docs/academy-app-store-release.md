@@ -1,6 +1,8 @@
 # Academy App Store release
 
-App: **Flight & Aerospace Academy** · Apple ID `6803988538` · bundle ID `com.yingcui.CatalystWatch` · version **2.1**, intended build **22**.
+App: **Flight & Aerospace Academy** · Apple ID `6803988538` · bundle ID `com.yingcui.CatalystWatch` · version **2.1**, build **22**.
+
+Submitted to App Review on **November 8, 2026 at 05:34 UTC**. Apple returned **WAITING_FOR_REVIEW**. Release remains **manual**; the app is not yet approved or published.
 
 The academy product contains no StoreKit purchase flow. The historical Catalyst Watch release script configures stock subscriptions and medical content; it now rejects configuration/submission from this academy checkout. The registered release workflow has been switched to the separate academy preparation script.
 
@@ -36,4 +38,12 @@ Use this factual description together with the completed access details; it is n
 
 The permanent checkout is `/Users/cuiy/Desktop/academy-instructor-release`. The earlier `/private/tmp/academy-instructor-2-1` checkout was partially cleared during a session change. The committed hours feature is preserved as `7eeb63e`; use the permanent checkout for future commands.
 
-As of preparation on November 8, 2026, no App Store submission has been sent. Apple sign-in, publishing the source, native screenshot execution/visual review, real-device validation, and complete reviewer access remain outstanding. Local validation does not establish that Apple will approve the app.
+Release source `d25081b6644f794ab2347d373757a8cb273b10b5` is pushed to `codex/academy-instructor-2-1` and deployed to the existing production Render service. The production database and encryption key were preserved; read-only checks found 52 students, 23 classes, workspace revision 9, and the 100-foot hours configuration. Both public support and privacy pages are live.
+
+- [Build workflow 42450014782](https://github.com/Lackadaisical-A/monitor/actions/runs/42450014782) completed successfully, including 27 native tests, archive, NFC signing verification, export, and upload. Build UUID: `c0362efa-e50e-4c90-bb79-0fb4a3d849b5`. Internal testing is active; external status is `BETA_APPROVED`. Build 22 is attached to the existing public group at <https://testflight.apple.com/join/w5UHK1gM>. Automatic tester notifications remain disabled.
+- [Screenshot workflow 42450015031](https://github.com/Lackadaisical-A/monitor/actions/runs/42450015031) passed. All five genuine 1206 × 2622 captures were visually inspected. Today, Skills, Students, and Projects were selected for the listing and processed successfully. Old stock/paywall screenshots were removed; previous assets are retained locally. Captures and provenance are in `/Users/cuiy/Desktop/academy-release-assets/build-22/screenshots`.
+- Name, description, categories, URLs, age rating, and App Privacy were updated. The five declared data types are linked to identity, used for app functionality, and not used for tracking. Free pricing was verified. The two old subscription products and their group were removed from this review submission without deleting their product records.
+- Apple has dedicated review credentials for `https://flight-academy-review.onrender.com`, a separate free Render service (`srv-dbo0d27f3r2c739rb0ug`) containing only three fictional students and seven sample classes. Its encryption key, accounts, and database are separate from production. Account access and hours endpoints were verified for both review roles; a manual shift is explicitly labeled fictional. The free service can sleep and its ephemeral database re-seeds after restart. Reviewer notes explain startup, sign-in, location restrictions, and optional NFC. Credentials are in App Store Connect and owner-only local `.secrets` files, never in Git.
+- Version ID: `4e642ebf-36df-4963-92f6-a4f9a23196da`. Submission ID: `80b687f8-86ec-4f19-99a9-665d2936d463`. Only the academy version is in the active review package; the earlier stock-app metadata rejection was resolved for resubmission.
+
+Still outstanding: Apple's decision, the user's public-versus-unlisted distribution choice, and physical iPhone validation of camera, NFC, and inside/outside clock-in at the real entrance. No physical-device demonstration video has been provided. The location restriction is disclosed to Apple without a review-only bypass. Keep manual release until the distribution choice and production device checks are complete. Do not re-upload build number 22.

@@ -55,6 +55,13 @@ const config = {
   screenshotPath: resolve(process.env.ASC_REVIEW_SCREENSHOT ?? "ios/AppStore/Screenshots/catalyst-watch-paywall-6.5.png"),
 };
 
+// Never apply historical stock subscriptions or medical metadata to Academy 2.x.
+if (action !== "inspect") {
+  const project = await readFile(new URL("../ios/project.yml", import.meta.url), "utf8");
+  const currentVersion = project.match(/MARKETING_VERSION:\s*"([^"]+)"/)?.[1];
+  if (currentVersion !== "1.0" || config.version !== "1.0") throw new Error("The stock-app release workflow is retired for this project. Use app-store-release.yml with academy-app-store.mjs for the academy listing.");
+}
+
 const privateKey = await importPKCS8(required("ASC_PRIVATE_KEY").replaceAll("\\n", "\n"), "ES256");
 let token = "";
 let tokenExpiresAt = 0;

@@ -1,0 +1,39 @@
+# Academy App Store release
+
+App: **Flight & Aerospace Academy** · Apple ID `6803988538` · bundle ID `com.yingcui.CatalystWatch` · version **2.1**, intended build **22**.
+
+The academy product contains no StoreKit purchase flow. The historical Catalyst Watch release script configures stock subscriptions and medical content; it now rejects configuration/submission from this academy checkout. The registered release workflow has been switched to the separate academy preparation script.
+
+## Prepared assets
+
+- `ios/AppStore/academy-en-US.json`: complete English name, subtitle, description, keywords, URLs, category choices, copyright, and update text. `node scripts/academy-app-store.mjs validate` checks version consistency, field lengths, and HTTPS URLs.
+- `public/academy-support.html`: academy contact and troubleshooting for access, synchronization, hours, NFC, family updates, and data requests. Contact details match the academy's [published contact information](https://flightaerospace.academy/accessibility). Deploy this page before using its URL in a submitted listing.
+- `.github/workflows/academy-store-assets.yml`: builds the actual iPhone app and runs `AcademyScreenshotTests` on a medium Dynamic Island iPhone simulator. It captures Today, Students, Projects, Skills, and Courses using fictional demo records only. Exported JPEGs preserve the native dimensions and have no alpha channel. `provenance.json` records the source commit and workflow run. Open every screenshot and confirm content/layout before uploading; capture success alone is not visual approval.
+- `.github/workflows/app-store-release.yml`: inspect or configure the editable Academy 2.1 listing using existing App Store Connect secrets. Configuration uses manual release, preserves subscription products and review-contact credentials, and attaches only a valid, unexpired build matching both version and build number. The script reports remaining review tasks and does not submit the app.
+
+## Distribution
+
+An [unlisted App Store link](https://developer.apple.com/support/unlisted-app-distribution/) is a good fit for academy instructors using their own iPhones. It supports normal App Store installation and updates without search discovery. Anyone who receives the link can download the app; instructor authentication still protects academy records. Unlisted distribution requires a separate Apple request and review. The user's choice between unlisted and searchable public distribution is pending. Do not silently change an existing published app's distribution method.
+
+## Review preparation
+
+1. Push the academy branch; deploy that exact commit to the existing Render service. Its live configuration has automatic deploys disabled, so a GitHub push alone does not update the backend. Verify `/api/academy/v1/hours`, the privacy URL, and support URL. Preserve the database and encryption key.
+2. Upload build 22 using `app-store.yml`. If 22 has already been accepted by Apple and the production app source needs further changes, use a new build number. Test the release on a physical iPhone, including camera, NFC, and inside/outside clock-in at the real entrance. Simulator screenshots do not verify those capabilities.
+3. Inspect App Store Connect first. Configure version 2.1 using `app-store-release.yml`, replace old stock-app screenshots with visually reviewed academy captures, and confirm a valid 2.1 build is attached. Preserve live historical versions.
+4. Select Education / Productivity. Re-answer the age-rating questionnaire for the instructor app: no advertising, gambling, medical/treatment information, health/wellness content, public social feed, chat, or unrestricted embedded browser. The app does contain staff-authored notes and photos; disclose user-generated content accurately. It is an instructor tool, not a Kids Category app. Verify all remaining questionnaire answers against the app before saving.
+5. Update App Privacy for linked Name, User ID, Other User Content (learning records, class notes, project information, teaching records), Photos or Videos, and Precise Location used for app functionality. No advertising tracking. Location is sent only for clock-in or entrance verification; raw clock-in coordinates are discarded, while distance, accuracy, pin revision, and shift times are retained. An administrator's entrance coordinate is retained as configuration. Review any server logging/diagnostics separately rather than assuming none exist. See [Apple's definitions](https://developer.apple.com/app-store/app-privacy-details/).
+6. Verify free app pricing and the existing subscription situation. Do not attach stock subscriptions to this release or make changes that affect existing subscribers without reviewing their status. Confirm existing account agreements and availability; only the account holder should supply legal/business attestations that cannot be established from the app.
+7. Prepare complete reviewer access. The bundled demo lets Apple inspect curriculum, students, projects, local teaching flows, and class logs without real student data. It intentionally cannot write shared staff hours or create live family links. **Do not give Apple a real instructor credential with access to children's records.** Arrange an isolated review workspace or agree a review demonstration with Apple for authenticated features. Clearly disclose location restrictions and provide a physical-device demonstration of location/NFC where required. No review-only bypass may be presented as production behavior. Apple requires [full access and explanations for hardware-dependent features](https://developer.apple.com/help/app-review/before-submitting-for-review/complete-review/).
+8. Check the review contact, upload any required demonstration, and submit the completed version. For unlisted distribution, request it through Apple's form with the app ready for final distribution and submitted for review. Verify the actual submission state after sending. Keep manual release until the distribution decision and production checks are complete.
+
+## Draft reviewer explanation
+
+Use this factual description together with the completed access details; it is not a substitute for reviewer access:
+
+> This app is the instructor workspace for Flight & Aerospace Academy in Jersey City, NJ. It replaces the historical Catalyst Watch stock-monitor interface. There are no in-app purchases, subscriptions, advertising, or stock features in the academy binary. First launch opens a clearly labeled demo with fictional students. Today shows class groups and daily logbooks; Students shows progress and homework; Projects organizes team work and Onshape documents; Library contains skills, checkpoints, and courses. Real academy records require an individual staff access code. Optional NFC provides an alternative to code sign-in and opening students manually. Online instructor hours use server time and require a precise location within 100 feet of the configured entrance at 118 Ferry Street for clock-in. Clock-out works anywhere online. There is no background location tracking. Family updates are explicitly shared by staff through revocable, student-specific browser links. The backend is hosted on Render; the app does not require Airtable or Google OAuth.
+
+## Current handoff
+
+The permanent checkout is `/Users/cuiy/Desktop/academy-instructor-release`. The earlier `/private/tmp/academy-instructor-2-1` checkout was partially cleared during a session change. The committed hours feature is preserved as `7eeb63e`; use the permanent checkout for future commands.
+
+As of preparation on November 8, 2026, no App Store submission has been sent. Apple sign-in, publishing the source, native screenshot execution/visual review, real-device validation, and complete reviewer access remain outstanding. Local validation does not establish that Apple will approve the app.

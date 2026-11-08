@@ -1,0 +1,69 @@
+name: Capture Academy App Store screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/academy-instructor-2-1]
+    paths:
+      - ios/**
+      - scripts/academy-store-screenshots.py
+      - .github/workflows/academy-store-assets.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: academy-store-assets
+  cancel-in-progress: false
+
+jobs:
+  screenshots:
+    runs-on: macos-26-intel
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Select Xcode
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+      - name: Generate the project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec ios/project.yml
+      - name: Choose an iPhone screenshot size
+        run: |
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          devices = [item for items in json.loads((Path(os.environ['RUNNER_TEMP']) / 'devices.json').read_text())['devices'].values() for item in items]
+          chosen = next((item for name in ['iPhone 17 Pro', 'iPhone 16 Pro', 'iPhone 15 Pro', 'iPhone 16', 'iPhone 15'] for item in devices if item['name'] == name), None)
+          if not chosen:
+              raise SystemExit('A supported medium Dynamic Island iPhone simulator is required')
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('SIMULATOR_ID=' + chosen['udid'] + '\n')
+          print('Using', chosen['name'])
+          PY
+      - name: Capture the real academy demo
+        run: |
+          set -euo pipefail
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          xcrun simctl status_bar "$SIMULATOR_ID" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+          xcodebuild -project ios/BiotechSignal.xcodeproj -scheme AcademyStoreScreenshots \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -resultBundlePath "$RUNNER_TEMP/AcademyScreenshots.xcresult" \
+            CODE_SIGNING_ALLOWED=NO test
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/AcademyScreenshots.xcresult" --output-path "$RUNNER_TEMP/academy-attachments"
+          python3 scripts/academy-store-screenshots.py "$RUNNER_TEMP/academy-attachments" "$RUNNER_TEMP/academy-store-screenshots"
+      - name: Save screenshots for visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: academy-store-screenshots
+          path: ${{ runner.temp }}/academy-store-screenshots
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save native test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: academy-screenshot-test-results
+          path: ${{ runner.temp }}/AcademyScreenshots.xcresult
+          retention-days: 7

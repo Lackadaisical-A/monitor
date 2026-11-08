@@ -1,0 +1,17 @@
+{
+  "appId": "6803988538",
+  "version": "2.1",
+  "locale": "en-US",
+  "name": "Flight & Aerospace Academy",
+  "subtitle": "Skills, projects and progress",
+  "primaryCategory": "EDUCATION",
+  "secondaryCategory": "PRODUCTIVITY",
+  "promotionalText": "Give every lesson a clear next step. Track practical skills, document class accomplishments, and keep your academy's teaching team connected.",
+  "description": "Flight & Aerospace Academy brings the teaching day together: practical skills, student progress, projects, class logbooks, and instructor hours.\n\nBUILT FOR THE ACADEMY\nOrganize flight, drone, and engineering learning around clear checkpoints. Explore Onshape lessons, record demonstrations and observations, and follow each student's next steps.\n\nKEEP PROJECTS MOVING\nTrack goals, homework, materials, design documents, and the next task for each team. Keep planning and progress in one instructor workspace.\n\nMAKE ACCOMPLISHMENTS VISIBLE\nWrite dated class updates, photograph student work, and record what comes next. Approved instructors can share selected updates with families through private, revocable links for individual students.\n\nRECORD YOUR TEACHING HOURS\nSign in with your individual instructor code or linked NFC card. Start your shift near the academy entrance at 118 Ferry Street, Jersey City, then clock out from anywhere with an internet connection. Review weekly hours; administrators can export timesheets and correct missed entries with a recorded reason. Location is checked only when requested, with no background tracking.\n\nEXPLORE BEFORE SIGNING IN\nThe sample workspace contains fictional students and learning records. Real academy rosters, shared updates, and staff hours require approved instructor access. Teaching records support offline work and sync when connected; clock-in and clock-out require an internet connection. NFC features require a compatible physical iPhone and tag.\n\nDesigned for Flight & Aerospace Academy instructors. Parents open shared updates in their browser; students do not need an app account. The app has no in-app purchases or subscriptions.\n\nPrivacy: https://catalyst-watch.onrender.com/academy-privacy.html\nSupport: https://catalyst-watch.onrender.com/academy-support.html",
+  "keywords": "aviation,aerospace,engineering,instructor,curriculum,skills,logbook,Onshape,drone,education",
+  "marketingUrl": "https://flightaerospace.academy/",
+  "supportUrl": "https://catalyst-watch.onrender.com/academy-support.html",
+  "privacyPolicyUrl": "https://catalyst-watch.onrender.com/academy-privacy.html",
+  "whatsNew": "Rebuilt for Flight & Aerospace Academy: practical skills and Onshape lessons, student progress, team projects, dated class logbooks with photos, private family updates, and location-checked instructor hours.",
+  "copyright": "2026 FAA TC LLC, dba FlightAerospaceAcademy"
+}

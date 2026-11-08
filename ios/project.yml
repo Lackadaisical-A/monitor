@@ -78,7 +78,26 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  AcademyScreenshotTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: AcademyScreenshotTests
+    dependencies:
+      - target: BiotechSignal
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
+  AcademyStoreScreenshots:
+    build:
+      targets:
+        BiotechSignal: all
+        AcademyScreenshotTests: [test]
+    test:
+      config: Debug
+      targets:
+        - AcademyScreenshotTests
   BiotechSignal:
     build:
       targets:
